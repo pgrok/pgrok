@@ -6,7 +6,6 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"encoding/pem"
-	"fmt"
 	"io"
 	"net"
 	"os"
@@ -99,12 +98,10 @@ func Start(logger log.Logger, port int) error {
 				"clientVersion", string(serverConn.ClientVersion()),
 			)
 
-			fmt.Println("token", serverConn.Permissions.Extensions["token"]) // todo delete me
-
 			// The incoming channels and requests must be serviced.
 			go func() {
 				for newChan := range chans {
-					fmt.Println("newChan", newChan.ChannelType())
+					logger.Debug("Discarded channel", "type", newChan.ChannelType())
 				}
 			}()
 
