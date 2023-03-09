@@ -109,16 +109,17 @@ func Start(logger log.Logger, port int) error {
 			}()
 
 			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
 			for req := range reqs {
 				switch req.Type {
 				case "tcpip-forward":
 					go handleTCPIPForward(ctx, cancel, logger, serverConn, req)
 				case "cancel-tcpip-forward":
-					go func() {
+					go func(req *ssh.Request) {
 						logger.Debug("Forward cancel request", "remote", serverConn.RemoteAddr())
 						cancel()
 						_ = req.Reply(true, nil)
-					}()
+					}(req)
 				default:
 					if req.WantReply {
 						_ = req.Reply(false, nil)
