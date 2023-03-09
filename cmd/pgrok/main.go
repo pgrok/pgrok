@@ -1,25 +1,31 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"flag"
 	"io"
 	"net"
+	"net/http"
+	"time"
 
 	"github.com/charmbracelet/log"
 	"golang.org/x/crypto/ssh"
 )
 
 func main() {
-	sshdAddr := flag.String("sshd-addr", "127.0.0.1:2222", "the remote SSH server address")
+	remoteAddr := flag.String("remote-addr", "127.0.0.1:2222", "the remote SSH server address")
 	forwardAddr := flag.String("forward-addr", "127.0.0.1:2830", "the local forward address")
 	flag.Parse()
 
 	log.SetLevel(log.DebugLevel)
 
+	// TODO: Backoff and retry when server is not available
+
 	client, err := ssh.Dial(
 		"tcp",
-		*sshdAddr,
+		*remoteAddr,
 		&ssh.ClientConfig{
 			User: "pgrok",
 			Auth: []ssh.AuthMethod{
@@ -32,14 +38,12 @@ func main() {
 		log.Fatal("Failed to dial remote server", "error", err)
 	}
 
-	// todo retry
-
 	remoteListener, err := client.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		log.Fatal("Failed to open port on remote connection", "error", err)
 	}
 	defer func() { _ = remoteListener.Close() }()
-	log.Info("Tunneling connection established", "remote", *sshdAddr)
+	log.Info("Tunneling connection established", "remote", *remoteAddr)
 
 	for {
 		remote, err := remoteListener.Accept()
@@ -61,16 +65,75 @@ func main() {
 				log.Debug("Forwarding connection closed", "remote", remote.RemoteAddr())
 			}()
 
+			started := time.Now()
+			var reqBuf, respBuf bytes.Buffer
 			ctx, done := context.WithCancel(context.Background())
 			go func() {
-				_, _ = io.Copy(remote, forward)
+				w := io.MultiWriter(&headerWriter{W: &reqBuf}, forward)
+				_, _ = io.Copy(w, remote)
 				done()
 			}()
 			go func() {
-				_, _ = io.Copy(forward, remote)
+				w := io.MultiWriter(&headerWriter{W: &respBuf}, remote)
+				_, _ = io.Copy(w, forward)
 				done()
 			}()
 			<-ctx.Done()
+
+			req, err := http.ReadRequest(bufio.NewReader(&reqBuf))
+			if err != nil {
+				log.Error("Failed to read request",
+					"remote", remote.RemoteAddr(),
+					"error", err,
+				)
+				return
+			}
+			resp, err := http.ReadResponse(bufio.NewReader(&respBuf), req)
+			if err != nil {
+				log.Error("Failed to read response",
+					"remote", remote.RemoteAddr(),
+					"error", err,
+				)
+				return
+			}
+			log.Info("Forwarded request",
+				"remote", remote.RemoteAddr(),
+				"path", req.URL.Path,
+				"status", resp.StatusCode,
+				"duration", time.Since(started),
+			)
 		}()
 	}
+}
+
+// A headerWriter writes to W until the request/response header has been
+// written.
+type headerWriter struct {
+	W    io.Writer
+	done bool
+}
+
+func (w *headerWriter) Write(p []byte) (int, error) {
+	if w.done {
+		return len(p), nil
+	}
+
+	r := false
+	lines := 0
+	for i := range p {
+		if p[i] == '\r' {
+			r = true
+		} else if r && p[i] == '\n' {
+			lines++
+		} else {
+			r = false
+			lines = 0
+		}
+
+		if lines >= 2 {
+			w.done = true
+			break
+		}
+	}
+	return w.W.Write(p)
 }

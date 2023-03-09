@@ -108,12 +108,17 @@ func Start(logger log.Logger, port int) error {
 				}
 			}()
 
+			ctx, cancel := context.WithCancel(context.Background())
 			for req := range reqs {
 				switch req.Type {
 				case "tcpip-forward":
-					go handleTCPIPForward(logger, serverConn, req)
+					go handleTCPIPForward(ctx, cancel, logger, serverConn, req)
 				case "cancel-tcpip-forward":
-					go handleCancelTCPIPForward(logger, req)
+					go func() {
+						logger.Debug("Forward cancel request", "remote", serverConn.RemoteAddr())
+						cancel()
+						_ = req.Reply(true, nil)
+					}()
 				default:
 					if req.WantReply {
 						_ = req.Reply(false, nil)
@@ -124,7 +129,7 @@ func Start(logger log.Logger, port int) error {
 	}
 }
 
-func handleTCPIPForward(logger log.Logger, serverConn *ssh.ServerConn, req *ssh.Request) {
+func handleTCPIPForward(ctx context.Context, cancel context.CancelFunc, logger log.Logger, serverConn *ssh.ServerConn, req *ssh.Request) {
 	// RFC 4254 7.1, https://www.rfc-editor.org/rfc/rfc4254#section-7.1
 	var forwardRequest struct {
 		Addr  string
@@ -139,10 +144,12 @@ func handleTCPIPForward(logger log.Logger, serverConn *ssh.ServerConn, req *ssh.
 		_ = req.Reply(false, nil)
 		return
 	}
+	if forwardRequest.Rport != 0 {
+		_ = req.Reply(false, nil)
+		return
+	}
 
-	// todo: do not allow client to specify port, i.e. must be 0
-	forwardRequest.Rport = 7777
-	address := "127.0.0.1:" + strconv.Itoa(int(forwardRequest.Rport))
+	address := "127.0.0.1:7777" // TODO: Make a random available port
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
 		logger.Error("Failed to listen on reverse tunnel address",
@@ -168,7 +175,7 @@ func handleTCPIPForward(logger log.Logger, serverConn *ssh.ServerConn, req *ssh.
 	type forwardResponse struct {
 		Port uint32
 	}
-	payload := &forwardResponse{Port: 7777} // todo make a random available port
+	payload := &forwardResponse{Port: 7777} // TODO: Make a random available port
 	_ = req.Reply(true, ssh.Marshal(payload))
 
 	go func() {
@@ -205,8 +212,8 @@ func handleTCPIPForward(logger log.Logger, serverConn *ssh.ServerConn, req *ssh.
 					OriginPort uint32
 				}
 				payload := &forwardedPayload{
-					Addr:       forwardRequest.Addr,
-					Port:       forwardRequest.Rport,
+					Addr:       "127.0.0.1",
+					Port:       payload.Port,
 					OriginAddr: host,
 					OriginPort: uint32(port),
 				}
@@ -222,7 +229,7 @@ func handleTCPIPForward(logger log.Logger, serverConn *ssh.ServerConn, req *ssh.
 				defer func() { _ = stream.Close() }()
 				go ssh.DiscardRequests(reqs)
 
-				ctx, done := context.WithCancel(context.Background())
+				streamCtx, done := context.WithCancel(ctx)
 				go func() {
 					_, _ = io.Copy(stream, conn)
 					done()
@@ -231,16 +238,16 @@ func handleTCPIPForward(logger log.Logger, serverConn *ssh.ServerConn, req *ssh.
 					_, _ = io.Copy(conn, stream)
 					done()
 				}()
-				<-ctx.Done()
+				<-streamCtx.Done()
 			}()
 		}
 	}()
-	_ = serverConn.Wait()
-}
+	go func() {
+		_ = serverConn.Wait()
+		cancel()
+	}()
 
-func handleCancelTCPIPForward(logger log.Logger, req *ssh.Request) {
-	_ = req.Reply(true, nil)
-	// todo
+	<-ctx.Done()
 }
 
 func newEd25519PEM() ([]byte, error) {

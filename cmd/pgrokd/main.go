@@ -34,7 +34,7 @@ func main() {
 
 	reverseProxy := &httputil.ReverseProxy{
 		Director: func(req *http.Request) {
-			// todo get port based on host
+			// TODO get port based on host
 			req.URL.Scheme = "http"
 			req.URL.Host = "localhost:7777"
 		},
