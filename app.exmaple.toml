@@ -1,0 +1,16 @@
+external_url = "http://localhost:3320"
+
+[database]
+host = "localhost"
+port = 5432
+user = "REDACTED"
+password = "REDACTED"
+database = "pgrok"
+
+[identity_provider]
+type = "oidc"
+display_name = "Google"
+issuer = "https://accounts.google.com"
+client_id = "REDACTED"
+client_secret = "REDACTED"
+field_mapping = { identifier = "email", display_name = "name", email = "email" }

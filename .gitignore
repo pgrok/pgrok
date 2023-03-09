@@ -12,10 +12,13 @@
 /coverage
 *.out
 
+# Application data
+app.toml
+/data
+
 # Dependency directories (remove the comment below to include it)
 # vendor/
 /.idea
 .DS_Store
 
-# Application data
-/data
+.envrc

@@ -212,7 +212,7 @@ func handleTCPIPForward(
 	type forwardResponse struct {
 		Port uint32
 	}
-	payload := &forwardResponse{Port: 7777} // TODO: Make a random available port
+	payload := &forwardResponse{Port: uint32(port)}
 	_ = req.Reply(true, ssh.Marshal(payload))
 
 	go func() {
