@@ -18,13 +18,14 @@ import (
 func main() {
 	remoteAddr := flag.String("remote-addr", "127.0.0.1:2222", "the remote SSH server address")
 	forwardAddr := flag.String("forward-addr", "127.0.0.1:2830", "the local forward address")
+	token := flag.String("token", "token", "the token to authenticate with the server")
 	flag.Parse()
 
 	log.SetLevel(log.DebugLevel)
 
 	backoff := 3 * time.Second
 	for {
-		err := tryConnect(*remoteAddr, *forwardAddr)
+		err := tryConnect(*remoteAddr, *forwardAddr, *token)
 		if err != nil {
 			log.Error("Failed to connect to server, will reconnect in "+backoff.String(), "error", err.Error())
 		}
@@ -32,14 +33,14 @@ func main() {
 	}
 }
 
-func tryConnect(remoteAddr, forwardAddr string) error {
+func tryConnect(remoteAddr, forwardAddr, token string) error {
 	client, err := ssh.Dial(
 		"tcp",
 		remoteAddr,
 		&ssh.ClientConfig{
 			User: "pgrok",
 			Auth: []ssh.AuthMethod{
-				ssh.Password("token"),
+				ssh.Password(token),
 			},
 			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 		},
@@ -63,6 +64,7 @@ func tryConnect(remoteAddr, forwardAddr string) error {
 
 		forward, err := net.Dial("tcp", forwardAddr)
 		if err != nil {
+			_ = remote.Close()
 			log.Error("Failed to dial local forward", "error", err)
 			continue
 		}

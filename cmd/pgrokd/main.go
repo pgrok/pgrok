@@ -3,11 +3,11 @@ package main
 import (
 	"flag"
 	"net/http"
-	"net/http/httputil"
 
 	"github.com/charmbracelet/log"
 	"github.com/flamego/flamego"
 
+	"github.com/pgrok/pgrok/internal/reverseproxy"
 	"github.com/pgrok/pgrok/internal/sshd"
 )
 
@@ -18,6 +18,7 @@ func main() {
 
 	log.SetLevel(log.DebugLevel)
 
+	proxies := reverseproxy.NewCluster()
 	go func() {
 		err := sshd.Start(
 			log.New(
@@ -26,21 +27,25 @@ func main() {
 				log.WithPrefix("sshd"),
 				log.WithLevel(log.DebugLevel),
 			),
-			*sshdPort)
+			*sshdPort,
+			func(host, forward string) { proxies.Set(host, forward) },
+			func(host string) { proxies.Remove(host) },
+		)
 		if err != nil {
 			log.Fatal("Failed to start SSH server", "error", err)
 		}
 	}()
 
-	reverseProxy := &httputil.ReverseProxy{
-		Director: func(req *http.Request) {
-			// TODO get port based on host
-			req.URL.Scheme = "http"
-			req.URL.Host = "localhost:7777"
-		},
-	}
 	f := flamego.New()
-	f.Any("/{**}", reverseProxy.ServeHTTP)
+	f.Any("/{**}", func(w http.ResponseWriter, r *http.Request) {
+		proxy, ok := proxies.Get(r.Host)
+		if !ok {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = w.Write([]byte("No reverse proxy is available for the host: " + r.Host))
+			return
+		}
+		proxy.ServeHTTP(w, r)
+	})
 
 	log.Info("Web server listening on "+*listenAddr,
 		"env", flamego.Env(),
