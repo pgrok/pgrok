@@ -6,12 +6,15 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"encoding/pem"
+	"fmt"
 	"io"
+	mathrand "math/rand"
 	"net"
 	"os"
 	"path/filepath"
 	"strconv"
 	"syscall"
+	"time"
 
 	"github.com/charmbracelet/log"
 	"github.com/pkg/errors"
@@ -21,7 +24,12 @@ import (
 )
 
 // Start starts a SSH server listening on the given port.
-func Start(logger log.Logger, port int) error {
+func Start(
+	logger log.Logger,
+	port int,
+	newProxy func(token, forward string),
+	removeProxy func(host string),
+) error {
 	config := &ssh.ServerConfig{
 		PasswordCallback: func(conn ssh.ConnMetadata, token []byte) (*ssh.Permissions, error) {
 			// TODO: Validate token and get the principal
@@ -110,7 +118,21 @@ func Start(logger log.Logger, port int) error {
 			for req := range reqs {
 				switch req.Type {
 				case "tcpip-forward":
-					go handleTCPIPForward(ctx, cancel, logger, serverConn, req)
+					go handleTCPIPForward(
+						ctx,
+						cancel,
+						logger,
+						serverConn,
+						req,
+						func(forward string) {
+							// TODO: Use token to get the real host
+							newProxy(serverConn.Permissions.Extensions["token"], forward)
+						},
+						func() {
+							// TODO: Use token to get the real host
+							removeProxy(serverConn.Permissions.Extensions["token"])
+						},
+					)
 				case "cancel-tcpip-forward":
 					go func(req *ssh.Request) {
 						logger.Debug("Forward cancel request", "remote", serverConn.RemoteAddr())
@@ -127,7 +149,15 @@ func Start(logger log.Logger, port int) error {
 	}
 }
 
-func handleTCPIPForward(ctx context.Context, cancel context.CancelFunc, logger log.Logger, serverConn *ssh.ServerConn, req *ssh.Request) {
+func handleTCPIPForward(
+	ctx context.Context,
+	cancel context.CancelFunc,
+	logger log.Logger,
+	serverConn *ssh.ServerConn,
+	req *ssh.Request,
+	newProxy func(forward string),
+	removeProxy func(),
+) {
 	// RFC 4254 7.1, https://www.rfc-editor.org/rfc/rfc4254#section-7.1
 	var forwardRequest struct {
 		Addr  string
@@ -135,7 +165,7 @@ func handleTCPIPForward(ctx context.Context, cancel context.CancelFunc, logger l
 	}
 	err := ssh.Unmarshal(req.Payload, &forwardRequest)
 	if err != nil {
-		logger.Error("Unmarshal forward payload",
+		logger.Error("Failed to unmarshal forward payload",
 			"remote", serverConn.RemoteAddr(),
 			"error", err,
 		)
@@ -147,7 +177,16 @@ func handleTCPIPForward(ctx context.Context, cancel context.CancelFunc, logger l
 		return
 	}
 
-	address := "127.0.0.1:7777" // TODO: Make a random available port
+	port, err := findAvailablePort()
+	if err != nil {
+		_ = req.Reply(false, nil)
+		logger.Error("Failed to find available port",
+			"remote", serverConn.RemoteAddr(),
+			"error", err,
+		)
+		return
+	}
+	address := fmt.Sprintf("127.0.0.1:%d", port)
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
 		logger.Error("Failed to listen on reverse tunnel address",
@@ -245,7 +284,9 @@ func handleTCPIPForward(ctx context.Context, cancel context.CancelFunc, logger l
 		cancel()
 	}()
 
+	newProxy(address)
 	<-ctx.Done()
+	removeProxy()
 }
 
 func newEd25519PEM() ([]byte, error) {
@@ -265,4 +306,18 @@ func newEd25519PEM() ([]byte, error) {
 			Bytes: data,
 		},
 	), nil
+}
+
+func findAvailablePort() (int, error) {
+	r := mathrand.New(mathrand.NewSource(time.Now().UnixNano()))
+	for i := 0; i < 100; i++ {
+		port := r.Intn(10000) + 20000
+		address := fmt.Sprintf(":%d", port)
+		listener, err := net.Listen("tcp", address)
+		if err == nil {
+			_ = listener.Close()
+			return port, nil
+		}
+	}
+	return 0, errors.New("no luck after 100 iterations")
 }
