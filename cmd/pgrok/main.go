@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
+	"github.com/pkg/errors"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -21,11 +22,20 @@ func main() {
 
 	log.SetLevel(log.DebugLevel)
 
-	// TODO: Backoff and retry when server is not available
+	backoff := 3 * time.Second
+	for {
+		err := tryConnect(*remoteAddr, *forwardAddr)
+		if err != nil {
+			log.Error("Failed to connect to server, will reconnect in "+backoff.String(), "error", err.Error())
+		}
+		time.Sleep(3 * time.Second)
+	}
+}
 
+func tryConnect(remoteAddr, forwardAddr string) error {
 	client, err := ssh.Dial(
 		"tcp",
-		*remoteAddr,
+		remoteAddr,
 		&ssh.ClientConfig{
 			User: "pgrok",
 			Auth: []ssh.AuthMethod{
@@ -35,7 +45,7 @@ func main() {
 		},
 	)
 	if err != nil {
-		log.Fatal("Failed to dial remote server", "error", err)
+		return errors.Wrap(err, "dial remote server")
 	}
 
 	remoteListener, err := client.Listen("tcp", "127.0.0.1:0")
@@ -43,15 +53,15 @@ func main() {
 		log.Fatal("Failed to open port on remote connection", "error", err)
 	}
 	defer func() { _ = remoteListener.Close() }()
-	log.Info("Tunneling connection established", "remote", *remoteAddr)
+	log.Info("Tunneling connection established", "remote", remoteAddr)
 
 	for {
 		remote, err := remoteListener.Accept()
 		if err != nil {
-			log.Fatal("Failed to accept connection from server", "error", err)
+			return errors.Wrap(err, "accept connection from server")
 		}
 
-		forward, err := net.Dial("tcp", *forwardAddr)
+		forward, err := net.Dial("tcp", forwardAddr)
 		if err != nil {
 			log.Error("Failed to dial local forward", "error", err)
 			continue
@@ -67,6 +77,7 @@ func main() {
 
 			started := time.Now()
 			var reqBuf, respBuf bytes.Buffer
+
 			ctx, done := context.WithCancel(context.Background())
 			go func() {
 				w := io.MultiWriter(&headerWriter{W: &reqBuf}, forward)
