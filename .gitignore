@@ -16,3 +16,6 @@
 # vendor/
 /.idea
 .DS_Store
+
+# Application data
+/data
