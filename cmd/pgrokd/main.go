@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"net/http"
 
 	"github.com/charmbracelet/log"
@@ -39,7 +38,6 @@ func main() {
 
 	f := flamego.New()
 	f.Any("/{**}", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Println("Host:", r.Host)
 		proxy, ok := proxies.Get(r.Host)
 		if !ok {
 			w.WriteHeader(http.StatusServiceUnavailable)
