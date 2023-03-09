@@ -1,0 +1,7 @@
+<p>
+  {{if .DisplayName}}
+    Please sign in with <a href="/-/oidc/auth">{{.DisplayName}}</a>.
+  {{else}}
+    Please ask your admin to configure an identity provider.
+  {{end}}
+</p>
