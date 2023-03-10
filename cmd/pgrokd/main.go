@@ -28,7 +28,13 @@ import (
 	"github.com/pgrok/pgrok/templates"
 )
 
+var version = "0.0.0+dev"
+
 func main() {
+	if !strings.Contains(version, "+dev") {
+		flamego.SetEnv(flamego.EnvTypeProd)
+	}
+
 	configPath := flag.String("config", "pgrokd.yml", "the path to the config file")
 	flag.Parse()
 

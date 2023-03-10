@@ -1,0 +1,32 @@
+# Docs: https://goreleaser.com
+builds:
+  - main: ./cmd/pgrok
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+archives:
+  - format: tar.gz
+    wrap_in_directory: false
+    # this name template makes the OS and Arch compatible with the results of uname.
+    name_template: >-
+      pgrok_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    # use zip for windows archives
+    format_overrides:
+    - goos: windows
+      format: zip
+checksum:
+  name_template: 'checksums.pgrok.txt'
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
