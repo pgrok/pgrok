@@ -1,14 +1,24 @@
+# The external facing URL what will appear in the browser address bar.
 external_url: "http://localhost:3320"
 
+# Settings for the web server.
 web:
+  # The listening port of the web server.
   port: 3320
+# Settings for the proxy server.
 proxy:
+  # The listening port of the proxy server.
   port: 3000
+  # The scheme of the proxy URLs. Set "https" only if you have configured Wildcard SSL.
   scheme: "http"
+  # The domain name of the proxy URLs.
   domain: "localhost:3000"
+# Settings for the SSH server.
 sshd:
+  # The listening port of the SSH server.
   port: 2222
 
+# Settings for the database.
 database:
   host: "localhost"
   port: 5432
@@ -16,7 +26,9 @@ database:
   password: "REDACTED"
   database: "pgrok"
 
+# Settings for the identity provider.
 identity_provider:
+  # The type of the identity provider, only "oidc" is supported for now.
   type: "oidc"
   display_name: "Google"
   issuer: "https://accounts.google.com"
@@ -26,4 +38,5 @@ identity_provider:
     identifier: "email"
     display_name: "name"
     email: "email"
-#  required_domain: "REDACTED"
+#  # The required domain name, "field_mapping.email" is required to set for this to work.
+#  required_domain: "example.com"
