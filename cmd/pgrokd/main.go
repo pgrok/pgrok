@@ -24,6 +24,7 @@ import (
 	"github.com/pgrok/pgrok/internal/sshd"
 	"github.com/pgrok/pgrok/internal/strutil"
 	"github.com/pgrok/pgrok/internal/userutil"
+	"github.com/pgrok/pgrok/templates"
 )
 
 func main() {
@@ -134,7 +135,20 @@ func startWebServer(config *conf.Config, db *database.DB) {
 			},
 		},
 	))
-	f.Use(template.Templater())
+
+	if flamego.Env() == flamego.EnvTypeProd {
+		fs, err := template.EmbedFS(templates.Templates, ".", []string{".tmpl"})
+		if err != nil {
+			log.Fatal("Failed to load embedded templates", "error", err.Error())
+		}
+		f.Use(template.Templater(
+			template.Options{
+				FileSystem: fs,
+			},
+		))
+	} else {
+		f.Use(template.Templater())
+	}
 
 	f.Group("/-", func() {
 		f.Get("/sign-in", func(t template.Template, data template.Data) {
