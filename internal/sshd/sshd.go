@@ -27,13 +27,17 @@ import (
 func Start(
 	logger log.Logger,
 	port int,
-	newProxy func(token, forward string),
+	getHostByToken func(token string) (host string, _ error),
+	newProxy func(host, forward string),
 	removeProxy func(host string),
 ) error {
 	config := &ssh.ServerConfig{
 		PasswordCallback: func(conn ssh.ConnMetadata, token []byte) (*ssh.Permissions, error) {
-			// TODO: Validate token and get the principal
-			return &ssh.Permissions{Extensions: map[string]string{"token": string(token)}}, nil
+			host, err := getHostByToken(string(token))
+			if err != nil {
+				return nil, err
+			}
+			return &ssh.Permissions{Extensions: map[string]string{"host": host}}, nil
 		},
 	}
 
@@ -124,14 +128,8 @@ func Start(
 						logger,
 						serverConn,
 						req,
-						func(forward string) {
-							// TODO: Use token to get the real host
-							newProxy(serverConn.Permissions.Extensions["token"], forward)
-						},
-						func() {
-							// TODO: Use token to get the real host
-							removeProxy(serverConn.Permissions.Extensions["token"])
-						},
+						func(forward string) { newProxy(serverConn.Permissions.Extensions["host"], forward) },
+						func() { removeProxy(serverConn.Permissions.Extensions["host"]) },
 					)
 				case "cancel-tcpip-forward":
 					go func(req *ssh.Request) {

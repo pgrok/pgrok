@@ -2,13 +2,11 @@ package main
 
 import (
 	"context"
-	"encoding/gob"
 	"flag"
 	"fmt"
 	"net/http"
 	"net/url"
 	"os"
-	"strings"
 
 	"github.com/charmbracelet/log"
 	"github.com/coreos/go-oidc"
@@ -16,21 +14,19 @@ import (
 	"github.com/flamego/session"
 	"github.com/flamego/session/postgres"
 	"github.com/flamego/template"
-	"github.com/pelletier/go-toml/v2"
 	"github.com/pkg/errors"
-	"github.com/puzpuzpuz/xsync/v2"
 	"golang.org/x/oauth2"
 
+	"github.com/pgrok/pgrok/internal/conf"
 	"github.com/pgrok/pgrok/internal/cryptoutil"
+	"github.com/pgrok/pgrok/internal/database"
 	"github.com/pgrok/pgrok/internal/reverseproxy"
 	"github.com/pgrok/pgrok/internal/sshd"
 	"github.com/pgrok/pgrok/internal/strutil"
+	"github.com/pgrok/pgrok/internal/userutil"
 )
 
 func main() {
-	listenAddr := flag.String("listen-addr", "0.0.0.0:3320", "the web server listen address")
-	proxyAddr := flag.String("proxy-addr", "0.0.0.0:3000", "the proxy server listen address")
-	sshdPort := flag.Int("sshd-port", 2222, "the port number of the SSH server")
 	configPath := flag.String("config", "app.toml", "the path to the config file")
 	flag.Parse()
 
@@ -39,7 +35,7 @@ func main() {
 	}
 	log.SetTimeFormat("2006-01-02 15:04:05")
 
-	config, err := loadConfig(*configPath)
+	config, err := conf.Load(*configPath)
 	if err != nil {
 		log.Fatal("Failed to load config",
 			"config", *configPath,
@@ -47,87 +43,51 @@ func main() {
 		)
 	}
 
-	tokenToHost := xsync.NewMap()
+	db, err := database.New(os.Stdout, config.Database)
+	if err != nil {
+		log.Fatal("Failed to connect to database", "error", err.Error())
+	}
+
 	proxies := reverseproxy.NewCluster()
-	go startSSHServer(*sshdPort, tokenToHost, proxies)
-	go startProxyServer(*proxyAddr, proxies)
-	go startWebServer(*listenAddr, config, tokenToHost)
+	go startSSHServer(config.SSHD.Port, config.Proxy.Domain, db, proxies)
+	go startProxyServer(config.Proxy.Port, proxies)
+	go startWebServer(config, db)
 
 	select {}
 }
 
-type Config struct {
-	ExternalURL string `toml:"external_url"`
-	Database    struct {
-		Host     string `toml:"host"`
-		Port     int    `toml:"port"`
-		User     string `toml:"user"`
-		Password string `toml:"password"`
-		Database string `toml:"database"`
-	} `toml:"database"`
-	IdentityProvider *ConfigIdentityProvider `toml:"identity_provider"`
-}
-
-type ConfigIdentityProvider struct {
-	Type         string `toml:"type"`
-	DisplayName  string `toml:"display_name"`
-	Issuer       string `toml:"issuer"`
-	ClientID     string `toml:"client_id"`
-	ClientSecret string `toml:"client_secret"`
-	FieldMapping struct {
-		Identifier  string `toml:"identifier"`
-		DisplayName string `toml:"display_name"`
-		Email       string `toml:"email"`
-	} `toml:"field_mapping"`
-}
-
-func loadConfig(configPath string) (*Config, error) {
-	p, err := os.ReadFile(configPath)
-	if err != nil {
-		return nil, errors.Wrap(err, "read file")
-	}
-
-	var config Config
-	err = toml.Unmarshal(p, &config)
-	if err != nil {
-		return nil, errors.Wrap(err, "unmarshal")
-	}
-
-	config.ExternalURL = strings.TrimSuffix(config.ExternalURL, "/")
-	return &config, nil
-}
-
-func startSSHServer(sshdPort int, tokenToHost *xsync.Map, proxies *reverseproxy.Cluster) {
+func startSSHServer(sshdPort int, proxyDomain string, db *database.DB, proxies *reverseproxy.Cluster) {
 	logger := log.New(
 		log.WithTimestamp(),
 		log.WithTimeFormat("2006-01-02 15:04:05"),
 		log.WithPrefix("sshd"),
-		log.WithLevel(log.DebugLevel),
+		log.WithLevel(log.GetLevel()),
 	)
 
 	err := sshd.Start(
 		logger,
 		sshdPort,
-		func(token, forward string) {
-			host, _ := tokenToHost.Load(token)
-			proxies.Set(host.(string), forward)
+		func(token string) (host string, _ error) {
+			principle, err := db.GetPrincipleByToken(context.Background(), token)
+			if err != nil {
+				return "", err
+			}
+			return principle.Subdomain + "." + proxyDomain, nil
 		},
-		func(token string) {
-			host, _ := tokenToHost.Load(token)
-			proxies.Remove(host.(string))
-		},
+		func(host, forward string) { proxies.Set(host, forward) },
+		func(host string) { proxies.Remove(host) },
 	)
 	if err != nil {
 		logger.Fatal("Failed to start server", "error", err)
 	}
 }
 
-func startProxyServer(proxyAddr string, proxies *reverseproxy.Cluster) {
+func startProxyServer(port int, proxies *reverseproxy.Cluster) {
 	logger := log.New(
 		log.WithTimestamp(),
 		log.WithTimeFormat("2006-01-02 15:04:05"),
 		log.WithPrefix("proxy"),
-		log.WithLevel(log.DebugLevel),
+		log.WithLevel(log.GetLevel()),
 	)
 
 	f := flamego.New()
@@ -135,21 +95,22 @@ func startProxyServer(proxyAddr string, proxies *reverseproxy.Cluster) {
 	f.Any("/{**}", func(w http.ResponseWriter, r *http.Request) {
 		proxy, ok := proxies.Get(r.Host)
 		if !ok {
-			w.WriteHeader(http.StatusServiceUnavailable)
+			w.WriteHeader(http.StatusBadGateway)
 			_, _ = w.Write([]byte("No reverse proxy is available for the host: " + r.Host))
 			return
 		}
 		proxy.ServeHTTP(w, r)
 	})
 
-	logger.Info("Server listening on", "address", proxyAddr)
-	err := http.ListenAndServe(proxyAddr, f)
+	address := fmt.Sprintf("0.0.0.0:%d", port)
+	logger.Info("Server listening on", "address", address)
+	err := http.ListenAndServe(address, f)
 	if err != nil {
 		logger.Fatal("Failed to start server", "error", err)
 	}
 }
 
-func startWebServer(listenAddr string, config *Config, tokenToHost *xsync.Map) {
+func startWebServer(config *conf.Config, db *database.DB) {
 	f := flamego.New()
 	f.Use(flamego.Logger())
 	f.Use(flamego.Recovery())
@@ -158,7 +119,7 @@ func startWebServer(listenAddr string, config *Config, tokenToHost *xsync.Map) {
 		session.Options{
 			Initer: postgres.Initer(),
 			Config: postgres.Config{
-				DSN: fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable",
+				DSN: fmt.Sprintf("postgres://%s:%s@%s:%d/%s",
 					config.Database.User,
 					config.Database.Password,
 					config.Database.Host,
@@ -183,7 +144,6 @@ func startWebServer(listenAddr string, config *Config, tokenToHost *xsync.Map) {
 			t.HTML(http.StatusOK, "sign-in")
 		})
 
-		gob.Register(UserInfo{}) // todo
 		f.Get("/oidc/auth", func(c flamego.Context, r flamego.Render, s session.Session) {
 			if config.IdentityProvider == nil {
 				r.PlainText(http.StatusBadRequest, "Sorry but ask your admin to configure an identity provider first")
@@ -236,60 +196,74 @@ func startWebServer(listenAddr string, config *Config, tokenToHost *xsync.Map) {
 				r.PlainText(http.StatusInternalServerError, fmt.Sprintf("Failed to handle callback: %v", err))
 				return
 			}
-			s.Set("userID", int64(1))   // todo
-			s.Set("userInfo", userInfo) // todo
 
-			token := cryptoutil.SHA1(strutil.MustRandomChars(10))
-			s.Set("token", token)
+			subdomain, err := userutil.NormalizeIdentifier(userInfo.Identifier)
+			if err != nil {
+				r.PlainText(http.StatusBadRequest, fmt.Sprintf("Failed to normalize identifier: %v", err))
+				return
+			}
 
-			subdomain := strings.NewReplacer("@", "-", ".", "-").Replace(userInfo.Identifier)
-			tokenToHost.Store(token, subdomain+".localhost:3000")
+			principle, err := db.UpsertPrinciple(
+				c.Request().Context(),
+				database.UpsertPrincipleOptions{
+					Identifier:  userInfo.Identifier,
+					DisplayName: userInfo.DisplayName,
+					Token:       cryptoutil.SHA1(strutil.MustRandomChars(10)),
+					Subdomain:   subdomain,
+				},
+			)
+			if err != nil {
+				r.PlainText(http.StatusInternalServerError, fmt.Sprintf("Failed to upsert principle: %v", err))
+				return
+			}
+
+			s.Set("userID", principle.ID)
 			c.Redirect("/")
 		})
 	})
 
 	f.Group("/",
 		func() {
-			f.Get("", func(s session.Session, t template.Template, data template.Data) {
-				userInfo := s.Get("userInfo").(UserInfo)
-				data["DisplayName"] = userInfo.DisplayName
-
-				token := s.Get("token").(string)
-				data["Token"] = token
-
-				host, _ := tokenToHost.Load(token)
-				data["URL"] = "http://" + host.(string) // todo
+			f.Get("", func(c flamego.Context, s session.Session, t template.Template, data template.Data, principle *database.Principle) {
+				data["DisplayName"] = principle.DisplayName
+				data["Token"] = principle.Token
+				data["URL"] = config.Proxy.Scheme + "://" + principle.Subdomain + "." + config.Proxy.Domain
 				t.HTML(http.StatusOK, "home")
 			})
 		},
-		func(c flamego.Context, s session.Session) {
+		func(c flamego.Context, r flamego.Render, s session.Session) {
 			userID, ok := s.Get("userID").(int64)
 			if !ok || userID <= 0 {
 				c.Redirect("/-/sign-in")
 				return
 			}
 
-			// TODO: Get user by ID
+			principle, err := db.GetPrincipleByID(c.Request().Context(), userID)
+			if err != nil {
+				r.PlainText(http.StatusInternalServerError, fmt.Sprintf("Failed to get principle: %v", err))
+				return
+			}
+			c.Map(principle)
 		},
 	)
 
+	address := fmt.Sprintf("0.0.0.0:%d", config.Web.Port)
 	log.Info("Web server listening on",
-		"address", listenAddr,
+		"address", address,
 		"env", flamego.Env(),
 	)
-	err := http.ListenAndServe(listenAddr, f)
+	err := http.ListenAndServe(address, f)
 	if err != nil {
 		log.Fatal("Failed to start web server", "error", err)
 	}
 }
 
-type UserInfo struct {
+type idpUserInfo struct {
 	Identifier  string
 	DisplayName string
-	Email       string
 }
 
-func handleOIDCCallback(ctx context.Context, idp *ConfigIdentityProvider, redirectURL, code, nonce string) (*UserInfo, error) {
+func handleOIDCCallback(ctx context.Context, idp *conf.IdentityProvider, redirectURL, code, nonce string) (*idpUserInfo, error) {
 	p, err := oidc.NewProvider(ctx, idp.Issuer)
 	if err != nil {
 		return nil, errors.Wrap(err, "create new provider")
@@ -337,7 +311,7 @@ func handleOIDCCallback(ctx context.Context, idp *ConfigIdentityProvider, redire
 	}
 	log.Debug("User info", "claims", claims)
 
-	userInfo := &UserInfo{}
+	userInfo := &idpUserInfo{}
 	if v, ok := claims[idp.FieldMapping.Identifier].(string); ok {
 		userInfo.Identifier = v
 	}
@@ -353,11 +327,6 @@ func handleOIDCCallback(ctx context.Context, idp *ConfigIdentityProvider, redire
 	}
 	if userInfo.DisplayName == "" {
 		userInfo.DisplayName = userInfo.Identifier
-	}
-	if idp.FieldMapping.Email != "" {
-		if v, ok := claims[idp.FieldMapping.Email].(string); ok {
-			userInfo.Email = v
-		}
 	}
 	return userInfo, nil
 }

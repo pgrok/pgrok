@@ -22,3 +22,5 @@ app.toml
 .DS_Store
 
 .envrc
+.bin
+.task
