@@ -1,14 +1,11 @@
 package main
 
 import (
-	"bufio"
-	"bytes"
 	"context"
 	"flag"
 	"fmt"
 	"io"
 	"net"
-	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
 	"net/url"
@@ -42,6 +39,15 @@ func main() {
 	}
 
 	f := flamego.New()
+	f.Use(func(c flamego.Context) {
+		started := time.Now()
+		c.Next()
+		log.Info("Forwarded request",
+			"path", c.Request().URL.Path,
+			"status", c.ResponseWriter().Status(),
+			"duration", time.Since(started),
+		)
+	})
 	if config.DynamicForwards != "" {
 		rules := strings.Split(config.DynamicForwards, "\n")
 		for _, rule := range rules {
@@ -155,76 +161,16 @@ func tryConnect(remoteAddr, forwardAddr, token string) error {
 				log.Debug("Forwarding connection closed", "remote", remote.RemoteAddr())
 			}()
 
-			started := time.Now()
-			var reqBuf, respBuf bytes.Buffer
-
 			ctx, done := context.WithCancel(context.Background())
 			go func() {
-				w := io.MultiWriter(&headerWriter{W: &reqBuf}, forward)
-				_, _ = io.Copy(w, remote)
+				_, _ = io.Copy(forward, remote)
 				done()
 			}()
 			go func() {
-				w := io.MultiWriter(&headerWriter{W: &respBuf}, remote)
-				_, _ = io.Copy(w, forward)
+				_, _ = io.Copy(remote, forward)
 				done()
 			}()
 			<-ctx.Done()
-
-			req, err := http.ReadRequest(bufio.NewReader(&reqBuf))
-			if err != nil {
-				log.Error("Failed to read request",
-					"remote", remote.RemoteAddr(),
-					"error", err,
-				)
-				return
-			}
-			resp, err := http.ReadResponse(bufio.NewReader(&respBuf), req)
-			if err != nil {
-				log.Error("Failed to read response",
-					"remote", remote.RemoteAddr(),
-					"error", err,
-				)
-				return
-			}
-			log.Info("Forwarded request",
-				"remote", remote.RemoteAddr(),
-				"path", req.URL.Path,
-				"status", resp.StatusCode,
-				"duration", time.Since(started),
-			)
 		}()
 	}
-}
-
-// A headerWriter writes to W until the request/response header has been
-// written.
-type headerWriter struct {
-	W    io.Writer
-	done bool
-}
-
-func (w *headerWriter) Write(p []byte) (int, error) {
-	if w.done {
-		return len(p), nil
-	}
-
-	r := false
-	lines := 0
-	for i := range p {
-		if p[i] == '\r' {
-			r = true
-		} else if r && p[i] == '\n' {
-			lines++
-		} else {
-			r = false
-			lines = 0
-		}
-
-		if lines >= 2 {
-			w.done = true
-			break
-		}
-	}
-	return w.W.Write(p)
 }
