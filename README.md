@@ -18,11 +18,11 @@ Stable subdomains and SSO are two things too expensive.
 
 ## How?
 
-Before you get started, make sure you have the follwing:
+Before you get started, make sure you have the following:
 
-1. A domain name, e.g. `pgork.dev` (this will be used as the example throughout this section).
+1. A domain name (e.g. `pgork.dev`, this will be used as the example throughout this section).
 1. A server (dedicated server, VPS) with a public IP address (e.g. `111.33.5.14`).
-1. An SSO provider that allows you to create OIDC clients, e.g. Google, Okta, Keycloak.
+1. An SSO provider (e.g. Google, Okta, Keycloak) that allows you to create OIDC clients.
 
 > **Note**
 >
@@ -82,7 +82,7 @@ Before you get started, make sure you have the follwing:
 
 ### Set up the client (`pgrok`)
 
-1. Go to http://pgrok.dev, authentication with your SSO to obtain the token and URL (e.g. `http://unknwon.pgrok.dev`).
+1. Go to http://pgrok.dev, authenticate with your SSO to obtain the token and URL (e.g. `http://unknwon.pgrok.dev`).
 1. Download the latest version of the `pgrok` archive from the [Releases](https://github.com/pgrok/pgrok/releases) page.
 1. Initilize a `pgrok.yml` file with the following command (assuming you want to forward requests to `http://localhost:3000`):
     ```sh
@@ -102,9 +102,9 @@ Before you get started, make sure you have the follwing:
 
 Following config options can be override through CLI flags:
 
-- `remote_addr` -> `--remote-addr`
-- `forward_addr` -> `--forward-addr`
-- `token` -> `--token`
+- `--remote-addr` -> `remote_addr`
+- `--forward-addr` -> `forward_addr`
+- `--token` -> `token`
 
 #### Dynamic forwards
 
