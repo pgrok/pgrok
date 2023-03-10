@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -28,6 +29,9 @@ func main() {
 		err := tryConnect(*remoteAddr, *forwardAddr, *token)
 		if err != nil {
 			log.Error("Failed to connect to server, will reconnect in "+backoff.String(), "error", err.Error())
+			if strings.Contains(err.Error(), "no supported methods remain") {
+				log.Fatal("Please double check your token and try again")
+			}
 		}
 		time.Sleep(3 * time.Second)
 	}

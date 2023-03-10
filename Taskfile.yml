@@ -1,0 +1,23 @@
+version: '3'
+
+tasks:
+  pgrokd:
+    desc: Build the binary and start the pgrokd
+    deps: [build-pgrokd]
+    cmds:
+      - ./.bin/pgrokd
+  build:
+    deps: [build-pgrok, build-pgrokd]
+  build-pgrok:
+    desc: Build the binary of pgrok
+    cmds:
+      - go build -v -trimpath -o ./.bin/pgrok ./cmd/pgrok
+  build-pgrokd:
+    desc: Build the binary of pgrokd
+    cmds:
+      - go build -v -trimpath -o ./.bin/pgrokd ./cmd/pgrokd
+    sources:
+      - go.mod
+      - cmd/pgrokd/*.go
+      - internal/**/*
+    method: timestamp
