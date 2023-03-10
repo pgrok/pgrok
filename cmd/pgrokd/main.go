@@ -7,8 +7,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"regexp"
-	"strings"
 
 	"github.com/charmbracelet/log"
 	"github.com/coreos/go-oidc"
@@ -25,6 +23,7 @@ import (
 	"github.com/pgrok/pgrok/internal/reverseproxy"
 	"github.com/pgrok/pgrok/internal/sshd"
 	"github.com/pgrok/pgrok/internal/strutil"
+	"github.com/pgrok/pgrok/internal/userutil"
 )
 
 func main() {
@@ -198,7 +197,7 @@ func startWebServer(config *conf.Config, db *database.DB) {
 				return
 			}
 
-			subdomain, err := normalizeIdentifier(userInfo.Identifier)
+			subdomain, err := userutil.NormalizeIdentifier(userInfo.Identifier)
 			if err != nil {
 				r.PlainText(http.StatusBadRequest, fmt.Sprintf("Failed to normalize identifier: %v", err))
 				return
@@ -257,35 +256,6 @@ func startWebServer(config *conf.Config, db *database.DB) {
 	if err != nil {
 		log.Fatal("Failed to start web server", "error", err)
 	}
-}
-
-var (
-	disallowedCharacter      = regexp.MustCompile(`[^\w\-\.]`)
-	consecutivePeriodsDashes = regexp.MustCompile(`[\-\.]{2,}`)
-	sequencesToTrim          = regexp.MustCompile(`(^[\-\.])|(\.$)|`)
-)
-
-func normalizeIdentifier(id string) (string, error) {
-	origName := id
-
-	// If the username is an email address, extract the username part.
-	if i := strings.Index(id, "@"); i != -1 && i == strings.LastIndex(id, "@") {
-		id = id[:i]
-	}
-
-	// Replace all non-alphanumeric characters with a dash.
-	id = disallowedCharacter.ReplaceAllString(id, "-")
-
-	// Replace all consecutive dashes and periods with a single dash.
-	id = consecutivePeriodsDashes.ReplaceAllString(id, "-")
-
-	// Trim leading and trailing dashes and periods.
-	id = sequencesToTrim.ReplaceAllString(id, "")
-
-	if id == "" {
-		return "", errors.Errorf("username %q could not be normalized to acceptable format", origName)
-	}
-	return id, nil
 }
 
 type idpUserInfo struct {
