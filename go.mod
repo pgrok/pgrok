@@ -8,12 +8,12 @@ require (
 	github.com/flamego/flamego v1.8.1
 	github.com/flamego/session v1.3.0
 	github.com/flamego/template v1.2.0
-	github.com/pelletier/go-toml/v2 v2.0.7
 	github.com/pkg/errors v0.9.1
 	github.com/puzpuzpuz/xsync/v2 v2.4.0
 	github.com/stretchr/testify v1.8.2
 	golang.org/x/crypto v0.7.0
 	golang.org/x/oauth2 v0.6.0
+	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/driver/postgres v1.4.8
 	gorm.io/gorm v1.24.6
 )
@@ -44,5 +44,4 @@ require (
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/protobuf v1.28.0 // indirect
 	gopkg.in/square/go-jose.v2 v2.6.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

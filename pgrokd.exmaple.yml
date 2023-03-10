@@ -1,0 +1,27 @@
+external_url: "http://localhost:3320"
+
+web:
+  port: 3320
+proxy:
+  port: 3000
+  scheme: "http"
+  domain: "localhost:3000"
+sshd:
+  port: 2222
+
+database:
+  host: "localhost"
+  port: 5432
+  user: "REDACTED"
+  password: "REDACTED"
+  database: "pgrok"
+
+identity_provider:
+  type: "oidc"
+  display_name: "Google"
+  issuer: "https://accounts.google.com"
+  client_id: "REDACTED"
+  client_secret: "REDACTED"
+  field_mapping:
+    identifier: "email"
+    display_name: "name"
