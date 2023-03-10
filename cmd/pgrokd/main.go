@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 
 	"github.com/charmbracelet/log"
 	"github.com/coreos/go-oidc"
@@ -174,12 +175,13 @@ func startWebServer(config *conf.Config, db *database.DB) {
 			s.Set("oidc::nonce", nonce)
 
 			c.Redirect(
-				fmt.Sprintf(p.Endpoint().AuthURL+"?client_id=%s&redirect_uri=%s&state=%s&nonce=%s&response_type=code&scope=%s",
+				fmt.Sprintf(p.Endpoint().AuthURL+"?client_id=%s&redirect_uri=%s&state=%s&nonce=%s&response_type=code&scope=%s&hd=%s",
 					config.IdentityProvider.ClientID,
 					config.ExternalURL+"/-/oidc/callback",
 					nonce,
 					nonce,
 					url.QueryEscape("openid profile email"),
+					config.IdentityProvider.RequiredDomain,
 				),
 			)
 		})
@@ -341,6 +343,13 @@ func handleOIDCCallback(ctx context.Context, idp *conf.IdentityProvider, redirec
 	}
 	if userInfo.DisplayName == "" {
 		userInfo.DisplayName = userInfo.Identifier
+	}
+
+	if idp.RequiredDomain != "" {
+		email, _ := claims[idp.FieldMapping.Email].(string)
+		if !strings.HasSuffix(email, "@"+idp.RequiredDomain) {
+			return nil, errors.Errorf("the email %q does not have required domain %q", email, idp.RequiredDomain)
+		}
 	}
 	return userInfo, nil
 }
