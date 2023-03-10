@@ -28,7 +28,7 @@ import (
 )
 
 func main() {
-	configPath := flag.String("config", "app.toml", "the path to the config file")
+	configPath := flag.String("config", "pgrokd.yml", "the path to the config file")
 	flag.Parse()
 
 	if flamego.Env() == flamego.EnvTypeDev {

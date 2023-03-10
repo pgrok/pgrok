@@ -1,0 +1,11 @@
+# The address of the remote SSH server.
+remote_addr: "127.0.0.1:2222"
+# The address to forward requests to.
+forward_addr: "http://127.0.0.1:2830"
+
+# The authentication token.
+token: "REDACTED"
+
+# Dynamic forward rules and use "forward_addr" as catch-all.
+#dynamic_forwards: |
+#  /api http://localhost:8080
