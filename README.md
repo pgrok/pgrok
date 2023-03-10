@@ -16,6 +16,114 @@ For individuals and production systems, just buy ngork, it is still my favorite.
 
 Stable subdomains and SSO are two things too expensive.
 
+## How?
+
+Before you get started, make sure you have the follwing:
+
+1. A domain name, e.g. `pgork.dev` (this will be used as the example throughout this section).
+1. A server (dedicated server, VPS) with a public IP address (e.g. `111.33.5.14`).
+1. An SSO provider that allows you to create OIDC clients, e.g. Google, Okta, Keycloak.
+
+> **Note**
+>
+> HTTPS for the web and proxy server is not required, while recommended if possible, but may not worth it. Examples in this section all use HTTP.
+
+### Set up the server (`pgrokd`)
+
+1. Add the following DNS records for your domain name:
+    1. `A` record for `pgrok.dev` to `111.33.5.14`
+    1. `A` record for `*.pgrok.dev` to `111.33.5.14`
+1. Create a `pgrokd.yml` file:
+    ```yaml
+    external_url: "http://pgork.dev"
+    web:
+      port: 3320
+    proxy:
+      port: 3000
+      scheme: "http"
+      domain: "pgork.dev"
+    sshd:
+      port: 2222
+
+    database:
+      host: "localhost"
+      port: 5432
+      user: "REDACTED"
+      password: "REDACTED"
+      database: "pgrokd"
+
+    identity_provider:
+      type: "oidc"
+      display_name: "Google"
+      issuer: "https://accounts.google.com"
+        client_id: "REDACTED"
+        client_secret: "REDACTED"
+        field_mapping:
+          identifier: "email"
+          display_name: "name"
+          email: "email"
+      #  # The required domain name, "field_mapping.email" is required to set for this to work.
+      #  required_domain: "example.com"
+    ```
+1. Download the latest version of the `pgrokd` archive from the [Releases](https://github.com/pgrok/pgrok/releases) page.
+1. Launch the `pgrokd` in background (systemd, screen, nohop).
+    1. By default, `pgrokd` expects the `pgrokd.yml` is available in the same directory. Use `--config` flag to specify a different path for the config file.
+1. Alter your network security policy (if applicable) to allow inbound requests to port 2222 from `0.0.0.0/0` (anywhere).
+1. [Download and install Caddy 2](https://caddyserver.com/docs/install) on your server, and use the following Caddyfile config:
+    ```caddyfile
+    http://pgrok.dev {
+        reverse_proxy * localhost:3320
+    }
+
+    http://*.pgrok.dev {
+        reverse_proxy * localhost:3000
+    }
+    ```
+
+### Set up the client (`pgrok`)
+
+1. Go to http://pgrok.dev, authentication with your SSO to obtain the token and URL (e.g. `http://unknwon.pgrok.dev`).
+1. Download the latest version of the `pgrok` archive from the [Releases](https://github.com/pgrok/pgrok/releases) page.
+1. Initilize a `pgrok.yml` file with the following command (assuming you want to forward requests to `http://localhost:3000`):
+    ```sh
+    ./pgrok init --remote-addr pgrok.dev:2222 --forward-addr http://localhost:3000 --token {YOUR_TOKEN}
+    ```
+    By default, the config file is created at the current directory. Use `--config` flag to specify a different path for the config file.
+1. Launch the client by executing `pgrok` or `pgrok http`.
+    1. By default, `pgrok` expects the `pgrok.yml` is available in the same directory. Use `--config` flag to specify a different path for the config file.
+    1. Use the `--debug` flag to turn on debug logging.
+    1. Upon succesfully startup, you should see a log looks like:
+        ```sh
+        YYYY-MM-DD 12:34:56 INFO Tunneling connection established remote=pgrok.dev:2222
+        ```
+1. Now visit the URL.
+
+#### Override config options
+
+Following config options can be override through CLI flags:
+
+- `remote_addr` -> `--remote-addr`
+- `forward_addr` -> `--forward-addr`
+- `token` -> `--token`
+
+#### Dynamic forwards
+
+In addition to traditional request forwarding to a single address, `pgrok` can be configured to have dynamic forward rules.
+
+For example, if your local frontend is running at `http://localhost:3000` but some gRPC endpoints need talk to the backend directly at `http://localhost:8080`:
+
+```yaml
+dynamic_forwards: |
+  /api http://localhost:8080
+  /hook http://localhost:8080
+```
+
+Then all request prefixed with the path `/api` and `/hook` will be forwarded to `http://localhost:8080` and all the rest are forwarded to the `forward_addr` (`http://localhost:3000`).
+
+## Explain it to me
+
+![pgrok network diagram](https://user-images.githubusercontent.com/2946214/224366798-e0477170-25bc-4d67-a805-6b96bf8226a3.png)
+
 ## Credits
 
 - The [logo](https://www.flaticon.com/free-icon/nat_9168228) is from [flaticon.com](https://www.flaticon.com/).
