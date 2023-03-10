@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNormalizeUsername(t *testing.T) {
+func TestNormalizeIdentifier(t *testing.T) {
 	testCases := []struct {
 		in      string
 		out     string
