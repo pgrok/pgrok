@@ -1,6 +1,7 @@
 # Docs: https://goreleaser.com
 builds:
   - main: ./cmd/pgrokd
+    binary: pgrokd
     env:
       - CGO_ENABLED=0
     goos:
