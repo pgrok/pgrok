@@ -26,6 +26,7 @@ type Config struct {
 }
 
 type Database struct {
+	Protocol string `yaml:"protocol"`
 	Host     string `yaml:"host"`
 	Port     int    `yaml:"port"`
 	User     string `yaml:"user"`

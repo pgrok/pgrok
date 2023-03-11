@@ -2,13 +2,13 @@ package database
 
 import (
 	"fmt"
+	"github.com/pgrok/pgrok/internal/creator"
 	"io"
 	"time"
 
 	"github.com/charmbracelet/log"
 	"github.com/flamego/flamego"
 	"github.com/pkg/errors"
-	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
@@ -48,12 +48,9 @@ func New(logWriter io.Writer, config *conf.Database) (*DB, error) {
 		},
 	)
 
-	dsn := fmt.Sprintf(
-		"user='%s' password='%s' host='%s' port='%d' dbname='%s' search_path='public' application_name='pgrokd'",
-		config.User, config.Password, config.Host, config.Port, config.Database,
-	)
+	opt := creator.NewOption(config.Protocol, config.Host, config.Port, config.User, config.Password, config.Database)
 	db, err := gorm.Open(
-		postgres.Open(dsn),
+		opt.CreateDialector(),
 		&gorm.Config{
 			SkipDefaultTransaction: true,
 			NowFunc: func() time.Time {

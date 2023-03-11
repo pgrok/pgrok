@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/pgrok/pgrok/internal/creator"
 	"net/http"
 	"net/url"
 	"os"
@@ -14,7 +15,6 @@ import (
 	"github.com/coreos/go-oidc"
 	"github.com/flamego/flamego"
 	"github.com/flamego/session"
-	"github.com/flamego/session/postgres"
 	"github.com/flamego/template"
 	"github.com/pkg/errors"
 	"golang.org/x/oauth2"
@@ -121,27 +121,17 @@ func startProxyServer(port int, proxies *reverseproxy.Cluster) {
 
 func startWebServer(config *conf.Config, db *database.DB) {
 	f := flamego.New()
+	opt := creator.NewOption(config.Database.Protocol,
+		config.Database.Host,
+		config.Database.Port,
+		config.Database.User,
+		config.Database.Password,
+		config.Database.Database)
 	f.Use(flamego.Logger())
 	f.Use(flamego.Recovery())
 	f.Use(flamego.Renderer())
 	f.Use(session.Sessioner(
-		session.Options{
-			Initer: postgres.Initer(),
-			Config: postgres.Config{
-				DSN: fmt.Sprintf("postgres://%s:%s@%s:%d/%s",
-					config.Database.User,
-					config.Database.Password,
-					config.Database.Host,
-					config.Database.Port,
-					config.Database.Database,
-				),
-				Table:     "sessions",
-				InitTable: true,
-			},
-			ErrorFunc: func(err error) {
-				log.Error("session", "error", err)
-			},
-		},
+		opt.CreateSessionOpt(),
 	))
 
 	if flamego.Env() == flamego.EnvTypeProd {
