@@ -76,6 +76,7 @@ func startSSHServer(sshdPort int, proxyDomain string, db *database.DB, proxies *
 	err := sshd.Start(
 		logger,
 		sshdPort,
+		db,
 		func(token string) (host string, _ error) {
 			principle, err := db.GetPrincipleByToken(context.Background(), token)
 			if err != nil {
