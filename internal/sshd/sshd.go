@@ -2,16 +2,10 @@ package sshd
 
 import (
 	"context"
-	"crypto/ed25519"
-	"crypto/rand"
-	"crypto/x509"
-	"encoding/pem"
 	"fmt"
 	"io"
 	mathrand "math/rand"
 	"net"
-	"os"
-	"path/filepath"
 	"strconv"
 	"syscall"
 	"time"
@@ -20,13 +14,15 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/pgrok/pgrok/internal/osutil"
+	"github.com/pgrok/pgrok/internal/cryptoutil"
+	"github.com/pgrok/pgrok/internal/database"
 )
 
 // Start starts a SSH server listening on the given port.
 func Start(
 	logger log.Logger,
 	port int,
+	db *database.DB,
 	getHostByToken func(token string) (host string, _ error),
 	newProxy func(host, forward string),
 	removeProxy func(host string),
@@ -41,31 +37,13 @@ func Start(
 		},
 	}
 
-	hostKeyDir := filepath.Join("data", "sshd")
-	err := os.MkdirAll(hostKeyDir, os.ModePerm)
+	signers, err := ensureHostKeys(context.Background(), db)
 	if err != nil {
-		return errors.Wrap(err, "create host key directory")
+		return errors.Wrap(err, "ensure host keys")
 	}
-	hostKeyPath := filepath.Join(hostKeyDir, "ed25519.pem")
-	if !osutil.IsExist(hostKeyPath) {
-		pem, err := newEd25519PEM()
-		if err != nil {
-			return errors.Wrap(err, "new ed25519 PEM")
-		}
-		err = os.WriteFile(hostKeyPath, pem, 0600)
-		if err != nil {
-			return errors.Wrap(err, "save ed25519 PEM")
-		}
+	for _, signer := range signers {
+		config.AddHostKey(signer)
 	}
-	key, err := os.ReadFile(hostKeyPath)
-	if err != nil {
-		return errors.Wrap(err, "read host key")
-	}
-	signer, err := ssh.ParsePrivateKey(key)
-	if err != nil {
-		return errors.Wrap(err, "parse host key")
-	}
-	config.AddHostKey(signer)
 
 	address := "0.0.0.0:" + strconv.Itoa(port)
 	listener, err := net.Listen("tcp", address)
@@ -247,7 +225,7 @@ func handleTCPIPForward(
 					OriginPort uint32
 				}
 				payload := &forwardedPayload{
-					Addr:       "127.0.0.1",
+					Addr:       forwardRequest.Addr,
 					Port:       payload.Port,
 					OriginAddr: host,
 					OriginPort: uint32(port),
@@ -287,23 +265,36 @@ func handleTCPIPForward(
 	removeProxy()
 }
 
-func newEd25519PEM() ([]byte, error) {
-	_, private, err := ed25519.GenerateKey(rand.Reader)
-	if err != nil {
-		return nil, errors.Wrap(err, "generate key")
-	}
+func ensureHostKeys(ctx context.Context, db *database.DB) ([]ssh.Signer, error) {
+	var signers []ssh.Signer
+	for algorithm, keygen := range map[cryptoutil.KeyAlgorithm]func() ([]byte, error){
+		cryptoutil.KeyAlgorithmRSA:     cryptoutil.NewRSAPEM,
+		cryptoutil.KeyAlgorithmEd25519: cryptoutil.NewEd25519PEM,
+		cryptoutil.KeyAlgorithmECDSA:   cryptoutil.NewECDSAPEM,
+	} {
+		hostKey, err := db.GetHostKeyByAlgorithm(ctx, algorithm)
+		if err != nil {
+			if err != database.ErrHostKeyNotExists {
+				return nil, errors.Wrapf(err, "get host key with algorithm %q", algorithm)
+			}
 
-	data, err := x509.MarshalPKCS8PrivateKey(private)
-	if err != nil {
-		return nil, errors.Wrap(err, "marshal private key")
-	}
+			pem, err := keygen()
+			if err != nil {
+				return nil, errors.Wrapf(err, "generate %q PEM", algorithm)
+			}
+			hostKey, err = db.CreateHostKey(ctx, algorithm, pem)
+			if err != nil {
+				return nil, errors.Wrapf(err, "create host key with algorithm %q", algorithm)
+			}
+		}
 
-	return pem.EncodeToMemory(
-		&pem.Block{
-			Type:  "PRIVATE KEY",
-			Bytes: data,
-		},
-	), nil
+		signer, err := ssh.ParsePrivateKey(hostKey.PEM)
+		if err != nil {
+			return nil, errors.Wrap(err, "parse host key")
+		}
+		signers = append(signers, signer)
+	}
+	return signers, nil
 }
 
 func findAvailablePort() (int, error) {

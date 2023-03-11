@@ -23,10 +23,11 @@ Before you get started, make sure you have the following:
 1. A domain name (e.g. `pgork.dev`, this will be used as the example throughout this section).
 1. A server (dedicated server, VPS) with a public IP address (e.g. `111.33.5.14`).
 1. An SSO provider (e.g. Google, Okta, Keycloak) that allows you to create OIDC clients.
+1. A PostgreSQL server ([bit.io](https://bit.io/), Cloud SQL, self-host).
 
 > **Note**
 >
-> HTTPS for the web and proxy server is not required, while recommended if possible, but may not worth it. Examples in this section all use HTTP.
+> HTTPS for the web and proxy server is not required for this to work, while recommended if possible. Examples in the section all use HTTP.
 
 ### Set up the server (`pgrokd`)
 
@@ -67,7 +68,7 @@ Before you get started, make sure you have the following:
     ```
 1. Download the latest version of the `pgrokd` archive from the [Releases](https://github.com/pgrok/pgrok/releases) page.
 1. Launch the `pgrokd` in background (systemd, screen, nohop).
-    1. By default, `pgrokd` expects the `pgrokd.yml` is available in the same directory. Use `--config` flag to specify a different path for the config file.
+    1. By default, `pgrokd` expects the `pgrokd.yml` is available in the working directory. Use `--config` flag to specify a different path for the config file.
 1. Alter your network security policy (if applicable) to allow inbound requests to port 2222 from `0.0.0.0/0` (anywhere).
 1. [Download and install Caddy 2](https://caddyserver.com/docs/install) on your server, and use the following Caddyfile config:
     ```caddyfile
@@ -79,18 +80,24 @@ Before you get started, make sure you have the following:
         reverse_proxy * localhost:3000
     }
     ```
+1. Create a new OIDC client in your SSO with the **Redirect URI** to be `http://pgrok.dev/-/oidc/callback`.
 
 ### Set up the client (`pgrok`)
 
 1. Go to http://pgrok.dev, authenticate with your SSO to obtain the token and URL (e.g. `http://unknwon.pgrok.dev`).
-1. Download the latest version of the `pgrok` archive from the [Releases](https://github.com/pgrok/pgrok/releases) page.
+1. Download the latest version of the `pgrok`:
+  1. For Homebrew:
+      ```sh
+      brew install pgrok/tap/pgrok
+      ```
+  1. For others, download the archive from the [Releases](https://github.com/pgrok/pgrok/releases) page.
 1. Initialize a `pgrok.yml` file with the following command (assuming you want to forward requests to `http://localhost:3000`):
     ```sh
-    ./pgrok init --remote-addr pgrok.dev:2222 --forward-addr http://localhost:3000 --token {YOUR_TOKEN}
+    pgrok init --remote-addr pgrok.dev:2222 --forward-addr http://localhost:3000 --token {YOUR_TOKEN}
     ```
-    By default, the config file is created at the current directory. Use `--config` flag to specify a different path for the config file.
-1. Launch the client by executing `pgrok` or `pgrok http`.
-    1. By default, `pgrok` expects the `pgrok.yml` is available in the same directory. Use `--config` flag to specify a different path for the config file.
+    By default, the config file is created at the working directory. Use `--config` flag to specify a different path for the config file.
+1. Launch the client by executing the `pgrok` or `pgrok http` command.
+    1. By default, `pgrok` expects the `pgrok.yml` is available in the working directory. Use `--config` flag to specify a different path for the config file.
     1. Use the `--debug` flag to turn on debug logging.
     1. Upon succesfully startup, you should see a log looks like:
         ```sh
@@ -120,9 +127,23 @@ dynamic_forwards: |
 
 Then all request prefixed with the path `/api` and `/hook` will be forwarded to `http://localhost:8080` and all the rest are forwarded to the `forward_addr` (`http://localhost:3000`).
 
+### Vanilla SSH
+
+Because the standard SSH protocol is used for tunneling, you may well just use the vanilla SSH client.
+
+1. Go to http://pgrok.dev, authenticate with your SSO to obtain the token and URL (e.g. `http://unknwon.pgrok.dev`).
+1. Launch the client by executing the `ssh -N -R 0::3000 pgrok.dev -p 2222` command:
+    1. Enter the token as your password.
+    1. Use the `-v` flag to turn on debug logging.
+    1. Upon succesfully startup, you should see a log looks like:
+        ```
+        Allocated port 22487 for remote forward to :3000
+        ```
+1. Now visit the URL.
+
 ## Explain it to me
 
-![pgrok network diagram](https://user-images.githubusercontent.com/2946214/224366798-e0477170-25bc-4d67-a805-6b96bf8226a3.png)
+![pgrok network diagram](https://user-images.githubusercontent.com/2946214/224469633-4d03a2cb-8561-4584-a743-c70f3fda0aef.png)
 
 ## Credits
 
