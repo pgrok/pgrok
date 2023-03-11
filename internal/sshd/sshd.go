@@ -247,7 +247,7 @@ func handleTCPIPForward(
 					OriginPort uint32
 				}
 				payload := &forwardedPayload{
-					Addr:       "127.0.0.1",
+					Addr:       forwardRequest.Addr,
 					Port:       payload.Port,
 					OriginAddr: host,
 					OriginPort: uint32(port),

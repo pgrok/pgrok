@@ -43,7 +43,7 @@ func New(logWriter io.Writer, config *conf.Database) (*DB, error) {
 			),
 		},
 		logger.Config{
-			SlowThreshold: 100 * time.Millisecond,
+			SlowThreshold: 1000 * time.Millisecond,
 			LogLevel:      level,
 		},
 	)

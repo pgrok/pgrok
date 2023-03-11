@@ -23,6 +23,7 @@ Before you get started, make sure you have the following:
 1. A domain name (e.g. `pgork.dev`, this will be used as the example throughout this section).
 1. A server (dedicated server, VPS) with a public IP address (e.g. `111.33.5.14`).
 1. An SSO provider (e.g. Google, Okta, Keycloak) that allows you to create OIDC clients.
+1. A PostgreSQL server ([bit.io](https://bit.io/), Cloud SQL, self-host).
 
 > **Note**
 >
@@ -79,6 +80,7 @@ Before you get started, make sure you have the following:
         reverse_proxy * localhost:3000
     }
     ```
+1. Create a new OIDC client in your SSO with the **Redirect URI** to be `http://pgrok.dev/-/oidc/callback`.
 
 ### Set up the client (`pgrok`)
 
@@ -89,7 +91,7 @@ Before you get started, make sure you have the following:
     ./pgrok init --remote-addr pgrok.dev:2222 --forward-addr http://localhost:3000 --token {YOUR_TOKEN}
     ```
     By default, the config file is created at the current directory. Use `--config` flag to specify a different path for the config file.
-1. Launch the client by executing `pgrok` or `pgrok http`.
+1. Launch the client by executing the `pgrok` or `pgrok http` command.
     1. By default, `pgrok` expects the `pgrok.yml` is available in the same directory. Use `--config` flag to specify a different path for the config file.
     1. Use the `--debug` flag to turn on debug logging.
     1. Upon succesfully startup, you should see a log looks like:
@@ -120,9 +122,23 @@ dynamic_forwards: |
 
 Then all request prefixed with the path `/api` and `/hook` will be forwarded to `http://localhost:8080` and all the rest are forwarded to the `forward_addr` (`http://localhost:3000`).
 
+### Set up the client (`ssh`)
+
+Because the standard SSH protocol is used for tunneling, you may well just use the vanilla SSH client.
+
+1. Go to http://pgrok.dev, authenticate with your SSO to obtain the token and URL (e.g. `http://unknwon.pgrok.dev`).
+1. Launch the client by executing the `ssh -N -R 0::3000 pgrok.dev -p 2222` command:
+    1. Enter the token as your password.
+    1. Use the `-v` flag to turn on debug logging.
+    1. Upon succesfully startup, you should see a log looks like:
+        ```
+        Allocated port 22487 for remote forward to :3000
+        ```
+1. Now visit the URL.
+
 ## Explain it to me
 
-![pgrok network diagram](https://user-images.githubusercontent.com/2946214/224366798-e0477170-25bc-4d67-a805-6b96bf8226a3.png)
+![pgrok network diagram](https://user-images.githubusercontent.com/2946214/224460720-e93dc192-1be9-433a-b592-474d908b517d.png)
 
 ## Credits
 
