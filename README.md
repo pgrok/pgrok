@@ -85,10 +85,15 @@ Before you get started, make sure you have the following:
 ### Set up the client (`pgrok`)
 
 1. Go to http://pgrok.dev, authenticate with your SSO to obtain the token and URL (e.g. `http://unknwon.pgrok.dev`).
-1. Download the latest version of the `pgrok` archive from the [Releases](https://github.com/pgrok/pgrok/releases) page.
+1. Download the latest version of the `pgrok`:
+  1. For Homebrew:
+      ```sh
+      brew install pgrok/tap/pgrok
+      ```
+  1. For others, download the archive from the [Releases](https://github.com/pgrok/pgrok/releases) page.
 1. Initialize a `pgrok.yml` file with the following command (assuming you want to forward requests to `http://localhost:3000`):
     ```sh
-    ./pgrok init --remote-addr pgrok.dev:2222 --forward-addr http://localhost:3000 --token {YOUR_TOKEN}
+    pgrok init --remote-addr pgrok.dev:2222 --forward-addr http://localhost:3000 --token {YOUR_TOKEN}
     ```
     By default, the config file is created at the current directory. Use `--config` flag to specify a different path for the config file.
 1. Launch the client by executing the `pgrok` or `pgrok http` command.
