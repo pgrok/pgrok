@@ -27,3 +27,15 @@ snapshot:
   name_template: "{{ incpatch .Version }}-next"
 changelog:
   skip: true
+
+brews:
+  - tap:
+      owner: pgrok
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    commit_author:
+      name: "Joe Chen"
+      email: "jc@unknwon.io"
+    homepage: "https://github.com/pgrok/pgrok"
+    description: "Poor man's ngrok"
+    license: "MIT"
