@@ -22,27 +22,30 @@ import (
 	"github.com/pgrok/pgrok/internal/strutil"
 )
 
-var commandHTTP = &cli.Command{
-	Name:        "http",
-	Description: "Start a HTTP proxy to local endpoints",
-	Action:      actionHTTP,
-	Flags: append(commonFlags,
-		&cli.StringFlag{
-			Name:    "remote-addr",
-			Usage:   "The address of the remote SSH server",
-			Aliases: []string{"r"},
-		},
-		&cli.StringFlag{
-			Name:    "forward-addr",
-			Usage:   "The address to forward requests to",
-			Aliases: []string{"f"},
-		},
-		&cli.StringFlag{
-			Name:    "token",
-			Usage:   "The authentication token",
-			Aliases: []string{"t"},
-		},
-	),
+func commandHTTP(homeDir string) *cli.Command {
+	return &cli.Command{
+		Name:        "http",
+		Description: "Start a HTTP proxy to local endpoints",
+		Action:      actionHTTP,
+		Flags: append(
+			commonFlags(homeDir),
+			&cli.StringFlag{
+				Name:    "remote-addr",
+				Usage:   "The address of the remote SSH server",
+				Aliases: []string{"r"},
+			},
+			&cli.StringFlag{
+				Name:    "forward-addr",
+				Usage:   "The address to forward requests to",
+				Aliases: []string{"f"},
+			},
+			&cli.StringFlag{
+				Name:    "token",
+				Usage:   "The authentication token",
+				Aliases: []string{"t"},
+			},
+		),
+	}
 }
 
 func actionHTTP(c *cli.Context) error {
@@ -90,12 +93,17 @@ func actionHTTP(c *cli.Context) error {
 		}
 	}
 
-	forwardAddr := strutil.Coalesce(c.String("forward-addr"), config.ForwardAddr)
+	forwardAddr := strutil.Coalesce(
+		ensureForwardURL(c.Args().First()),
+		ensureForwardURL(c.String("forward-addr")),
+		config.ForwardAddr,
+	)
 	defaultForward, err := url.Parse(forwardAddr)
 	if err != nil {
 		log.Fatal("Failed to parse default forward address", "error", err.Error())
 	}
 	f.Any("/{**}", httputil.NewSingleHostReverseProxy(defaultForward).ServeHTTP)
+	log.Info("Default forward", "address", forwardAddr)
 
 	s := httptest.NewServer(f)
 	log.Debug("Capture server is running on", "url", s.URL)

@@ -95,9 +95,9 @@ Before you get started, make sure you have the following:
     ```sh
     pgrok init --remote-addr pgrok.dev:2222 --forward-addr http://localhost:3000 --token {YOUR_TOKEN}
     ```
-    By default, the config file is created at the working directory. Use `--config` flag to specify a different path for the config file.
+    By default, the config file is created under the home directory (`~/.pgrok/pgrok.yml`). Use `--config` flag to specify a different path for the config file.
 1. Launch the client by executing the `pgrok` or `pgrok http` command.
-    1. By default, `pgrok` expects the `pgrok.yml` is available in the working directory. Use `--config` flag to specify a different path for the config file.
+    1. By default, `pgrok` expects the `pgrok.yml` is available under the home directory (`~/.pgrok/pgrok.yml`). Use `--config` flag to specify a different path for the config file.
     1. Use the `--debug` flag to turn on debug logging.
     1. Upon succesfully startup, you should see a log looks like:
         ```sh
@@ -112,6 +112,12 @@ Following config options can be override through CLI flags:
 - `--remote-addr` -> `remote_addr`
 - `--forward-addr` -> `forward_addr`
 - `--token` -> `token`
+
+As a special case, the first argument of the `pgrok http` can be used to specify forward address, e.g.
+
+```
+pgrok http 8080
+```
 
 #### Dynamic forwards
 
