@@ -27,7 +27,7 @@ Before you get started, make sure you have the following:
 
 > **Note**
 >
-> HTTPS for the web and proxy server is not required, while recommended if possible, but may not worth it. Examples in this section all use HTTP.
+> HTTPS for the web and proxy server is not required for this to work, while recommended if possible. Examples in the section all use HTTP.
 
 ### Set up the server (`pgrokd`)
 
@@ -68,7 +68,7 @@ Before you get started, make sure you have the following:
     ```
 1. Download the latest version of the `pgrokd` archive from the [Releases](https://github.com/pgrok/pgrok/releases) page.
 1. Launch the `pgrokd` in background (systemd, screen, nohop).
-    1. By default, `pgrokd` expects the `pgrokd.yml` is available in the same directory. Use `--config` flag to specify a different path for the config file.
+    1. By default, `pgrokd` expects the `pgrokd.yml` is available in the working directory. Use `--config` flag to specify a different path for the config file.
 1. Alter your network security policy (if applicable) to allow inbound requests to port 2222 from `0.0.0.0/0` (anywhere).
 1. [Download and install Caddy 2](https://caddyserver.com/docs/install) on your server, and use the following Caddyfile config:
     ```caddyfile
@@ -95,9 +95,9 @@ Before you get started, make sure you have the following:
     ```sh
     pgrok init --remote-addr pgrok.dev:2222 --forward-addr http://localhost:3000 --token {YOUR_TOKEN}
     ```
-    By default, the config file is created at the current directory. Use `--config` flag to specify a different path for the config file.
+    By default, the config file is created at the working directory. Use `--config` flag to specify a different path for the config file.
 1. Launch the client by executing the `pgrok` or `pgrok http` command.
-    1. By default, `pgrok` expects the `pgrok.yml` is available in the same directory. Use `--config` flag to specify a different path for the config file.
+    1. By default, `pgrok` expects the `pgrok.yml` is available in the working directory. Use `--config` flag to specify a different path for the config file.
     1. Use the `--debug` flag to turn on debug logging.
     1. Upon succesfully startup, you should see a log looks like:
         ```sh
@@ -127,7 +127,7 @@ dynamic_forwards: |
 
 Then all request prefixed with the path `/api` and `/hook` will be forwarded to `http://localhost:8080` and all the rest are forwarded to the `forward_addr` (`http://localhost:3000`).
 
-### Set up the client (`ssh`)
+### Vanilla SSH
 
 Because the standard SSH protocol is used for tunneling, you may well just use the vanilla SSH client.
 
@@ -143,7 +143,7 @@ Because the standard SSH protocol is used for tunneling, you may well just use t
 
 ## Explain it to me
 
-![pgrok network diagram](https://user-images.githubusercontent.com/2946214/224460720-e93dc192-1be9-433a-b592-474d908b517d.png)
+![pgrok network diagram](https://user-images.githubusercontent.com/2946214/224469633-4d03a2cb-8561-4584-a743-c70f3fda0aef.png)
 
 ## Credits
 
