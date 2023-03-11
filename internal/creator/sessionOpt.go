@@ -13,7 +13,6 @@ import (
 )
 
 func (o *Option) CreateSessionOpt() session.Options {
-
 	switch strings.ToLower(o.protocol) {
 	case "postgres":
 		return o.createPostgresqlSessionOpt()
