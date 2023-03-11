@@ -39,9 +39,6 @@ func (o *Option) createMysqlDialector() gorm.Dialector {
 }
 
 func (o *Option) createSqliteDialector() gorm.Dialector {
-	dsn := fmt.Sprintf(
-		"%s",
-		o.database,
-	)
+	dsn := o.database
 	return sqlite.Open(dsn)
 }
