@@ -107,7 +107,7 @@ func actionHTTP(c *cli.Context) error {
 	log.Debug("Capture server is running on", "url", s.URL)
 
 	surl, _ := url.Parse(s.URL)
-	var backoff time.Duration
+	cooldownAfter := time.Now().Add(time.Minute)
 	for failed := 0; ; failed++ {
 		err := tryConnect(
 			strutil.Coalesce(c.String("remote-addr"), config.RemoteAddr),
@@ -115,18 +115,20 @@ func actionHTTP(c *cli.Context) error {
 			strutil.Coalesce(c.String("token"), config.Token),
 		)
 		if err != nil {
-			backoff = 2 << (failed/3 + 1) * time.Second
+			if time.Now().After(cooldownAfter) {
+				failed = 0
+			}
+			backoff := time.Duration(2<<(failed/3+1)) * time.Second
 			log.Error(
-				fmt.Sprintf("Failed to connect to server, will reconnect in %s. Press enter to reconnect now.", backoff.String()),
+				fmt.Sprintf("Failed to connect to server, will reconnect in %s", backoff.String()),
 				"error", err.Error(),
 			)
 			if strings.Contains(err.Error(), "no supported methods remain") {
 				log.Fatal("Please double check your token and try again")
 			}
-		} else {
-			failed = 0
+			time.Sleep(backoff)
+			cooldownAfter = time.Now().Add(time.Minute)
 		}
-		time.Sleep(backoff)
 	}
 }
 
