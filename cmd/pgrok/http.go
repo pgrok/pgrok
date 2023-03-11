@@ -68,29 +68,27 @@ func actionHTTP(c *cli.Context) error {
 			"duration", time.Since(started),
 		)
 	})
-	if config.DynamicForwards != "" {
-		rules := strings.Split(config.DynamicForwards, "\n")
-		for _, rule := range rules {
-			if rule == "" {
-				continue
-			}
-
-			fields := strings.Fields(rule)
-			if len(fields) != 2 {
-				log.Debug("Skipped invalid dynamic forward rule", "rule", rule)
-				continue
-			}
-			routePath := fmt.Sprintf("/{*: %s.+/}/{**}", fields[0])
-			forward, err := url.Parse(fields[1])
-			if err != nil {
-				log.Fatal("Failed to parse the forward address",
-					"rule", rule,
-					"error", err.Error(),
-				)
-			}
-			f.Any(routePath, httputil.NewSingleHostReverseProxy(forward).ServeHTTP)
-			log.Debug("Dynamic forward rule added", "path", fields[0], "forwardTo", forward.String())
+	rules := strings.Split(config.DynamicForwards, "\n")
+	for _, rule := range rules {
+		if rule == "" {
+			continue
 		}
+
+		fields := strings.Fields(rule)
+		if len(fields) != 2 {
+			log.Debug("Skipped invalid dynamic forward rule", "rule", rule)
+			continue
+		}
+		routePath := fmt.Sprintf("/{*: %s.+/}/{**}", fields[0])
+		forward, err := url.Parse(fields[1])
+		if err != nil {
+			log.Fatal("Failed to parse the forward address",
+				"rule", rule,
+				"error", err.Error(),
+			)
+		}
+		f.Any(routePath, httputil.NewSingleHostReverseProxy(forward).ServeHTTP)
+		log.Debug("Dynamic forward rule added", "path", fields[0], "forwardTo", forward.String())
 	}
 
 	forwardAddr := strutil.Coalesce(
@@ -109,20 +107,26 @@ func actionHTTP(c *cli.Context) error {
 	log.Debug("Capture server is running on", "url", s.URL)
 
 	surl, _ := url.Parse(s.URL)
-	backoff := 3 * time.Second
-	for {
+	var backoff time.Duration
+	for failed := 0; ; failed++ {
 		err := tryConnect(
 			strutil.Coalesce(c.String("remote-addr"), config.RemoteAddr),
 			surl.Host,
 			strutil.Coalesce(c.String("token"), config.Token),
 		)
 		if err != nil {
-			log.Error("Failed to connect to server, will reconnect in "+backoff.String(), "error", err.Error())
+			backoff = 2 << (failed/3 + 1) * time.Second
+			log.Error(
+				fmt.Sprintf("Failed to connect to server, will reconnect in %s. Press enter to reconnect now.", backoff.String()),
+				"error", err.Error(),
+			)
 			if strings.Contains(err.Error(), "no supported methods remain") {
 				log.Fatal("Please double check your token and try again")
 			}
+		} else {
+			failed = 0
 		}
-		time.Sleep(3 * time.Second)
+		time.Sleep(backoff)
 	}
 }
 
