@@ -32,17 +32,15 @@ import (
 var version = "0.0.0+dev"
 
 func main() {
-	if !strings.Contains(version, "+dev") {
+	if strings.Contains(version, "+dev") {
+		log.SetLevel(log.DebugLevel)
+	} else {
 		flamego.SetEnv(flamego.EnvTypeProd)
 	}
+	log.SetTimeFormat(time.DateTime)
 
 	configPath := flag.String("config", "pgrokd.yml", "the path to the config file")
 	flag.Parse()
-
-	if flamego.Env() == flamego.EnvTypeDev {
-		log.SetLevel(log.DebugLevel)
-	}
-	log.SetTimeFormat(time.DateTime)
 
 	config, err := conf.Load(*configPath)
 	if err != nil {
