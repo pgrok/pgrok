@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/log"
 	"github.com/coreos/go-oidc"
@@ -41,7 +42,7 @@ func main() {
 	if flamego.Env() == flamego.EnvTypeDev {
 		log.SetLevel(log.DebugLevel)
 	}
-	log.SetTimeFormat("2006-01-02 15:04:05")
+	log.SetTimeFormat(time.DateTime)
 
 	config, err := conf.Load(*configPath)
 	if err != nil {
@@ -67,7 +68,7 @@ func main() {
 func startSSHServer(sshdPort int, proxyDomain string, db *database.DB, proxies *reverseproxy.Cluster) {
 	logger := log.New(
 		log.WithTimestamp(),
-		log.WithTimeFormat("2006-01-02 15:04:05"),
+		log.WithTimeFormat(time.DateTime),
 		log.WithPrefix("sshd"),
 		log.WithLevel(log.GetLevel()),
 	)
@@ -93,7 +94,7 @@ func startSSHServer(sshdPort int, proxyDomain string, db *database.DB, proxies *
 func startProxyServer(port int, proxies *reverseproxy.Cluster) {
 	logger := log.New(
 		log.WithTimestamp(),
-		log.WithTimeFormat("2006-01-02 15:04:05"),
+		log.WithTimeFormat(time.DateTime),
 		log.WithPrefix("proxy"),
 		log.WithLevel(log.GetLevel()),
 	)
