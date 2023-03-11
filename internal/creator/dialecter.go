@@ -2,11 +2,12 @@ package creator
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/glebarez/sqlite"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-	"strings"
 )
 
 func (o *Option) CreateDialector() gorm.Dialector {

@@ -2,9 +2,10 @@ package database
 
 import (
 	"fmt"
-	"github.com/pgrok/pgrok/internal/creator"
 	"io"
 	"time"
+
+	"github.com/pgrok/pgrok/internal/creator"
 
 	"github.com/charmbracelet/log"
 	"github.com/flamego/flamego"

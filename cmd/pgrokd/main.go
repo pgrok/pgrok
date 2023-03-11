@@ -4,12 +4,13 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/pgrok/pgrok/internal/creator"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/pgrok/pgrok/internal/creator"
 
 	"github.com/charmbracelet/log"
 	"github.com/coreos/go-oidc"

@@ -2,16 +2,18 @@ package creator
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
 	"github.com/charmbracelet/log"
 	"github.com/flamego/session"
 	"github.com/flamego/session/mysql"
 	"github.com/flamego/session/postgres"
-	"os"
-	"path/filepath"
-	"strings"
 )
 
 func (o *Option) CreateSessionOpt() session.Options {
+
 	switch strings.ToLower(o.protocol) {
 	case "postgres":
 		return o.createPostgresqlSessionOpt()
