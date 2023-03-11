@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"time"
 
 	"github.com/charmbracelet/log"
 	"github.com/urfave/cli/v2"
@@ -30,7 +31,7 @@ var commonFlags = []cli.Flag{
 }
 
 func main() {
-	log.SetTimeFormat("2006-01-02 15:04:05")
+	log.SetTimeFormat(time.DateTime)
 
 	app := cli.NewApp()
 	app.Name = "pgrok"
