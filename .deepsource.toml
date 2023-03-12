@@ -2,6 +2,15 @@ version = 1
 
 [[analyzers]]
 name = "go"
+enabled = true
 
-  [analyzers.meta]
-  import_root = "github.com/pgrok/pgrok"
+[analyzers.meta]
+import_root = "github.com/pgrok/pgrok"
+
+[[transformers]]
+name = "gofmt"
+enabled = true
+
+[[transformers]]
+name = "gofumpt"
+enabled = true
