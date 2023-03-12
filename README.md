@@ -18,6 +18,10 @@ For individuals and production systems, just buy ngork, it is still my favorite.
 
 Stable subdomains and SSO are two things too expensive.
 
+Why not just pick one from the [Awesome Tunneling](https://github.com/anderspitman/awesome-tunneling)? Think broader. Not everyone is a dev who knows about server operations. For people working as community managers, sales, and PMs, booting up something locally could already be a stretch and requiring them to understand how to set up and fix server problems is a waste of team's productivity.
+
+Copy, paste, and run is the best UX for everyone.
+
 ## How?
 
 Before you get started, make sure you have the following:
