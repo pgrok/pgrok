@@ -99,7 +99,7 @@ Before you get started, make sure you have the following:
 1. Launch the client by executing the `pgrok` or `pgrok http` command.
     1. By default, `pgrok` expects the `pgrok.yml` is available under the home directory (`~/.pgrok/pgrok.yml`). Use `--config` flag to specify a different path for the config file.
     1. Use the `--debug` flag to turn on debug logging.
-    1. Upon succesfully startup, you should see a log looks like:
+    1. Upon successful startup, you should see a log looks like:
         ```sh
         YYYY-MM-DD 12:34:56 INFO Tunneling connection established remote=pgrok.dev:2222
         ```
@@ -141,7 +141,7 @@ Because the standard SSH protocol is used for tunneling, you may well just use t
 1. Launch the client by executing the `ssh -N -R 0::3000 pgrok.dev -p 2222` command:
     1. Enter the token as your password.
     1. Use the `-v` flag to turn on debug logging.
-    1. Upon succesfully startup, you should see a log looks like:
+    1. Upon successful startup, you should see a log looks like:
         ```
         Allocated port 22487 for remote forward to :3000
         ```

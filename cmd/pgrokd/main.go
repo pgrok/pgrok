@@ -246,7 +246,7 @@ func startWebServer(config *conf.Config, db *database.DB) {
 
 	f.Group("/",
 		func() {
-			f.Get("", func(c flamego.Context, s session.Session, t template.Template, data template.Data, principle *database.Principle) {
+			f.Get("", func(t template.Template, data template.Data, principle *database.Principle) {
 				data["DisplayName"] = principle.DisplayName
 				data["Token"] = principle.Token
 				data["URL"] = config.Proxy.Scheme + "://" + principle.Subdomain + "." + config.Proxy.Domain
