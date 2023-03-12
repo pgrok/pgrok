@@ -8,9 +8,9 @@ import (
 )
 
 var (
-	disallowedCharacter      = regexp.MustCompile(`[^\w\-\.]`)
-	consecutivePeriodsDashes = regexp.MustCompile(`[\-\.]{2,}`)
-	sequencesToTrim          = regexp.MustCompile(`(^[\-\.])|(\.$)|`)
+	disallowedCharacter      = regexp.MustCompile(`[^\w\-.]`)
+	consecutivePeriodsDashes = regexp.MustCompile(`[\-.]{2,}`)
+	sequencesToTrim          = regexp.MustCompile(`(^[\-.])|(\.$)|`)
 )
 
 // NormalizeIdentifier normalizes a proposed identifier into a desired format:
