@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/adrg/xdg"
 	"os"
 	"path/filepath"
 	"time"
@@ -12,11 +13,21 @@ import (
 var version = "0.0.0+dev"
 
 func commonFlags(homeDir string) []cli.Flag {
+	configPath := filepath.Join(homeDir, ".pgrok", "pgrok.yml")
+
+	_, err := os.Stat(configPath)
+	if err != nil {
+		xdgConfigPath, err := xdg.ConfigFile("pgrok/pgrok.yml")
+		if err == nil {
+			configPath = xdgConfigPath
+		}
+	}
+
 	return []cli.Flag{
 		&cli.StringFlag{
 			Name:    "config",
 			Usage:   "The path to the config file",
-			Value:   filepath.Join(homeDir, ".pgrok", "pgrok.yml"),
+			Value:   configPath,
 			Aliases: []string{"c"},
 		},
 		&cli.BoolFlag{
