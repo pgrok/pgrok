@@ -20,6 +20,7 @@ sshd:
 
 # Settings for the database.
 database:
+  protocol: "postgres"
   host: "localhost"
   port: 5432
   user: "REDACTED"
