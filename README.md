@@ -1,5 +1,7 @@
 # pgrok - Poor man's ngrok
 
+[![Sourcegraph](https://img.shields.io/badge/view%20on-Sourcegraph-brightgreen.svg?style=for-the-badge&logo=sourcegraph)](https://sourcegraph.com/github.com/pgrok/pgrok)
+
 ## What?
 
 The pgrok is a multi-tenant HTTP reverse tunnel solution through remote port forwarding from the SSH protocol.
