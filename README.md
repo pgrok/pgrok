@@ -157,6 +157,14 @@ Because the standard SSH protocol is used for tunneling, you may well just use t
 
 ![pgrok network diagram](https://user-images.githubusercontent.com/2946214/224469633-4d03a2cb-8561-4584-a743-c70f3fda0aef.png)
 
+## Sponsors
+
+<p>
+  <a href="https://www.bytebase.com">
+    <img src="https://www.bytebase.com/_nuxt/img/logo-full.79b60e4.svg" width=300>
+  </a>
+</p>
+
 ## Credits
 
 - The [logo](https://www.flaticon.com/free-icon/nat_9168228) is from [flaticon.com](https://www.flaticon.com/).
