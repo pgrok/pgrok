@@ -26,7 +26,7 @@ Copy, paste, and run is the best UX for everyone.
 
 Before you get started, make sure you have the following:
 
-1. A domain name (e.g. `pgork.dev`, this will be used as the example throughout this section).
+1. A domain name (e.g. `pgrok.dev`, this will be used as the example throughout this section).
 1. A server (dedicated server, VPS) with a public IP address (e.g. `111.33.5.14`).
 1. An SSO provider (e.g. Google, Okta, Keycloak) that allows you to create OIDC clients.
 1. A PostgreSQL server ([bit.io](https://bit.io/), Cloud SQL, self-host).
@@ -42,13 +42,13 @@ Before you get started, make sure you have the following:
     1. `A` record for `*.pgrok.dev` to `111.33.5.14`
 1. Create a `pgrokd.yml` file:
     ```yaml
-    external_url: "http://pgork.dev"
+    external_url: "http://pgrok.dev"
     web:
       port: 3320
     proxy:
       port: 3000
       scheme: "http"
-      domain: "pgork.dev"
+      domain: "pgrok.dev"
     sshd:
       port: 2222
 
