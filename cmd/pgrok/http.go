@@ -33,11 +33,17 @@ func commandHTTP(homeDir string) *cli.Command {
 				Name:    "remote-addr",
 				Usage:   "The address of the remote SSH server",
 				Aliases: []string{"r"},
+				Action: func(c *cli.Context, s string) error {
+					return c.Set("remote-addr", deriveFullAddress(s))
+				},
 			},
 			&cli.StringFlag{
 				Name:    "forward-addr",
 				Usage:   "The address to forward requests to",
 				Aliases: []string{"f"},
+				Action: func(c *cli.Context, s string) error {
+					return c.Set("forward-addr", deriveFullAddress(s))
+				},
 			},
 			&cli.StringFlag{
 				Name:    "token",
@@ -57,6 +63,7 @@ func actionHTTP(c *cli.Context) error {
 			"error", err.Error(),
 		)
 	}
+	log.Debug("Loaded config", "file", configPath)
 
 	f := flamego.New()
 	f.Use(func(c flamego.Context) {
@@ -88,12 +95,12 @@ func actionHTTP(c *cli.Context) error {
 			)
 		}
 		f.Any(routePath, httputil.NewSingleHostReverseProxy(forward).ServeHTTP)
-		log.Debug("Dynamic forward rule added", "path", fields[0], "forwardTo", forward.String())
+		log.Debug("Added dynamic forward rule", "path", fields[0], "forwardTo", forward.String())
 	}
 
 	forwardAddr := strutil.Coalesce(
-		ensureForwardURL(c.Args().First()),
-		ensureForwardURL(c.String("forward-addr")),
+		deriveFullAddress(c.Args().First()),
+		c.String("forward-addr"),
 		config.ForwardAddr,
 	)
 	defaultForward, err := url.Parse(forwardAddr)
@@ -174,7 +181,7 @@ func tryConnect(remoteAddr, forwardAddr, token string) error {
 		log.Fatal("Failed to open port on remote connection", "error", err)
 	}
 	defer func() { _ = remoteListener.Close() }()
-	log.Info("Tunneling connection established", "remote", remoteAddr)
+	log.Info("Tunneling connection established 🎉 You're ready to go live!", "remote", remoteAddr)
 
 	for {
 		remote, err := remoteListener.Accept()
