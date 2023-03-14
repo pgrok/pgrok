@@ -10,7 +10,7 @@ This is intended for small teams that need to expose the local development envir
 
 It gives stable subdomain for every user, and gated by your SSO through OIDC protocol.
 
-Think this as a bare-bone alternative to the [ngrok's $65/user/month enterprise tier](https://ngrok.com/pricing). Try to put this behind a production system will blow up your SLA.
+Think of this as a bare-bones alternative to the [ngrok's $65/user/month enterprise tier](https://ngrok.com/pricing). Trying to put this behind a production system will blow up your SLA.
 
 For individuals and production systems, just buy ngrok, it is still my favorite.
 
@@ -113,7 +113,7 @@ Before you get started, make sure you have the following:
 
 #### Override config options
 
-Following config options can be override through CLI flags:
+Following config options can be overridden through CLI flags:
 
 - `--remote-addr` -> `remote_addr`
 - `--forward-addr` -> `forward_addr`
@@ -129,7 +129,7 @@ pgrok http 8080
 
 In addition to traditional request forwarding to a single address, `pgrok` can be configured to have dynamic forward rules.
 
-For example, if your local frontend is running at `http://localhost:3000` but some gRPC endpoints need talk to the backend directly at `http://localhost:8080`:
+For example, if your local frontend is running at `http://localhost:3000` but some gRPC endpoints need to talk to the backend directly at `http://localhost:8080`:
 
 ```yaml
 dynamic_forwards: |
@@ -137,7 +137,7 @@ dynamic_forwards: |
   /hook http://localhost:8080
 ```
 
-Then all request prefixed with the path `/api` and `/hook` will be forwarded to `http://localhost:8080` and all the rest are forwarded to the `forward_addr` (`http://localhost:3000`).
+Then all requests prefixed with the path `/api` and `/hook` will be forwarded to `http://localhost:8080` and all the rest are forwarded to the `forward_addr` (`http://localhost:3000`).
 
 ### Vanilla SSH
 
