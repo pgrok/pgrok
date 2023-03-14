@@ -11,11 +11,11 @@ tasks:
   build-pgrok:
     desc: Build the binary of pgrok
     cmds:
-      - go build -v -trimpath -o ./.bin/pgrok ./cmd/pgrok
+      - go build -v -trimpath -ldflags "-s -w -X 'main.version=$GITHUB_REF_NAME' -X 'main.commit=$GITHUB_SHA' -X 'main.date={{ now }}'" -o ./.bin/pgrok ./cmd/pgrok
   build-pgrokd:
     desc: Build the binary of pgrokd
     cmds:
-      - go build -v -trimpath -o ./.bin/pgrokd ./cmd/pgrokd
+      - go build -v -trimpath -ldflags "-s -w -X 'main.version=$GITHUB_REF_NAME' -X 'main.commit=$GITHUB_SHA' -X 'main.date={{ now }}'" -o ./.bin/pgrokd ./cmd/pgrokd
     sources:
       - go.mod
       - cmd/pgrokd/*.go
