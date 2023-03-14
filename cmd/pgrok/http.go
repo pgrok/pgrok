@@ -33,16 +33,13 @@ func commandHTTP(homeDir string) *cli.Command {
 				Name:    "remote-addr",
 				Usage:   "The address of the remote SSH server",
 				Aliases: []string{"r"},
-				Action: func(c *cli.Context, s string) error {
-					return c.Set("remote-addr", deriveFullAddress(s))
-				},
 			},
 			&cli.StringFlag{
 				Name:    "forward-addr",
 				Usage:   "The address to forward requests to",
 				Aliases: []string{"f"},
 				Action: func(c *cli.Context, s string) error {
-					return c.Set("forward-addr", deriveFullAddress(s))
+					return c.Set("forward-addr", deriveForwardAddress(s))
 				},
 			},
 			&cli.StringFlag{
@@ -99,7 +96,7 @@ func actionHTTP(c *cli.Context) error {
 	}
 
 	forwardAddr := strutil.Coalesce(
-		deriveFullAddress(c.Args().First()),
+		deriveForwardAddress(c.Args().First()),
 		c.String("forward-addr"),
 		config.ForwardAddr,
 	)

@@ -23,9 +23,6 @@ func commandInit(homeDir string) *cli.Command {
 				Usage:    "The address of the remote SSH server",
 				Required: true,
 				Aliases:  []string{"r"},
-				Action: func(c *cli.Context, s string) error {
-					return c.Set("remote-addr", deriveFullAddress(s))
-				},
 			},
 			&cli.StringFlag{
 				Name:     "forward-addr",
@@ -33,7 +30,7 @@ func commandInit(homeDir string) *cli.Command {
 				Required: true,
 				Aliases:  []string{"f"},
 				Action: func(c *cli.Context, s string) error {
-					return c.Set("forward-addr", deriveFullAddress(s))
+					return c.Set("forward-addr", deriveForwardAddress(s))
 				},
 			},
 			&cli.StringFlag{
@@ -46,9 +43,9 @@ func commandInit(homeDir string) *cli.Command {
 	}
 }
 
-// deriveFullAddress tries to be smart about deriving the full address URL from
-// incomplete host and port information.
-func deriveFullAddress(addr string) string {
+// deriveForwardAddress tries to be smart about deriving the full address URL
+// from incomplete forward host and port information.
+func deriveForwardAddress(addr string) string {
 	if addr == "" {
 		return ""
 	}
