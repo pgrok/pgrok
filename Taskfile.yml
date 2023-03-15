@@ -1,5 +1,13 @@
 version: '3'
 
+vars:
+  BUILD_VERSION:
+    sh: echo ${BUILD_VERSION}
+  BUILD_COMMIT:
+    sh: git rev-parse HEAD
+  BUILD_DATE:
+    sh: date -u '+%Y-%m-%d %I:%M:%S %Z'
+
 tasks:
   pgrokd:
     desc: Build the binary and start the pgrokd
@@ -11,13 +19,25 @@ tasks:
   build-pgrok:
     desc: Build the binary of pgrok
     cmds:
-      - go build -v -trimpath -ldflags "-s -w -X 'main.version=$GITHUB_REF_NAME' -X 'main.commit=$GITHUB_SHA' -X 'main.date={{ now }}'" -o ./.bin/pgrok ./cmd/pgrok
+      - go build -v -trimpath -o ./.bin/pgrok ./cmd/pgrok
   build-pgrokd:
     desc: Build the binary of pgrokd
     cmds:
-      - go build -v -trimpath -ldflags "-s -w -X 'main.version=$GITHUB_REF_NAME' -X 'main.commit=$GITHUB_SHA' -X 'main.date={{ now }}'" -o ./.bin/pgrokd ./cmd/pgrokd
+      - go build -v -trimpath -o ./.bin/pgrokd ./cmd/pgrokd
     sources:
       - go.mod
       - cmd/pgrokd/*.go
       - internal/**/*
     method: timestamp
+
+  build-pgrokd-release:
+    desc: Build the release binary of pgrokd
+    cmds:
+      - go build -v
+        -ldflags '
+        -X "main.version={{.BUILD_VERSION}}"
+        -X "main.commit={{.BUILD_COMMIT}}"
+        -X "main.date={{.BUILD_DATE}}"'
+        -trimpath
+        -o pgrokd
+        ./cmd/pgrokd

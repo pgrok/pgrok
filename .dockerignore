@@ -1,0 +1,9 @@
+.bin/
+.task/
+.github/
+.dockerignore
+*.yml
+!Taskfile.yml
+*.md
+.editorconfig
+.gitignore
