@@ -3,6 +3,7 @@ package database
 import (
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -86,5 +87,9 @@ type gormLogger struct {
 }
 
 func (l *gormLogger) Printf(format string, args ...any) {
-	l.Debug(fmt.Sprintf(format, args...))
+	print := l.Debug
+	if strings.Contains(format, "[error]") {
+		print = l.Error
+	}
+	print(fmt.Sprintf(format, args...))
 }
