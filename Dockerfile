@@ -41,7 +41,7 @@ WORKDIR /app/pgrokd/
 COPY --from=binarybuilder /dist/pgrokd .
 
 USER nonroot
-VOLUME ["/app/pgrokd/data"]
+VOLUME ["/var/opt/pgrokd"]
 EXPOSE 3320 3000 2222
 ENTRYPOINT ["/sbin/tini", "--", "/app/pgrokd/pgrokd"]
-CMD ["--config", "./data/pgrokd.yml"]
+CMD ["--config", "/var/opt/pgrokd/pgrokd.yml"]
