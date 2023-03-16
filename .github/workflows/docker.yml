@@ -32,7 +32,7 @@ jobs:
         uses: WyriHaximus/github-action-get-previous-tag@v1
       - name: Compute short commit SHA
         id: short-sha
-        uses: benjlevesque/short-sha@v2
+        uses: benjlevesque/short-sha@v2.1
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
         with:
@@ -100,7 +100,7 @@ jobs:
           echo "Platforms: ${{ steps.buildx.outputs.platforms }}"
       - name: Compute short commit SHA
         id: short-sha
-        uses: benjlevesque/short-sha@v2
+        uses: benjlevesque/short-sha@v2.1
       - name: Build and push images
         uses: docker/build-push-action@v4
         with:
