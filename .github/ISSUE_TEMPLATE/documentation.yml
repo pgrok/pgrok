@@ -1,6 +1,6 @@
-name: Question
-description: Ask us a question.
-labels: ["❓question"]
+name: Improve documentation
+description: Suggest an idea or a patch for documentation
+labels: ["📖 documentation"]
 body:
   - type: markdown
     attributes:
@@ -11,8 +11,14 @@ body:
         - Check to make sure someone hasn't already opened a similar [issue](https://github.com/pgrok/pgrok/issues).
   - type: textarea
     attributes:
-      label: Type out the question
-      description: A clear and concise description of your question.
+      label: What needs to be improved? Please describe
+      description: A clear and concise description of what is wrong or missing.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Why do you think it is important?
+      description: A clear and concise explanation of the rationale.
     validations:
       required: true
   - type: checkboxes
@@ -20,6 +26,4 @@ body:
       label: Consent
       options:
         - label: I agree to follow the [Code of Conduct](https://go.dev/conduct)
-          required: true
-        - label: I understand a satisfying answer is not guaranteed
           required: true
