@@ -1,4 +1,4 @@
-FROM golang:1.20.2-alpine3.17 AS binarybuilder
+FROM golang:1.20-alpine3.17 AS binarybuilder
 RUN apk --no-cache --no-progress add --virtual \
     build-deps \
     build-base \
@@ -28,13 +28,20 @@ COPY . .
 RUN BUILD_VERSION=${BUILD_VERSION} task build-pgrokd-release
 
 FROM alpine:3.17
+
+RUN addgroup --gid 10001 --system nonroot \
+  && adduser  --uid 10000 --system --ingroup nonroot --home /home/nonroot nonroot
+
 RUN echo https://dl-cdn.alpinelinux.org/alpine/edge/community/ >> /etc/apk/repositories \
   && apk --no-cache --no-progress add \
-  ca-certificates
+  ca-certificates \
+  tini
 
 WORKDIR /app/pgrokd/
 COPY --from=binarybuilder /dist/pgrokd .
 
+USER nonroot
 VOLUME ["/app/pgrokd/data"]
 EXPOSE 3320 3000 2222
-CMD ["/app/pgrokd/pgrokd", "--config", "./data/pgrokd.yml"]
+ENTRYPOINT ["/sbin/tini", "--", "/app/pgrokd/pgrokd"]
+CMD ["--config", "./data/pgrokd.yml"]
