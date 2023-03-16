@@ -23,6 +23,7 @@ RUN export url="https://github.com/go-task/task/releases/download/v3.22.0/task_l
   && mv task /usr/local/bin/task
 
 ARG BUILD_VERSION="unknown"
+
 WORKDIR /dist
 COPY . .
 RUN BUILD_VERSION=${BUILD_VERSION} task build-pgrokd-release
@@ -43,5 +44,6 @@ COPY --from=binarybuilder /dist/pgrokd .
 USER nonroot
 VOLUME ["/var/opt/pgrokd"]
 EXPOSE 3320 3000 2222
+HEALTHCHECK CMD (curl -o /dev/null -sS http://localhost:3320/healthcheck) || exit 1
 ENTRYPOINT ["/sbin/tini", "--", "/app/pgrokd/pgrokd"]
 CMD ["--config", "/var/opt/pgrokd/pgrokd.yml"]
