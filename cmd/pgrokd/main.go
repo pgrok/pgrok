@@ -157,12 +157,17 @@ func startWebServer(config *conf.Config, db *database.DB) {
 		f.Use(template.Templater())
 	}
 
+	f.Get("/sign-in", func(t template.Template, data template.Data) {
+		if config.IdentityProvider != nil {
+			data["DisplayName"] = config.IdentityProvider.DisplayName
+		}
+		t.HTML(http.StatusOK, "sign-in")
+	})
+
 	f.Group("/-", func() {
-		f.Get("/sign-in", func(t template.Template, data template.Data) {
-			if config.IdentityProvider != nil {
-				data["DisplayName"] = config.IdentityProvider.DisplayName
-			}
-			t.HTML(http.StatusOK, "sign-in")
+		f.Get("/healthcheck", func(w http.ResponseWriter) {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(http.StatusText(http.StatusOK)))
 		})
 
 		f.Get("/oidc/auth", func(c flamego.Context, r flamego.Render, s session.Session) {
@@ -256,7 +261,7 @@ func startWebServer(config *conf.Config, db *database.DB) {
 		func(c flamego.Context, r flamego.Render, s session.Session) {
 			userID, ok := s.Get("userID").(int64)
 			if !ok || userID <= 0 {
-				c.Redirect("/-/sign-in")
+				c.Redirect("/sign-in")
 				return
 			}
 
