@@ -62,7 +62,7 @@ jobs:
           platforms: linux/amd64,linux/arm64,linux/arm/v7
           push: true
           tags: |
-            ghcr.io/pgrok/pgrokd:latest
+            ghcr.io/pgrok/pgrokd:insiders
       - name: Send email on failure
         uses: dawidd6/action-send-mail@v3
         if: ${{ failure() }}
@@ -155,6 +155,7 @@ jobs:
           push: true
           tags: |
             ghcr.io/pgrok/pgrokd:${{ env.IMAGE_TAG }}
+            ghcr.io/pgrok/pgrokd:latest
       - name: Send email on failure
         uses: dawidd6/action-send-mail@v3
         if: ${{ failure() }}
