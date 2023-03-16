@@ -1,4 +1,4 @@
-FROM golang:1.20.2-alpine3.17 AS binarybuilder
+FROM golang:1.20-alpine3.17 AS binarybuilder
 RUN apk --no-cache --no-progress add --virtual \
     build-deps \
     build-base \
@@ -23,18 +23,28 @@ RUN export url="https://github.com/go-task/task/releases/download/v3.22.0/task_l
   && mv task /usr/local/bin/task
 
 ARG BUILD_VERSION="unknown"
+
 WORKDIR /dist
 COPY . .
 RUN BUILD_VERSION=${BUILD_VERSION} task build-pgrokd-release
 
 FROM alpine:3.17
+
+RUN addgroup --gid 10001 --system nonroot \
+  && adduser  --uid 10000 --system --ingroup nonroot --home /home/nonroot nonroot
+
 RUN echo https://dl-cdn.alpinelinux.org/alpine/edge/community/ >> /etc/apk/repositories \
   && apk --no-cache --no-progress add \
-  ca-certificates
+  ca-certificates \
+  curl \
+  tini
 
 WORKDIR /app/pgrokd/
 COPY --from=binarybuilder /dist/pgrokd .
 
-VOLUME ["/app/pgrokd/data"]
+USER nonroot
+VOLUME ["/var/opt/pgrokd"]
 EXPOSE 3320 3000 2222
-CMD ["/app/pgrokd/pgrokd", "--config", "./data/pgrokd.yml"]
+HEALTHCHECK CMD (curl -o /dev/null -sS http://127.0.0.1:3320/-/healthcheck) || exit 1
+ENTRYPOINT ["/sbin/tini", "--", "/app/pgrokd/pgrokd"]
+CMD ["--config", "/var/opt/pgrokd/pgrokd.yml"]
