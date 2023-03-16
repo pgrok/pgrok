@@ -35,10 +35,7 @@ jobs:
         uses: benjlevesque/short-sha@v2
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
-        platforms:
-          - linux/amd64
-          - linux/arm64
-          - linux/arm/v7
+        platforms: linux/amd64,linux/arm64,linux/arm/v7
       - name: Set up Docker Buildx
         id: buildx
         uses: docker/setup-buildx-action@v2
@@ -61,10 +58,7 @@ jobs:
           context: .
           build-args: |
             BUILD_VERSION=${{ steps.latest-tag.outputs.tag }}+main.${{ steps.short-sha.outputs.sha }}
-          platforms:
-            - linux/amd64
-            - linux/arm64
-            - linux/arm/v7
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
           push: true
           tags: |
             ghcr.io/pgrok/pgrokd:latest
@@ -132,10 +126,7 @@ jobs:
         uses: actions/checkout@v3
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
-        platforms:
-          - linux/amd64
-          - linux/arm64
-          - linux/arm/v7
+        platforms: linux/amd64,linux/arm64,linux/arm/v7
       - name: Set up Docker Buildx
         id: buildx
         uses: docker/setup-buildx-action@v2
@@ -158,10 +149,7 @@ jobs:
           context: .
           build-args: |
             BUILD_VERSION=${{ env.IMAGE_TAG }}
-          platforms:
-            - linux/amd64
-            - linux/arm64
-            - linux/arm/v7
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
           push: true
           tags: |
             ghcr.io/pgrok/pgrokd:${{ env.IMAGE_TAG }}
