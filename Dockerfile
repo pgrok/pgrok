@@ -36,6 +36,7 @@ RUN addgroup --gid 10001 --system nonroot \
 RUN echo https://dl-cdn.alpinelinux.org/alpine/edge/community/ >> /etc/apk/repositories \
   && apk --no-cache --no-progress add \
   ca-certificates \
+  curl \
   tini
 
 WORKDIR /app/pgrokd/
