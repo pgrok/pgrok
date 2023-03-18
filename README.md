@@ -73,7 +73,7 @@ Before you get started, make sure you have the following:
     #  required_domain: "example.com"
     ```
 1. Download the latest version of the `pgrokd` archive from the [Releases](https://github.com/pgrok/pgrok/releases) page.
-1. Launch the `pgrokd` in background (systemd, screen, nohup).
+1. Launch the `pgrokd` in background (systemd, screen, nohup, [Docker](docs/admin/docker.md)).
     1. By default, `pgrokd` expects the `pgrokd.yml` is available in the working directory. Use `--config` flag to specify a different path for the config file.
 1. Alter your network security policy (if applicable) to allow inbound requests to port 2222 from `0.0.0.0/0` (anywhere).
 1. [Download and install Caddy 2](https://caddyserver.com/docs/install) on your server, and use the following Caddyfile config:
