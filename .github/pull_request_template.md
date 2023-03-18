@@ -7,7 +7,7 @@ Link to the issue: <!-- paste the issue link here, or put "n/a" if not applicabl
 ## Consent
 
 - [ ] I agree to follow the [Code of Conduct](https://go.dev/conduct) by submitting this pull request.
-- [ ] I have read and acknowledge the [Contributing guide](https://github.com/pgrok/pgrok/blob/main/.github/contributing.md).
+- [ ] I have read and acknowledged the [Contributing guide](https://github.com/pgrok/pgrok/blob/main/.github/contributing.md).
 - [ ] I have added test cases to cover the new code or have provided the test plan.
 
 ## Test plan
