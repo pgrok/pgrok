@@ -194,7 +194,7 @@ func tryConnect(remoteAddr, forwardAddr, token string) error {
 		}
 		log.Debug("Forwarding connection", "remote", remote.RemoteAddr())
 
-		go func() {
+		go func(remote, forward net.Conn) {
 			defer func() {
 				_ = remote.Close()
 				_ = forward.Close()
@@ -211,6 +211,6 @@ func tryConnect(remoteAddr, forwardAddr, token string) error {
 				done()
 			}()
 			<-ctx.Done()
-		}()
+		}(remote, forward)
 	}
 }
