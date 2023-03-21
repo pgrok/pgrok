@@ -64,7 +64,7 @@ func Start(
 		// must be handled in a separate goroutine, otherwise one user could easily
 		// block entire loop. For example, user could be asked to trust server key
 		// fingerprint and hangs.
-		go func() {
+		go func(conn net.Conn) {
 			defer func() { _ = conn.Close() }()
 
 			logger.Debug("Handshaking", "remote", conn.RemoteAddr())
@@ -121,7 +121,7 @@ func Start(
 					}
 				}
 			}
-		}()
+		}(conn)
 	}
 }
 
