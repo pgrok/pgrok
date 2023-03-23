@@ -29,71 +29,38 @@ Copy, paste, and run is the best UX for everyone.
 
 Before you get started, make sure you have the following:
 
-1. A domain name (e.g. `pgrok.dev`, this will be used as the example throughout this section).
+1. A domain name (e.g. `example.com`, this will be used as the example throughout this section).
 1. A server (dedicated server, VPS) with a public IP address (e.g. `111.33.5.14`).
 1. An SSO provider (e.g. Google, Okta, Keycloak) that allows you to create OIDC clients.
 1. A PostgreSQL server ([bit.io](https://bit.io/), Cloud SQL, self-host).
 
-> **Note**
+> **Note**:
 >
-> HTTPS for the web and proxy server is not required for this to work, while recommended if possible. Examples in the section all use HTTP.
+> 1. All values used in this document are just examples, substitute based on your setup.
+> 1. HTTPS for the web and proxy server is not required for this to work, while recommended if possible. Examples in this document all use HTTP.
 
 ### Set up the server (`pgrokd`)
 
 1. Add the following DNS records for your domain name:
-    1. `A` record for `pgrok.dev` to `111.33.5.14`
-    1. `A` record for `*.pgrok.dev` to `111.33.5.14`
-1. Create a `pgrokd.yml` file:
-    ```yaml
-    external_url: "http://pgrok.dev"
-    web:
-      port: 3320
-    proxy:
-      port: 3000
-      scheme: "http"
-      domain: "pgrok.dev"
-    sshd:
-      port: 2222
-
-    database:
-      host: "localhost"
-      port: 5432
-      user: "REDACTED"
-      password: "REDACTED"
-      database: "pgrokd"
-
-    identity_provider:
-      type: "oidc"
-      display_name: "Google"
-      issuer: "https://accounts.google.com"
-      client_id: "REDACTED"
-      client_secret: "REDACTED"
-      field_mapping:
-        identifier: "email"
-        display_name: "name"
-        email: "email"
-    #  # The required domain name, "field_mapping.email" is required to set for this to work.
-    #  required_domain: "example.com"
-    ```
-1. Download the latest version of the `pgrokd` archive from the [Releases](https://github.com/pgrok/pgrok/releases) page.
-1. Launch the `pgrokd` in background (systemd, screen, nohup, [Docker](docs/admin/docker.md)).
-    1. By default, `pgrokd` expects the `pgrokd.yml` is available in the working directory. Use `--config` flag to specify a different path for the config file.
+    1. `A` record for `example.com` to `111.33.5.14`
+    1. `A` record for `*.example.com` to `111.33.5.14`
+1. Set up the server with the [single binary](./docs/admin/single-binary.md), [Docker](./docs/admin/docker.md#standalone-docker-container) or [Docker Compose](./docs/admin/docker.md#docker-compose).
 1. Alter your network security policy (if applicable) to allow inbound requests to port 2222 from `0.0.0.0/0` (anywhere).
 1. [Download and install Caddy 2](https://caddyserver.com/docs/install) on your server, and use the following Caddyfile config:
     ```caddyfile
-    http://pgrok.dev {
+    http://example.com {
         reverse_proxy * localhost:3320
     }
 
-    http://*.pgrok.dev {
+    http://*.example.com {
         reverse_proxy * localhost:3000
     }
     ```
-1. Create a new OIDC client in your SSO with the **Redirect URI** to be `http://pgrok.dev/-/oidc/callback`.
+1. Create a new OIDC client in your SSO with the **Redirect URI** to be `http://example.com/-/oidc/callback`.
 
 ### Set up the client (`pgrok`)
 
-1. Go to http://pgrok.dev, authenticate with your SSO to obtain the token and URL (e.g. `http://unknwon.pgrok.dev`).
+1. Go to http://example.com, authenticate with your SSO to obtain the token and URL (e.g. `http://unknwon.example.com`).
 1. Download the latest version of the `pgrok`:
     1. For Homebrew:
         ```sh
@@ -102,7 +69,7 @@ Before you get started, make sure you have the following:
     1. For others, download the archive from the [Releases](https://github.com/pgrok/pgrok/releases) page.
 1. Initialize a `pgrok.yml` file with the following command (assuming you want to forward requests to `http://localhost:3000`):
     ```sh
-    pgrok init --remote-addr pgrok.dev:2222 --forward-addr http://localhost:3000 --token {YOUR_TOKEN}
+    pgrok init --remote-addr example.com:2222 --forward-addr http://localhost:3000 --token {YOUR_TOKEN}
     ```
     By default, the config file is created under the home directory (`~/.pgrok/pgrok.yml`). Use `--config` flag to specify a different path for the config file.
 1. Launch the client by executing the `pgrok` or `pgrok http` command.
@@ -110,7 +77,7 @@ Before you get started, make sure you have the following:
     1. Use the `--debug` flag to turn on debug logging.
     1. Upon successful startup, you should see a log looks like:
         ```sh
-        YYYY-MM-DD 12:34:56 INFO Tunneling connection established remote=pgrok.dev:2222
+        YYYY-MM-DD 12:34:56 INFO Tunneling connection established remote=example.com:2222
         ```
 1. Now visit the URL.
 
@@ -118,9 +85,9 @@ Before you get started, make sure you have the following:
 
 Following config options can be overridden through CLI flags:
 
-- `--remote-addr` -> `remote_addr`
-- `--forward-addr` -> `forward_addr`
-- `--token` -> `token`
+- `--remote-addr, -r` -> `remote_addr`
+- `--forward-addr, -f` -> `forward_addr`
+- `--token, -t` -> `token`
 
 As a special case, the first argument of the `pgrok http` can be used to specify forward address, e.g.
 
@@ -146,8 +113,8 @@ Then all requests prefixed with the path `/api` and `/hook` will be forwarded to
 
 Because the standard SSH protocol is used for tunneling, you may well just use the vanilla SSH client.
 
-1. Go to http://pgrok.dev, authenticate with your SSO to obtain the token and URL (e.g. `http://unknwon.pgrok.dev`).
-1. Launch the client by executing the `ssh -N -R 0::3000 pgrok.dev -p 2222` command:
+1. Go to http://example.com, authenticate with your SSO to obtain the token and URL (e.g. `http://unknwon.example.com`).
+1. Launch the client by executing the `ssh -N -R 0::3000 example.com -p 2222` command:
     1. Enter the token as your password.
     1. Use the `-v` flag to turn on debug logging.
     1. Upon successful startup, you should see a log looks like:

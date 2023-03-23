@@ -7,11 +7,6 @@ Image versions:
   - The `latest` tag is an alias for the latest released version.
   - The `insiders` tag is the image version built from the latest `main` branch.
 
-> **Note**:
->
-> 1. All values used in this document are just examples, substitute based on your setup.
-> 1. HTTPS for the web and proxy server is not required for this to work, while recommended if possible. Examples in this document all use HTTP.
-
 ## Standalone Docker container
 
 1. Pick a directory on the file system to store the configuration file (`pgrokd.yml`), e.g. `/srv/pgrokd`:
@@ -73,6 +68,8 @@ docker run ...
 ```
 
 ## Docker Compose
+
+> **Note**: The [`docker-compose.yml`](../../docker-compose.yml) file lives under the repository root.
 
 1. Create the directory to store the configuration file (`pgrokd.yml`):
     ```sh
