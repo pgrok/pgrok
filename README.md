@@ -1,7 +1,7 @@
 ![pgrok banner](https://user-images.githubusercontent.com/2946214/227126410-3e9dae19-d0c0-4a96-9040-1322e389c8db.png)
 
 <div align="center">
-  <h2>Poor man's ngrok</h2>
+  <h3>Poor man's ngrok</h3>
   <a href="https://sourcegraph.com/github.com/pgrok/pgrok"><img src="https://img.shields.io/badge/view%20on-Sourcegraph-brightgreen.svg?style=for-the-badge&logo=sourcegraph" alt="Sourcegraph"></a>
 </div>
 
