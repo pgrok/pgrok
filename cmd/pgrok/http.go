@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -162,11 +163,30 @@ func tryConnect(remoteAddr, forwardAddr, token string) error {
 
 	remoteListener, err := client.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
-		log.Fatal("Failed to open port on remote connection", "error", err)
+		return errors.Wrap(err, "open port on remote connection")
 	}
 	defer func() { _ = remoteListener.Close() }()
-	log.Info("Tunneling connection established 🎉 You're ready to go live!", "remote", remoteAddr)
 
+	ok, reply, err := client.SendRequest("server-info", true, nil)
+	if err != nil {
+		return errors.Wrap(err, "query server info")
+	} else if !ok {
+		return errors.New("server info request rejected")
+	}
+
+	var serverInfo struct {
+		HostURL string `json:"host_url"`
+	}
+	err = json.Unmarshal(reply, &serverInfo)
+	if err != nil {
+		return errors.Wrap(err, "unmarshal server info")
+	}
+
+	message := "🎉 You're ready to go live!"
+	if serverInfo.HostURL != "" {
+		message = fmt.Sprintf("🎉 You're ready to go live at %s!", serverInfo.HostURL)
+	}
+	log.Info(message, "remote", remoteAddr)
 	for {
 		remote, err := remoteListener.Accept()
 		if err != nil {
