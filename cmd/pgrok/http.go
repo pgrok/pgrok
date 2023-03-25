@@ -167,19 +167,18 @@ func tryConnect(remoteAddr, forwardAddr, token string) error {
 	}
 	defer func() { _ = remoteListener.Close() }()
 
-	ok, reply, err := client.SendRequest("server-info", true, nil)
-	if err != nil {
-		return errors.Wrap(err, "query server info")
-	} else if !ok {
-		return errors.New("server info request rejected")
-	}
-
 	var serverInfo struct {
 		HostURL string `json:"host_url"`
 	}
-	err = json.Unmarshal(reply, &serverInfo)
+
+	ok, reply, err := client.SendRequest("server-info", true, nil)
 	if err != nil {
-		return errors.Wrap(err, "unmarshal server info")
+		return errors.Wrap(err, "query server info")
+	} else if ok {
+		err = json.Unmarshal(reply, &serverInfo)
+		if err != nil {
+			return errors.Wrap(err, "unmarshal server info")
+		}
 	}
 
 	message := "🎉 You're ready to go live!"
