@@ -2,6 +2,7 @@ package sshd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	mathrand "math/rand"
@@ -14,6 +15,7 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/pgrok/pgrok/internal/conf"
 	"github.com/pgrok/pgrok/internal/cryptoutil"
 	"github.com/pgrok/pgrok/internal/database"
 )
@@ -22,6 +24,7 @@ import (
 func Start(
 	logger log.Logger,
 	port int,
+	proxy conf.Proxy,
 	db *database.DB,
 	getHostByToken func(token string) (host string, _ error),
 	newProxy func(host, forward string),
@@ -115,6 +118,19 @@ func Start(
 						cancel()
 						_ = req.Reply(true, nil)
 					}(req)
+				case "server-info":
+					resp, err := json.Marshal(map[string]string{
+						"host_url": proxy.Scheme + "://" + serverConn.Permissions.Extensions["host"],
+					})
+					if err != nil {
+						logger.Error("Failed to marshal server info",
+							"remote", serverConn.RemoteAddr(),
+							"error", err,
+						)
+						_ = req.Reply(false, []byte("Internal server error"))
+						return
+					}
+					_ = req.Reply(true, resp)
 				default:
 					if req.WantReply {
 						_ = req.Reply(false, nil)

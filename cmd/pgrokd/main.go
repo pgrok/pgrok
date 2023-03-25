@@ -56,14 +56,14 @@ func main() {
 	}
 
 	proxies := reverseproxy.NewCluster()
-	go startSSHServer(config.SSHD.Port, config.Proxy.Domain, db, proxies)
+	go startSSHServer(config.SSHD.Port, config.Proxy, db, proxies)
 	go startProxyServer(config.Proxy.Port, proxies)
 	go startWebServer(config, db)
 
 	select {}
 }
 
-func startSSHServer(sshdPort int, proxyDomain string, db *database.DB, proxies *reverseproxy.Cluster) {
+func startSSHServer(sshdPort int, proxy conf.Proxy, db *database.DB, proxies *reverseproxy.Cluster) {
 	logger := log.New(
 		log.WithTimestamp(),
 		log.WithTimeFormat(time.DateTime),
@@ -74,13 +74,14 @@ func startSSHServer(sshdPort int, proxyDomain string, db *database.DB, proxies *
 	err := sshd.Start(
 		logger,
 		sshdPort,
+		proxy,
 		db,
 		func(token string) (host string, _ error) {
 			principle, err := db.GetPrincipleByToken(context.Background(), token)
 			if err != nil {
 				return "", err
 			}
-			return principle.Subdomain + "." + proxyDomain, nil
+			return principle.Subdomain + "." + proxy.Domain, nil
 		},
 		func(host, forward string) { proxies.Set(host, forward) },
 		func(host string) { proxies.Remove(host) },

@@ -13,16 +13,18 @@ type Config struct {
 	Web         struct {
 		Port int `yaml:"port"`
 	} `yaml:"web"`
-	Proxy struct {
-		Port   int    `yaml:"port"`
-		Scheme string `yaml:"scheme"`
-		Domain string `yaml:"domain"`
-	} `yaml:"proxy"`
-	SSHD struct {
+	Proxy Proxy `yaml:"proxy"`
+	SSHD  struct {
 		Port int `yaml:"port"`
 	} `yaml:"sshd"`
 	Database         *Database         `yaml:"database"`
 	IdentityProvider *IdentityProvider `yaml:"identity_provider"`
+}
+
+type Proxy struct {
+	Port   int    `yaml:"port"`
+	Scheme string `yaml:"scheme"`
+	Domain string `yaml:"domain"`
 }
 
 type Database struct {
