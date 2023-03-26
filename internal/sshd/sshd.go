@@ -22,7 +22,7 @@ import (
 
 // Start starts a SSH server listening on the given port.
 func Start(
-	logger log.Logger,
+	logger *log.Logger,
 	port int,
 	proxy conf.Proxy,
 	db *database.DB,
@@ -144,7 +144,7 @@ func Start(
 func handleTCPIPForward(
 	ctx context.Context,
 	cancel context.CancelFunc,
-	logger log.Logger,
+	logger *log.Logger,
 	serverConn *ssh.ServerConn,
 	req *ssh.Request,
 	newProxy func(forward string),

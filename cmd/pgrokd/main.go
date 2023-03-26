@@ -56,21 +56,15 @@ func main() {
 	}
 
 	proxies := reverseproxy.NewCluster()
-	go startSSHServer(config.SSHD.Port, config.Proxy, db, proxies)
-	go startProxyServer(config.Proxy.Port, proxies)
+	go startSSHServer(log.Default(), config.SSHD.Port, config.Proxy, db, proxies)
+	go startProxyServer(log.Default(), config.Proxy.Port, proxies)
 	go startWebServer(config, db)
 
 	select {}
 }
 
-func startSSHServer(sshdPort int, proxy conf.Proxy, db *database.DB, proxies *reverseproxy.Cluster) {
-	logger := log.New(
-		log.WithTimestamp(),
-		log.WithTimeFormat(time.DateTime),
-		log.WithPrefix("sshd"),
-		log.WithLevel(log.GetLevel()),
-	)
-
+func startSSHServer(logger *log.Logger, sshdPort int, proxy conf.Proxy, db *database.DB, proxies *reverseproxy.Cluster) {
+	logger = logger.WithPrefix("sshd")
 	err := sshd.Start(
 		logger,
 		sshdPort,
@@ -91,13 +85,8 @@ func startSSHServer(sshdPort int, proxy conf.Proxy, db *database.DB, proxies *re
 	}
 }
 
-func startProxyServer(port int, proxies *reverseproxy.Cluster) {
-	logger := log.New(
-		log.WithTimestamp(),
-		log.WithTimeFormat(time.DateTime),
-		log.WithPrefix("proxy"),
-		log.WithLevel(log.GetLevel()),
-	)
+func startProxyServer(logger *log.Logger, port int, proxies *reverseproxy.Cluster) {
+	logger = logger.WithPrefix("proxy")
 
 	f := flamego.New()
 	f.Use(flamego.Recovery())

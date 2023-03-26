@@ -19,7 +19,7 @@ type Forward struct {
 }
 
 // New creates a new http.Handler for dynamic forwarding.
-func New(logger log.Logger, defaultForwardAddr string, forwards ...Forward) (http.Handler, error) {
+func New(logger *log.Logger, defaultForwardAddr string, forwards ...Forward) (http.Handler, error) {
 	defaultForwardURL, err := url.Parse(defaultForwardAddr)
 	if err != nil {
 		return nil, errors.Wrap(err, "parse default forward address")

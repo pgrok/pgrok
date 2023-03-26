@@ -76,7 +76,7 @@ Before you get started, make sure you have the following:
     1. By default, `pgrok` expects the `pgrok.yml` is available under the home directory (`~/.pgrok/pgrok.yml`). Use `--config` flag to specify a different path for the config file.
     1. Use the `--debug` flag to turn on debug logging.
     1. Upon successful startup, you should see a log looks like:
-        ```sh
+        ```
         YYYY-MM-DD 12:34:56 INFO 🎉 You're ready to go live! remote=example.com:2222
         ```
 1. Now visit the URL.
