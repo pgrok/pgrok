@@ -5,7 +5,7 @@ go 1.20
 require (
 	github.com/charmbracelet/log v0.2.1
 	github.com/coreos/go-oidc v2.2.1+incompatible
-	github.com/flamego/flamego v1.9.0
+	github.com/flamego/flamego v1.9.1
 	github.com/flamego/session v1.3.0
 	github.com/flamego/template v1.2.1
 	github.com/pkg/errors v0.9.1
@@ -20,7 +20,7 @@ require (
 )
 
 require (
-	github.com/alecthomas/participle/v2 v2.0.0-beta.5 // indirect
+	github.com/alecthomas/participle/v2 v2.0.0 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/charmbracelet/lipgloss v0.7.1 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
