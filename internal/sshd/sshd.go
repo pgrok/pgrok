@@ -8,6 +8,7 @@ import (
 	mathrand "math/rand"
 	"net"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -119,8 +120,32 @@ func Start(
 						_ = req.Reply(true, nil)
 					}(req)
 				case "server-info":
+					protocol := "http"
+					if len(req.Payload) > 0 {
+						var payload struct {
+							Protocol string `json:"protocol"`
+						}
+						err := json.Unmarshal(req.Payload, &payload)
+						if err != nil {
+							_ = req.Reply(false, []byte(err.Error()))
+							return
+						}
+						protocol = payload.Protocol
+					}
+
+					var hostURL string
+					if protocol == "tcp" {
+						host := proxy.Domain
+						if i := strings.Index(host, ":"); i > 0 {
+							host = host[:i]
+						}
+						hostURL = "tcp://" + host + ":" + serverConn.Permissions.Extensions["tcp-port"]
+					} else {
+						hostURL = proxy.Scheme + "://" + serverConn.Permissions.Extensions["host"]
+					}
+
 					resp, err := json.Marshal(map[string]string{
-						"host_url": proxy.Scheme + "://" + serverConn.Permissions.Extensions["host"],
+						"host_url": hostURL,
 					})
 					if err != nil {
 						logger.Error("Failed to marshal server info",
@@ -200,6 +225,7 @@ func handleTCPIPForward(
 		"remote", serverConn.RemoteAddr(),
 		"forwardTo", address,
 	)
+	serverConn.Permissions.Extensions["tcp-port"] = fmt.Sprintf("%d", port)
 
 	type forwardResponse struct {
 		Port uint32
@@ -313,10 +339,12 @@ func ensureHostKeys(ctx context.Context, db *database.DB) ([]ssh.Signer, error) 
 	return signers, nil
 }
 
+// findAvailablePort returns a random port between 10000-20000 that is available
+// for use.
 func findAvailablePort() (int, error) {
 	r := mathrand.New(mathrand.NewSource(time.Now().UnixNano()))
 	for i := 0; i < 100; i++ {
-		port := r.Intn(10000) + 20000
+		port := r.Intn(10000) + 10000
 		address := fmt.Sprintf(":%d", port)
 		listener, err := net.Listen("tcp", address)
 		if err == nil {

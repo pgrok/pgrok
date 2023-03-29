@@ -7,7 +7,7 @@
 
 ## What?
 
-The pgrok is a multi-tenant HTTP reverse tunnel solution through remote port forwarding from the SSH protocol.
+The pgrok is a multi-tenant HTTP/TCP reverse tunnel solution through remote port forwarding from the SSH protocol.
 
 This is intended for small teams that need to expose the local development environment to the public internet, and you need to bring your own domain name and SSO provider.
 
@@ -77,17 +77,9 @@ Before you get started, make sure you have the following:
     1. Use the `--debug` flag to turn on debug logging.
     1. Upon successful startup, you should see a log looks like:
         ```
-        YYYY-MM-DD 12:34:56 INFO 🎉 You're ready to go live! remote=example.com:2222
+        YYYY-MM-DD 12:34:56 INFO 🎉 You're ready to go live at http://unknwon.example.com! remote=example.com:2222
         ```
 1. Now visit the URL.
-
-#### Override config options
-
-Following config options can be overridden through CLI flags:
-
-- `--remote-addr, -r` -> `remote_addr`
-- `--forward-addr, -f` -> `forward_addr`
-- `--token, -t` -> `token`
 
 As a special case, the first argument of the `pgrok http` can be used to specify forward address, e.g.
 
@@ -95,9 +87,35 @@ As a special case, the first argument of the `pgrok http` can be used to specify
 pgrok http 8080
 ```
 
-#### Dynamic forwards
+#### Raw TCP tunnels
 
-In addition to traditional request forwarding to a single address, `pgrok` can be configured to have dynamic forward rules.
+> **Note**:
+>
+> You need to alter the server network security policy (if applicable) to allow additional inbound requests to port range 10000-20000 from `0.0.0.0/0` (anywhere).
+
+Use the `tcp` subcommand to tunnel raw TCP traffic:
+
+```
+pgrok tcp 5432
+```
+
+Upon successful startup, you should see a log looks like:
+
+```
+YYYY-MM-DD 12:34:56 INFO 🎉 You're ready to go live at tcp://example.com:10086! remote=example.com:2222
+```
+
+#### Override config options
+
+Following config options can be overridden through CLI flags for both `http` and `tcp` subcommands:
+
+- `--remote-addr, -r` -> `remote_addr`
+- `--forward-addr, -f` -> `forward_addr`
+- `--token, -t` -> `token`
+
+#### HTTP dynamic forwards
+
+Typical HTTP reverse tunnel solutions only support forwarding requests to a single address, `pgrok` can be configured to have dynamic forward rules when tunneling HTTP requests.
 
 For example, if your local frontend is running at `http://localhost:3000` but some gRPC endpoints need to talk to the backend directly at `http://localhost:8080`:
 

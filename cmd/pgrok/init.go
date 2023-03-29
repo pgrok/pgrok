@@ -30,7 +30,7 @@ func commandInit(homeDir string) *cli.Command {
 				Required: true,
 				Aliases:  []string{"f"},
 				Action: func(c *cli.Context, s string) error {
-					return c.Set("forward-addr", deriveForwardAddress(s))
+					return c.Set("forward-addr", deriveHTTPForwardAddress(s))
 				},
 			},
 			&cli.StringFlag{
@@ -43,9 +43,9 @@ func commandInit(homeDir string) *cli.Command {
 	}
 }
 
-// deriveForwardAddress tries to be smart about deriving the full address URL
-// from incomplete forward host and port information.
-func deriveForwardAddress(addr string) string {
+// deriveHTTPForwardAddress tries to be smart about deriving the full HTTP
+// address from incomplete forward host and port information.
+func deriveHTTPForwardAddress(addr string) string {
 	if addr == "" {
 		return ""
 	}

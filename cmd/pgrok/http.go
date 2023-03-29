@@ -39,7 +39,7 @@ func commandHTTP(homeDir string) *cli.Command {
 				Usage:   "The address to forward requests to",
 				Aliases: []string{"f"},
 				Action: func(c *cli.Context, s string) error {
-					return c.Set("forward-addr", deriveForwardAddress(s))
+					return c.Set("forward-addr", deriveHTTPForwardAddress(s))
 				},
 			},
 			&cli.StringFlag{
@@ -63,7 +63,7 @@ func actionHTTP(c *cli.Context) error {
 	log.Debug("Loaded config", "file", configPath)
 
 	defaultForwardAddr := strutil.Coalesce(
-		deriveForwardAddress(c.Args().First()),
+		deriveHTTPForwardAddress(c.Args().First()),
 		c.String("forward-addr"),
 		config.ForwardAddr,
 	)
@@ -102,6 +102,7 @@ func actionHTTP(c *cli.Context) error {
 	cooldownAfter := time.Now().Add(time.Minute)
 	for failed := 0; ; failed++ {
 		err := tryConnect(
+			protocolHTTP,
 			strutil.Coalesce(c.String("remote-addr"), config.RemoteAddr),
 			surl.Host,
 			strutil.Coalesce(c.String("token"), config.Token),
@@ -145,7 +146,12 @@ func loadConfig(configPath string) (*Config, error) {
 	return &config, nil
 }
 
-func tryConnect(remoteAddr, forwardAddr, token string) error {
+const (
+	protocolHTTP string = "http"
+	protocolTCP  string = "tcp"
+)
+
+func tryConnect(protocol, remoteAddr, forwardAddr, token string) error {
 	client, err := ssh.Dial(
 		"tcp",
 		remoteAddr,
@@ -167,11 +173,16 @@ func tryConnect(remoteAddr, forwardAddr, token string) error {
 	}
 	defer func() { _ = remoteListener.Close() }()
 
+	payload, err := json.Marshal(map[string]string{"protocol": protocol})
+	if err != nil {
+		return errors.Wrap(err, "marshal server info payload")
+	}
+
 	var serverInfo struct {
 		HostURL string `json:"host_url"`
 	}
 
-	ok, reply, err := client.SendRequest("server-info", true, nil)
+	ok, reply, err := client.SendRequest("server-info", true, payload)
 	if err != nil {
 		return errors.Wrap(err, "query server info")
 	} else if ok {
@@ -198,13 +209,13 @@ func tryConnect(remoteAddr, forwardAddr, token string) error {
 			log.Error("Failed to dial local forward", "error", err)
 			continue
 		}
-		log.Debug("Forwarding connection", "remote", remote.RemoteAddr())
+		log.Debug("Forwarding connection", "remote", remote.RemoteAddr(), "protocol", protocol)
 
 		go func(remote, forward net.Conn) {
 			defer func() {
 				_ = remote.Close()
 				_ = forward.Close()
-				log.Debug("Forwarding connection closed", "remote", remote.RemoteAddr())
+				log.Debug("Forwarding connection closed", "remote", remote.RemoteAddr(), "protocol", protocol)
 			}()
 
 			ctx, done := context.WithCancel(context.Background())

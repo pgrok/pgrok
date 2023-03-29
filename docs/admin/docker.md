@@ -46,18 +46,29 @@ Image versions:
     # # The required domain name, "field_mapping.email" is required to set for this to work.
     #  required_domain: "example.com"
     ```
-1. Start a Docker container:
-    ```sh
-    docker run \
-      --detach \
-      --restart always \
-      --volume /srv/pgrokd:/var/opt/pgrokd \
-      --publish 3320:3320 \
-      --publish 3000:3000 \
-      --publish 2222:2222 \
-      --name pgrokd \
-      ghcr.io/pgrok/pgrokd:latest
-    ```
+1. Start a Docker container.
+   1. To only allow HTTP tunneling:
+       ```sh
+       docker run \
+         --detach \
+         --restart always \
+         --volume /srv/pgrokd:/var/opt/pgrokd \
+         --publish 3320:3320 \
+         --publish 3000:3000 \
+         --publish 2222:2222 \
+         --name pgrokd \
+         ghcr.io/pgrok/pgrokd:latest
+       ```
+   1. If you want to allow tunneling raw TCP traffic (this only works on Linux, but [expose port range in Docker is just too slow](https://github.com/moby/moby/issues/14288)):
+       ```sh
+       docker run \
+         --detach \
+         --restart always \
+         --volume /srv/pgrokd:/var/opt/pgrokd \
+         --network host \
+         --name pgrokd \
+         ghcr.io/pgrok/pgrokd:latest
+       ```
 
 ### Upgrade
 
