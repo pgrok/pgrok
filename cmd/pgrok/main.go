@@ -47,8 +47,9 @@ func main() {
 	app.Version = version
 	app.DefaultCommand = "http"
 	app.Commands = []*cli.Command{
-		commandHTTP(homeDir),
 		commandInit(homeDir),
+		commandHTTP(homeDir),
+		commandTCP(homeDir),
 	}
 	app.Flags = commonFlags(homeDir)
 	if err := app.Run(os.Args); err != nil {
