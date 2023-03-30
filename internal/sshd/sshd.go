@@ -203,7 +203,7 @@ func handleTCPIPForward(
 		)
 		return
 	}
-	address := fmt.Sprintf("127.0.0.1:%d", port)
+	address := fmt.Sprintf("0.0.0.0:%d", port)
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
 		logger.Error("Failed to listen on reverse tunnel address",
