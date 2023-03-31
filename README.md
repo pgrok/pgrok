@@ -143,7 +143,7 @@ Because the standard SSH protocol is used for tunneling, you may well just use t
 
 ## Explain it to me
 
-![pgrok network diagram](https://user-images.githubusercontent.com/2946214/224469633-4d03a2cb-8561-4584-a743-c70f3fda0aef.png)
+![pgrok network diagram](https://user-images.githubusercontent.com/2946214/229046756-fd726e20-ddf1-4bca-9304-d27b00ba2c4c.png)
 
 ## Sponsors
 
