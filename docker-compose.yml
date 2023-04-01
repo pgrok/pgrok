@@ -1,0 +1,25 @@
+services:
+  pgrokd:
+    image: "ghcr.io/pgrok/pgrokd:latest"
+    restart: always
+    volumes:
+      - "./pgrokd:/var/opt/pgrokd"
+    ports:
+      - "3320:3320"
+      - "3000:3000"
+      - "2222:2222"
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres
+    restart: always
+    volumes:
+      - "pg_data:/var/lib/postgresql/data"
+    environment:
+      POSTGRES_DB: pgrokd
+      POSTGRES_USER: "${POSTGRES_USER}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+
+volumes:
+  pg_data:

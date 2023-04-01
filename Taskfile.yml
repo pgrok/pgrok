@@ -1,5 +1,13 @@
 version: '3'
 
+vars:
+  BUILD_VERSION:
+    sh: echo ${BUILD_VERSION}
+  BUILD_COMMIT:
+    sh: git rev-parse HEAD
+  BUILD_DATE:
+    sh: date -u '+%Y-%m-%d %I:%M:%S %Z'
+
 tasks:
   pgrokd:
     desc: Build the binary and start the pgrokd
@@ -21,3 +29,15 @@ tasks:
       - cmd/pgrokd/*.go
       - internal/**/*
     method: timestamp
+
+  build-pgrokd-release:
+    desc: Build the release binary of pgrokd
+    cmds:
+      - go build -v
+        -ldflags '
+        -X "main.version={{.BUILD_VERSION}}"
+        -X "main.commit={{.BUILD_COMMIT}}"
+        -X "main.date={{.BUILD_DATE}}"'
+        -trimpath
+        -o pgrokd
+        ./cmd/pgrokd

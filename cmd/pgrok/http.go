@@ -2,23 +2,23 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
 	"net/http/httptest"
-	"net/http/httputil"
 	"net/url"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/charmbracelet/log"
-	"github.com/flamego/flamego"
 	"github.com/pkg/errors"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/crypto/ssh"
 	"gopkg.in/yaml.v3"
 
+	"github.com/pgrok/pgrok/internal/dynamicforward"
 	"github.com/pgrok/pgrok/internal/strutil"
 )
 
@@ -38,6 +38,9 @@ func commandHTTP(homeDir string) *cli.Command {
 				Name:    "forward-addr",
 				Usage:   "The address to forward requests to",
 				Aliases: []string{"f"},
+				Action: func(c *cli.Context, s string) error {
+					return c.Set("forward-addr", deriveHTTPForwardAddress(s))
+				},
 			},
 			&cli.StringFlag{
 				Name:    "token",
@@ -57,19 +60,18 @@ func actionHTTP(c *cli.Context) error {
 			"error", err.Error(),
 		)
 	}
+	log.Debug("Loaded config", "file", configPath)
 
-	f := flamego.New()
-	f.Use(func(c flamego.Context) {
-		started := time.Now()
-		c.Next()
-		log.Info("Forwarded request",
-			"path", c.Request().URL.Path,
-			"status", c.ResponseWriter().Status(),
-			"duration", time.Since(started),
-		)
-	})
-	rules := strings.Split(config.DynamicForwards, "\n")
-	for _, rule := range rules {
+	defaultForwardAddr := strutil.Coalesce(
+		deriveHTTPForwardAddress(c.Args().First()),
+		c.String("forward-addr"),
+		config.ForwardAddr,
+	)
+	log.Info("Default forward", "address", defaultForwardAddr)
+
+	dynamicForwardRules := strings.Split(config.DynamicForwards, "\n")
+	dynamicForwards := make([]dynamicforward.Forward, 0, len(dynamicForwardRules))
+	for _, rule := range dynamicForwardRules {
 		if rule == "" {
 			continue
 		}
@@ -79,37 +81,28 @@ func actionHTTP(c *cli.Context) error {
 			log.Debug("Skipped invalid dynamic forward rule", "rule", rule)
 			continue
 		}
-		routePath := fmt.Sprintf("/{*: %s.+/}/{**}", fields[0])
-		forward, err := url.Parse(fields[1])
-		if err != nil {
-			log.Fatal("Failed to parse the forward address",
-				"rule", rule,
-				"error", err.Error(),
-			)
-		}
-		f.Any(routePath, httputil.NewSingleHostReverseProxy(forward).ServeHTTP)
-		log.Debug("Dynamic forward rule added", "path", fields[0], "forwardTo", forward.String())
-	}
 
-	forwardAddr := strutil.Coalesce(
-		ensureForwardURL(c.Args().First()),
-		ensureForwardURL(c.String("forward-addr")),
-		config.ForwardAddr,
-	)
-	defaultForward, err := url.Parse(forwardAddr)
+		dynamicForwards = append(dynamicForwards,
+			dynamicforward.Forward{
+				Prefix:  fields[0],
+				Address: fields[1],
+			},
+		)
+		log.Debug("Added dynamic forward rule", "pathPrefix", fields[0], "forwardTo", fields[1])
+	}
+	forwardHandler, err := dynamicforward.New(log.Default(), defaultForwardAddr, dynamicForwards...)
 	if err != nil {
-		log.Fatal("Failed to parse default forward address", "error", err.Error())
+		log.Fatal("Failed to create forward handler", "error", err.Error())
 	}
-	f.Any("/{**}", httputil.NewSingleHostReverseProxy(defaultForward).ServeHTTP)
-	log.Info("Default forward", "address", forwardAddr)
 
-	s := httptest.NewServer(f)
+	s := httptest.NewServer(forwardHandler)
 	log.Debug("Capture server is running on", "url", s.URL)
 
 	surl, _ := url.Parse(s.URL)
 	cooldownAfter := time.Now().Add(time.Minute)
 	for failed := 0; ; failed++ {
 		err := tryConnect(
+			protocolHTTP,
 			strutil.Coalesce(c.String("remote-addr"), config.RemoteAddr),
 			surl.Host,
 			strutil.Coalesce(c.String("token"), config.Token),
@@ -153,7 +146,12 @@ func loadConfig(configPath string) (*Config, error) {
 	return &config, nil
 }
 
-func tryConnect(remoteAddr, forwardAddr, token string) error {
+const (
+	protocolHTTP string = "http"
+	protocolTCP  string = "tcp"
+)
+
+func tryConnect(protocol, remoteAddr, forwardAddr, token string) error {
 	client, err := ssh.Dial(
 		"tcp",
 		remoteAddr,
@@ -171,11 +169,34 @@ func tryConnect(remoteAddr, forwardAddr, token string) error {
 
 	remoteListener, err := client.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
-		log.Fatal("Failed to open port on remote connection", "error", err)
+		return errors.Wrap(err, "open port on remote connection")
 	}
 	defer func() { _ = remoteListener.Close() }()
-	log.Info("Tunneling connection established", "remote", remoteAddr)
 
+	payload, err := json.Marshal(map[string]string{"protocol": protocol})
+	if err != nil {
+		return errors.Wrap(err, "marshal server info payload")
+	}
+
+	var serverInfo struct {
+		HostURL string `json:"host_url"`
+	}
+
+	ok, reply, err := client.SendRequest("server-info", true, payload)
+	if err != nil {
+		return errors.Wrap(err, "query server info")
+	} else if ok {
+		err = json.Unmarshal(reply, &serverInfo)
+		if err != nil {
+			return errors.Wrap(err, "unmarshal server info")
+		}
+	}
+
+	message := "🎉 You're ready to go live!"
+	if serverInfo.HostURL != "" {
+		message = fmt.Sprintf("🎉 You're ready to go live at %s!", serverInfo.HostURL)
+	}
+	log.Info(message, "remote", remoteAddr)
 	for {
 		remote, err := remoteListener.Accept()
 		if err != nil {
@@ -188,13 +209,13 @@ func tryConnect(remoteAddr, forwardAddr, token string) error {
 			log.Error("Failed to dial local forward", "error", err)
 			continue
 		}
-		log.Debug("Forwarding connection", "remote", remote.RemoteAddr())
+		log.Debug("Forwarding connection", "remote", remote.RemoteAddr(), "protocol", protocol)
 
-		go func() {
+		go func(remote, forward net.Conn) {
 			defer func() {
 				_ = remote.Close()
 				_ = forward.Close()
-				log.Debug("Forwarding connection closed", "remote", remote.RemoteAddr())
+				log.Debug("Forwarding connection closed", "remote", remote.RemoteAddr(), "protocol", protocol)
 			}()
 
 			ctx, done := context.WithCancel(context.Background())
@@ -207,6 +228,6 @@ func tryConnect(remoteAddr, forwardAddr, token string) error {
 				done()
 			}()
 			<-ctx.Done()
-		}()
+		}(remote, forward)
 	}
 }

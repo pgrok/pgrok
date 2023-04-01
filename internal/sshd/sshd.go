@@ -2,11 +2,13 @@ package sshd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	mathrand "math/rand"
 	"net"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -14,14 +16,16 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/pgrok/pgrok/internal/conf"
 	"github.com/pgrok/pgrok/internal/cryptoutil"
 	"github.com/pgrok/pgrok/internal/database"
 )
 
 // Start starts a SSH server listening on the given port.
 func Start(
-	logger log.Logger,
+	logger *log.Logger,
 	port int,
+	proxy conf.Proxy,
 	db *database.DB,
 	getHostByToken func(token string) (host string, _ error),
 	newProxy func(host, forward string),
@@ -64,7 +68,7 @@ func Start(
 		// must be handled in a separate goroutine, otherwise one user could easily
 		// block entire loop. For example, user could be asked to trust server key
 		// fingerprint and hangs.
-		go func() {
+		go func(conn net.Conn) {
 			defer func() { _ = conn.Close() }()
 
 			logger.Debug("Handshaking", "remote", conn.RemoteAddr())
@@ -115,20 +119,57 @@ func Start(
 						cancel()
 						_ = req.Reply(true, nil)
 					}(req)
+				case "server-info":
+					protocol := "http"
+					if len(req.Payload) > 0 {
+						var payload struct {
+							Protocol string `json:"protocol"`
+						}
+						err := json.Unmarshal(req.Payload, &payload)
+						if err != nil {
+							_ = req.Reply(false, []byte(err.Error()))
+							return
+						}
+						protocol = payload.Protocol
+					}
+
+					var hostURL string
+					if protocol == "tcp" {
+						host := proxy.Domain
+						if i := strings.Index(host, ":"); i > 0 {
+							host = host[:i]
+						}
+						hostURL = "tcp://" + host + ":" + serverConn.Permissions.Extensions["tcp-port"]
+					} else {
+						hostURL = proxy.Scheme + "://" + serverConn.Permissions.Extensions["host"]
+					}
+
+					resp, err := json.Marshal(map[string]string{
+						"host_url": hostURL,
+					})
+					if err != nil {
+						logger.Error("Failed to marshal server info",
+							"remote", serverConn.RemoteAddr(),
+							"error", err,
+						)
+						_ = req.Reply(false, []byte("Internal server error"))
+						return
+					}
+					_ = req.Reply(true, resp)
 				default:
 					if req.WantReply {
 						_ = req.Reply(false, nil)
 					}
 				}
 			}
-		}()
+		}(conn)
 	}
 }
 
 func handleTCPIPForward(
 	ctx context.Context,
 	cancel context.CancelFunc,
-	logger log.Logger,
+	logger *log.Logger,
 	serverConn *ssh.ServerConn,
 	req *ssh.Request,
 	newProxy func(forward string),
@@ -162,7 +203,7 @@ func handleTCPIPForward(
 		)
 		return
 	}
-	address := fmt.Sprintf("127.0.0.1:%d", port)
+	address := fmt.Sprintf("0.0.0.0:%d", port)
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
 		logger.Error("Failed to listen on reverse tunnel address",
@@ -184,6 +225,7 @@ func handleTCPIPForward(
 		"remote", serverConn.RemoteAddr(),
 		"forwardTo", address,
 	)
+	serverConn.Permissions.Extensions["tcp-port"] = fmt.Sprintf("%d", port)
 
 	type forwardResponse struct {
 		Port uint32
@@ -297,10 +339,12 @@ func ensureHostKeys(ctx context.Context, db *database.DB) ([]ssh.Signer, error) 
 	return signers, nil
 }
 
+// findAvailablePort returns a random port between 10000-20000 that is available
+// for use.
 func findAvailablePort() (int, error) {
 	r := mathrand.New(mathrand.NewSource(time.Now().UnixNano()))
 	for i := 0; i < 100; i++ {
-		port := r.Intn(10000) + 20000
+		port := r.Intn(10000) + 10000
 		address := fmt.Sprintf(":%d", port)
 		listener, err := net.Listen("tcp", address)
 		if err == nil {

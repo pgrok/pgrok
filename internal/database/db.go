@@ -3,6 +3,7 @@ package database
 import (
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -34,12 +35,14 @@ func New(logWriter io.Writer, config *conf.Database) (*DB, error) {
 	// NOTE: AutoMigrate does not respect logger passed in gorm.Config.
 	logger.Default = logger.New(
 		&gormLogger{
-			Logger: log.New(
-				log.WithOutput(logWriter),
-				log.WithTimestamp(),
-				log.WithTimeFormat(time.DateTime),
-				log.WithPrefix("gorm"),
-				log.WithLevel(log.DebugLevel),
+			Logger: log.NewWithOptions(
+				logWriter,
+				log.Options{
+					TimeFormat:      time.DateTime,
+					Level:           log.DebugLevel,
+					Prefix:          "gorm",
+					ReportTimestamp: true,
+				},
 			),
 		},
 		logger.Config{
@@ -82,9 +85,13 @@ func New(logWriter io.Writer, config *conf.Database) (*DB, error) {
 
 // gormLogger is a wrapper of io.Writer for the GORM's logger.Writer.
 type gormLogger struct {
-	log.Logger
+	*log.Logger
 }
 
 func (l *gormLogger) Printf(format string, args ...any) {
-	l.Debug(fmt.Sprintf(format, args...))
+	print := l.Debug
+	if strings.Contains(format, "[error]") {
+		print = l.Error
+	}
+	print(fmt.Sprintf(format, args...))
 }

@@ -7,7 +7,7 @@ body:
       value: |
         Thanks for taking the time to fill out this bug report!
 
-        - Before you file an issue read the [Flamego's contributing guide](https://github.com/flamego/flamego/blob/main/.github/contributing.md).
+        - Before you file an issue read the [contributing guide](https://github.com/pgrok/pgrok/blob/main/.github/contributing.md).
         - Check to make sure someone hasn't already opened a similar [issue](https://github.com/pgrok/pgrok/issues).
   - type: input
     attributes:
@@ -44,8 +44,7 @@ body:
       required: false
   - type: checkboxes
     attributes:
-      label: Code of Conduct
-      description: By submitting this issue, you agree to follow our [Code of Conduct](https://go.dev/conduct)
+      label: Consent
       options:
-        - label: I agree to follow this project's Code of Conduct
+        - label: I agree to follow the [Code of Conduct](https://go.dev/conduct)
           required: true

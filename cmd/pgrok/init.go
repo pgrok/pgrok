@@ -29,6 +29,9 @@ func commandInit(homeDir string) *cli.Command {
 				Usage:    "The address to forward requests to",
 				Required: true,
 				Aliases:  []string{"f"},
+				Action: func(c *cli.Context, s string) error {
+					return c.Set("forward-addr", deriveHTTPForwardAddress(s))
+				},
 			},
 			&cli.StringFlag{
 				Name:     "token",
@@ -40,28 +43,30 @@ func commandInit(homeDir string) *cli.Command {
 	}
 }
 
-func ensureForwardURL(s string) string {
-	if s == "" {
+// deriveHTTPForwardAddress tries to be smart about deriving the full HTTP
+// address from incomplete forward host and port information.
+func deriveHTTPForwardAddress(addr string) string {
+	if addr == "" {
 		return ""
 	}
 
 	// Check if it's just a port number
-	port, err := strconv.Atoi(s)
+	port, err := strconv.Atoi(addr)
 	if err == nil {
 		return fmt.Sprintf("http://localhost:%d", port)
 	}
 
-	// Check if it;s omitting the hostname
-	port, err = strconv.Atoi(s[1:])
+	// Check if it's omitting the hostname
+	port, err = strconv.Atoi(addr[1:])
 	if err == nil {
 		return fmt.Sprintf("http://localhost:%d", port)
 	}
 
-	// Check if it;s omitting the scheme
-	if !strings.Contains("://", s) {
-		return "http://" + s
+	// Check if it's omitting the scheme
+	if !strings.Contains(addr, "://") {
+		return "http://" + addr
 	}
-	return s
+	return addr
 }
 
 func actionInit(c *cli.Context) error {
@@ -79,7 +84,7 @@ token: "%s"
 	config := fmt.Sprintf(
 		configTemplate,
 		c.String("remote-addr"),
-		ensureForwardURL(c.String("forward-addr")),
+		c.String("forward-addr"),
 		c.String("token"),
 	)
 	configPath := c.String("config")

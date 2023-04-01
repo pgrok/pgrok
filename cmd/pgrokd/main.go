@@ -56,31 +56,26 @@ func main() {
 	}
 
 	proxies := reverseproxy.NewCluster()
-	go startSSHServer(config.SSHD.Port, config.Proxy.Domain, db, proxies)
-	go startProxyServer(config.Proxy.Port, proxies)
+	go startSSHServer(log.Default(), config.SSHD.Port, config.Proxy, db, proxies)
+	go startProxyServer(log.Default(), config.Proxy.Port, proxies)
 	go startWebServer(config, db)
 
 	select {}
 }
 
-func startSSHServer(sshdPort int, proxyDomain string, db *database.DB, proxies *reverseproxy.Cluster) {
-	logger := log.New(
-		log.WithTimestamp(),
-		log.WithTimeFormat(time.DateTime),
-		log.WithPrefix("sshd"),
-		log.WithLevel(log.GetLevel()),
-	)
-
+func startSSHServer(logger *log.Logger, sshdPort int, proxy conf.Proxy, db *database.DB, proxies *reverseproxy.Cluster) {
+	logger = logger.WithPrefix("sshd")
 	err := sshd.Start(
 		logger,
 		sshdPort,
+		proxy,
 		db,
 		func(token string) (host string, _ error) {
 			principle, err := db.GetPrincipleByToken(context.Background(), token)
 			if err != nil {
 				return "", err
 			}
-			return principle.Subdomain + "." + proxyDomain, nil
+			return principle.Subdomain + "." + proxy.Domain, nil
 		},
 		func(host, forward string) { proxies.Set(host, forward) },
 		func(host string) { proxies.Remove(host) },
@@ -90,13 +85,8 @@ func startSSHServer(sshdPort int, proxyDomain string, db *database.DB, proxies *
 	}
 }
 
-func startProxyServer(port int, proxies *reverseproxy.Cluster) {
-	logger := log.New(
-		log.WithTimestamp(),
-		log.WithTimeFormat(time.DateTime),
-		log.WithPrefix("proxy"),
-		log.WithLevel(log.GetLevel()),
-	)
+func startProxyServer(logger *log.Logger, port int, proxies *reverseproxy.Cluster) {
+	logger = logger.WithPrefix("proxy")
 
 	f := flamego.New()
 	f.Use(flamego.Recovery())
@@ -157,12 +147,17 @@ func startWebServer(config *conf.Config, db *database.DB) {
 		f.Use(template.Templater())
 	}
 
+	f.Get("/signin", func(t template.Template, data template.Data) {
+		if config.IdentityProvider != nil {
+			data["DisplayName"] = config.IdentityProvider.DisplayName
+		}
+		t.HTML(http.StatusOK, "signin")
+	})
+
 	f.Group("/-", func() {
-		f.Get("/sign-in", func(t template.Template, data template.Data) {
-			if config.IdentityProvider != nil {
-				data["DisplayName"] = config.IdentityProvider.DisplayName
-			}
-			t.HTML(http.StatusOK, "sign-in")
+		f.Get("/healthcheck", func(w http.ResponseWriter) {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(http.StatusText(http.StatusOK)))
 		})
 
 		f.Get("/oidc/auth", func(c flamego.Context, r flamego.Render, s session.Session) {
@@ -256,7 +251,7 @@ func startWebServer(config *conf.Config, db *database.DB) {
 		func(c flamego.Context, r flamego.Render, s session.Session) {
 			userID, ok := s.Get("userID").(int64)
 			if !ok || userID <= 0 {
-				c.Redirect("/-/sign-in")
+				c.Redirect("/signin")
 				return
 			}
 
