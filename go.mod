@@ -3,6 +3,7 @@ module github.com/pgrok/pgrok
 go 1.20
 
 require (
+	github.com/adrg/xdg v0.4.0
 	github.com/charmbracelet/log v0.2.1
 	github.com/coreos/go-oidc v2.2.1+incompatible
 	github.com/flamego/flamego v1.9.1
