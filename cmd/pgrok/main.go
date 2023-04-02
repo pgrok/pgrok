@@ -1,23 +1,24 @@
 package main
 
 import (
-	"github.com/adrg/xdg"
 	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/adrg/xdg"
+
 	"github.com/charmbracelet/log"
 	"github.com/urfave/cli/v2"
+
+	"github.com/pgrok/pgrok/internal/osutil"
 )
 
 var version = "0.0.0+dev"
 
 func commonFlags(homeDir string) []cli.Flag {
 	configPath := filepath.Join(homeDir, ".pgrok", "pgrok.yml")
-
-	_, err := os.Stat(configPath)
-	if err != nil {
-		xdgConfigPath, err := xdg.ConfigFile("pgrok/pgrok.yml")
+	if !osutil.IsExist(configPath) {
+		xdgConfigPath, err := xdg.ConfigFile(filepath.Join("pgrok", "pgrok.yml"))
 		if err == nil {
 			configPath = xdgConfigPath
 		}

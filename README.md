@@ -62,22 +62,26 @@ Before you get started, make sure you have the following:
 
 1. Go to http://example.com, authenticate with your SSO to obtain the token and URL (e.g. `http://unknwon.example.com`).
 1. Download the latest version of the `pgrok`:
-    1. For Homebrew:
+    - For Homebrew:
         ```sh
         brew install pgrok/tap/pgrok
         ```
-    1. For others, download the archive from the [Releases](https://github.com/pgrok/pgrok/releases) page.
+    - For others, download the archive from the [Releases](https://github.com/pgrok/pgrok/releases) page.
 1. Initialize a `pgrok.yml` file with the following command (assuming you want to forward requests to `http://localhost:3000`):
     ```sh
     pgrok init --remote-addr example.com:2222 --forward-addr http://localhost:3000 --token {YOUR_TOKEN}
     ```
-    By default, the config file is created under the standard user configuration directory (macOS: `~/Library/Application Support/pgrok/pgrok.yml`, Linux: `~/.config/pgrok/pgrok.yml`, Windows: `%LOCALAPPDATA%\pgrok\pgrok.yml`). Use `--config` flag to specify a different path for the config file.
+    - By default, the config file is created under the [standard user configuration directory (`XDG_CONFIG_HOME`)](https://github.com/adrg/xdg):
+        - macOS: `~/Library/Application Support/pgrok/pgrok.yml`
+        - Linux: `~/.config/pgrok/pgrok.yml`
+        - Windows: `%LOCALAPPDATA%\pgrok\pgrok.yml`
+    - Use `--config` flag to specify a different path for the config file.
 1. Launch the client by executing the `pgrok` or `pgrok http` command.
-    1. By default, `pgrok` expects the `pgrok.yml` is available under the paths mentioned above, or under the home directory (`~/.pgrok/pgrok.yml`). Use `--config` flag to specify a different path for the config file.
-    1. Use the `--debug` flag to turn on debug logging.
-    1. Upon successful startup, you should see a log looks like:
+    - By default, `pgrok` expects the `pgrok.yml` is available under the standard user configuration directory, or under the home directory (`~/.pgrok/pgrok.yml`). Use `--config` flag to specify a different path for the config file.
+    - Use the `--debug` flag to turn on debug logging.
+    - Upon successful startup, you should see a log looks like:
         ```
-        YYYY-MM-DD 12:34:56 INFO 🎉 You're ready to go live at http://unknwon.example.com! remote=example.com:2222
+        🎉 You're ready to go live at http://unknwon.example.com! remote=example.com:2222
         ```
 1. Now visit the URL.
 
@@ -102,7 +106,7 @@ pgrok tcp 5432
 Upon successful startup, you should see a log looks like:
 
 ```
-YYYY-MM-DD 12:34:56 INFO 🎉 You're ready to go live at tcp://example.com:10086! remote=example.com:2222
+🎉 You're ready to go live at tcp://example.com:10086! remote=example.com:2222
 ```
 
 #### Override config options
