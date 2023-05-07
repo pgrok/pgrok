@@ -95,7 +95,7 @@ pgrok http 8080
 
 > **Note**:
 >
-> You need to alter the server network security policy (if applicable) to allow additional inbound requests to port range 10000-20000 from `0.0.0.0/0` (anywhere).
+> You need to alter the server network security policy (if applicable) to allow additional inbound requests to port range 10000-15000 from `0.0.0.0/0` (anywhere).
 
 Use the `tcp` subcommand to tunnel raw TCP traffic:
 
@@ -108,6 +108,8 @@ Upon successful startup, you should see a log looks like:
 ```
 🎉 You're ready to go live at tcp://example.com:10086! remote=example.com:2222
 ```
+
+The assigned TCP port on the server side is semi-stable, such that the same port number is used when still available.
 
 #### Override config options
 
