@@ -76,7 +76,7 @@ func New(logWriter io.Writer, config *conf.Database) (*DB, error) {
 	sqlDB.SetMaxIdleConns(30)
 	sqlDB.SetConnMaxLifetime(time.Minute)
 
-	err = db.AutoMigrate(&Principle{}, &HostKey{})
+	err = db.AutoMigrate(&Principal{}, &HostKey{})
 	if err != nil {
 		return nil, errors.Wrap(err, "auto migrate")
 	}

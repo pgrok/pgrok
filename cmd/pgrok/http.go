@@ -167,21 +167,26 @@ func tryConnect(protocol, remoteAddr, forwardAddr, token string) error {
 		return errors.Wrap(err, "dial remote server")
 	}
 
+	// Hint the server before establishing the reverse tunnel
+	payload, err := json.Marshal(map[string]string{"protocol": protocol})
+	if err != nil {
+		return errors.Wrap(err, "marshal payload")
+	}
+	_, _, err = client.SendRequest("hint", true, payload)
+	if err != nil {
+		return errors.Wrap(err, "hint server")
+	}
+
 	remoteListener, err := client.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return errors.Wrap(err, "open port on remote connection")
 	}
 	defer func() { _ = remoteListener.Close() }()
 
-	payload, err := json.Marshal(map[string]string{"protocol": protocol})
-	if err != nil {
-		return errors.Wrap(err, "marshal server info payload")
-	}
-
+	// Query the server info after the reverse tunnel is established
 	var serverInfo struct {
 		HostURL string `json:"host_url"`
 	}
-
 	ok, reply, err := client.SendRequest("server-info", true, payload)
 	if err != nil {
 		return errors.Wrap(err, "query server info")

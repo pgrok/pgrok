@@ -2,15 +2,10 @@ package sshd
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"io"
-	mathrand "math/rand"
 	"net"
 	"strconv"
-	"strings"
 	"syscall"
-	"time"
 
 	"github.com/charmbracelet/log"
 	"github.com/pkg/errors"
@@ -27,17 +22,21 @@ func Start(
 	port int,
 	proxy conf.Proxy,
 	db *database.DB,
-	getHostByToken func(token string) (host string, _ error),
 	newProxy func(host, forward string),
 	removeProxy func(host string),
 ) error {
 	config := &ssh.ServerConfig{
 		PasswordCallback: func(conn ssh.ConnMetadata, token []byte) (*ssh.Permissions, error) {
-			host, err := getHostByToken(string(token))
+			principal, err := db.GetPrincipalByToken(context.Background(), string(token))
 			if err != nil {
 				return nil, err
 			}
-			return &ssh.Permissions{Extensions: map[string]string{"host": host}}, nil
+			return &ssh.Permissions{
+				Extensions: map[string]string{
+					"principal-id": strconv.FormatInt(principal.ID, 10),
+					"host":         principal.Subdomain + "." + proxy.Domain,
+				},
+			}, nil
 		},
 	}
 
@@ -101,14 +100,29 @@ func Start(
 
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
+
+			principalID, _ := strconv.ParseInt(serverConn.Permissions.Extensions["principal-id"], 10, 64)
+			principal, err := db.GetPrincipalByID(ctx, principalID)
+			if err != nil {
+				logger.Error("Failed to get principal", "error", err)
+				return
+			}
+
+			client := &Client{
+				logger:     logger,
+				db:         db,
+				serverConn: serverConn,
+				principal:  principal,
+				protocol:   "http",
+			}
 			for req := range reqs {
 				switch req.Type {
+				case "hint":
+					client.handleHint(req)
 				case "tcpip-forward":
-					go handleTCPIPForward(
+					go client.handleTCPIPForward(
 						ctx,
 						cancel,
-						logger,
-						serverConn,
 						req,
 						func(forward string) { newProxy(serverConn.Permissions.Extensions["host"], forward) },
 						func() { removeProxy(serverConn.Permissions.Extensions["host"]) },
@@ -120,42 +134,7 @@ func Start(
 						_ = req.Reply(true, nil)
 					}(req)
 				case "server-info":
-					protocol := "http"
-					if len(req.Payload) > 0 {
-						var payload struct {
-							Protocol string `json:"protocol"`
-						}
-						err := json.Unmarshal(req.Payload, &payload)
-						if err != nil {
-							_ = req.Reply(false, []byte(err.Error()))
-							return
-						}
-						protocol = payload.Protocol
-					}
-
-					var hostURL string
-					if protocol == "tcp" {
-						host := proxy.Domain
-						if i := strings.Index(host, ":"); i > 0 {
-							host = host[:i]
-						}
-						hostURL = "tcp://" + host + ":" + serverConn.Permissions.Extensions["tcp-port"]
-					} else {
-						hostURL = proxy.Scheme + "://" + serverConn.Permissions.Extensions["host"]
-					}
-
-					resp, err := json.Marshal(map[string]string{
-						"host_url": hostURL,
-					})
-					if err != nil {
-						logger.Error("Failed to marshal server info",
-							"remote", serverConn.RemoteAddr(),
-							"error", err,
-						)
-						_ = req.Reply(false, []byte("Internal server error"))
-						return
-					}
-					_ = req.Reply(true, resp)
+					client.handleServerInfo(proxy, req)
 				default:
 					if req.WantReply {
 						_ = req.Reply(false, nil)
@@ -164,147 +143,6 @@ func Start(
 			}
 		}(conn)
 	}
-}
-
-func handleTCPIPForward(
-	ctx context.Context,
-	cancel context.CancelFunc,
-	logger *log.Logger,
-	serverConn *ssh.ServerConn,
-	req *ssh.Request,
-	newProxy func(forward string),
-	removeProxy func(),
-) {
-	// RFC 4254 7.1, https://www.rfc-editor.org/rfc/rfc4254#section-7.1
-	var forwardRequest struct {
-		Addr  string
-		Rport uint32
-	}
-	err := ssh.Unmarshal(req.Payload, &forwardRequest)
-	if err != nil {
-		logger.Error("Failed to unmarshal forward payload",
-			"remote", serverConn.RemoteAddr(),
-			"error", err,
-		)
-		_ = req.Reply(false, nil)
-		return
-	}
-	if forwardRequest.Rport != 0 {
-		_ = req.Reply(false, nil)
-		return
-	}
-
-	port, err := findAvailablePort()
-	if err != nil {
-		_ = req.Reply(false, nil)
-		logger.Error("Failed to find available port",
-			"remote", serverConn.RemoteAddr(),
-			"error", err,
-		)
-		return
-	}
-	address := fmt.Sprintf("0.0.0.0:%d", port)
-	listener, err := net.Listen("tcp", address)
-	if err != nil {
-		logger.Error("Failed to listen on reverse tunnel address",
-			"remote", serverConn.RemoteAddr(),
-			"forwardTo", address,
-			"error", err,
-		)
-		_ = req.Reply(false, nil)
-		return
-	}
-	defer func() {
-		_ = listener.Close()
-		logger.Info("Reverse tunnel server stopped",
-			"remote", serverConn.RemoteAddr(),
-			"forwardTo", address,
-		)
-	}()
-	logger.Info("Reverse tunnel server started",
-		"remote", serverConn.RemoteAddr(),
-		"forwardTo", address,
-	)
-	serverConn.Permissions.Extensions["tcp-port"] = fmt.Sprintf("%d", port)
-
-	type forwardResponse struct {
-		Port uint32
-	}
-	payload := &forwardResponse{Port: uint32(port)}
-	_ = req.Reply(true, ssh.Marshal(payload))
-
-	go func() {
-		for {
-			conn, err := listener.Accept()
-			if err != nil {
-				if !errors.Is(err, net.ErrClosed) {
-					logger.Error("Failed to accept incoming tunnel connection", "error", err)
-				}
-				return
-			}
-			logger.Debug("Tunneling connection",
-				"remote", conn.RemoteAddr(),
-				"forwardTo", address,
-			)
-
-			go func() {
-				defer func() {
-					_ = conn.Close()
-					logger.Debug("Tunneling connection closed",
-						"remote", conn.RemoteAddr(),
-						"forwardTo", address,
-					)
-				}()
-
-				host, portStr, _ := net.SplitHostPort(conn.RemoteAddr().String())
-				port, _ := strconv.Atoi(portStr)
-
-				// RFC 4254 7.2, , https://www.rfc-editor.org/rfc/rfc4254#section-7.2
-				type forwardedPayload struct {
-					Addr       string
-					Port       uint32
-					OriginAddr string
-					OriginPort uint32
-				}
-				payload := &forwardedPayload{
-					Addr:       forwardRequest.Addr,
-					Port:       payload.Port,
-					OriginAddr: host,
-					OriginPort: uint32(port),
-				}
-				stream, reqs, err := serverConn.OpenChannel("forwarded-tcpip", ssh.Marshal(payload))
-				if err != nil {
-					logger.Error("Failed to open tunneling channel",
-						"remote", conn.RemoteAddr(),
-						"forwardTo", address,
-						"error", err,
-					)
-					return
-				}
-				defer func() { _ = stream.Close() }()
-				go ssh.DiscardRequests(reqs)
-
-				streamCtx, done := context.WithCancel(ctx)
-				go func() {
-					_, _ = io.Copy(stream, conn)
-					done()
-				}()
-				go func() {
-					_, _ = io.Copy(conn, stream)
-					done()
-				}()
-				<-streamCtx.Done()
-			}()
-		}
-	}()
-	go func() {
-		_ = serverConn.Wait()
-		cancel()
-	}()
-
-	newProxy(address)
-	<-ctx.Done()
-	removeProxy()
 }
 
 func ensureHostKeys(ctx context.Context, db *database.DB) ([]ssh.Signer, error) {
@@ -337,20 +175,4 @@ func ensureHostKeys(ctx context.Context, db *database.DB) ([]ssh.Signer, error) 
 		signers = append(signers, signer)
 	}
 	return signers, nil
-}
-
-// findAvailablePort returns a random port between 10000-20000 that is available
-// for use.
-func findAvailablePort() (int, error) {
-	r := mathrand.New(mathrand.NewSource(time.Now().UnixNano()))
-	for i := 0; i < 100; i++ {
-		port := r.Intn(10000) + 10000
-		address := fmt.Sprintf(":%d", port)
-		listener, err := net.Listen("tcp", address)
-		if err == nil {
-			_ = listener.Close()
-			return port, nil
-		}
-	}
-	return 0, errors.New("no luck after 100 iterations")
 }

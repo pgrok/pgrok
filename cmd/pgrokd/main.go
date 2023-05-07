@@ -70,13 +70,6 @@ func startSSHServer(logger *log.Logger, sshdPort int, proxy conf.Proxy, db *data
 		sshdPort,
 		proxy,
 		db,
-		func(token string) (host string, _ error) {
-			principle, err := db.GetPrincipleByToken(context.Background(), token)
-			if err != nil {
-				return "", err
-			}
-			return principle.Subdomain + "." + proxy.Domain, nil
-		},
 		func(host, forward string) { proxies.Set(host, forward) },
 		func(host string) { proxies.Remove(host) },
 	)
@@ -220,9 +213,9 @@ func startWebServer(config *conf.Config, db *database.DB) {
 				return
 			}
 
-			principle, err := db.UpsertPrinciple(
+			principle, err := db.UpsertPrincipal(
 				c.Request().Context(),
-				database.UpsertPrincipleOptions{
+				database.UpsertPrincipalOptions{
 					Identifier:  userInfo.Identifier,
 					DisplayName: userInfo.DisplayName,
 					Token:       cryptoutil.SHA1(strutil.MustRandomChars(10)),
@@ -241,7 +234,7 @@ func startWebServer(config *conf.Config, db *database.DB) {
 
 	f.Group("/",
 		func() {
-			f.Get("", func(t template.Template, data template.Data, principle *database.Principle) {
+			f.Get("", func(t template.Template, data template.Data, principle *database.Principal) {
 				data["DisplayName"] = principle.DisplayName
 				data["Token"] = principle.Token
 				data["URL"] = config.Proxy.Scheme + "://" + principle.Subdomain + "." + config.Proxy.Domain
@@ -255,7 +248,7 @@ func startWebServer(config *conf.Config, db *database.DB) {
 				return
 			}
 
-			principle, err := db.GetPrincipleByID(c.Request().Context(), userID)
+			principle, err := db.GetPrincipalByID(c.Request().Context(), userID)
 			if err != nil {
 				r.PlainText(http.StatusInternalServerError, fmt.Sprintf("Failed to get principle: %v", err))
 				return
