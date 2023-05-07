@@ -212,7 +212,7 @@ func (c *Client) handleTCPIPForward(
 
 // acquireAvailablePort tries to find an available port in the range [start,
 // end) and returns a listener on that port. It returns an error if it fails to
-// find an available port after 100 iterations.
+// find an available port after 100 attempts.
 func acquireAvailablePort(start, end int) (_ net.Listener, port int, _ error) {
 	r := mathrand.New(mathrand.NewSource(time.Now().UnixNano()))
 	for i := 0; i < 100; i++ {
@@ -223,7 +223,7 @@ func acquireAvailablePort(start, end int) (_ net.Listener, port int, _ error) {
 			return listener, port, nil
 		}
 	}
-	return nil, 0, errors.New("no luck after 100 iterations")
+	return nil, 0, errors.New("no luck after 100 attempts")
 }
 
 func (c *Client) handleServerInfo(proxy conf.Proxy, req *ssh.Request) {
