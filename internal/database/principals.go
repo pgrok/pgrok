@@ -17,7 +17,7 @@ type Principal struct {
 	UpdatedAt   time.Time `gorm:"not null"`
 }
 
-func (p *Principal) TableName() string {
+func (*Principal) TableName() string {
 	return "principles"
 }
 
