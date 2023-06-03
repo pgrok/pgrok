@@ -12,7 +12,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/puzpuzpuz/xsync/v2 v2.4.0
 	github.com/stretchr/testify v1.8.3
-	github.com/urfave/cli/v2 v2.25.3
+	github.com/urfave/cli/v2 v2.25.5
 	golang.org/x/crypto v0.9.0
 	golang.org/x/oauth2 v0.8.0
 	gopkg.in/yaml.v3 v3.0.1
