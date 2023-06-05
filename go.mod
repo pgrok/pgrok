@@ -10,7 +10,7 @@ require (
 	github.com/flamego/session v1.3.0
 	github.com/flamego/template v1.2.1
 	github.com/pkg/errors v0.9.1
-	github.com/puzpuzpuz/xsync/v2 v2.4.0
+	github.com/puzpuzpuz/xsync/v2 v2.4.1
 	github.com/stretchr/testify v1.8.4
 	github.com/urfave/cli/v2 v2.25.5
 	golang.org/x/crypto v0.9.0
