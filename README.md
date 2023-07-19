@@ -64,7 +64,7 @@ Before you get started, make sure you have the following:
 1. Download the latest version of the `pgrok`:
     - For Homebrew:
         ```sh
-        brew install pgrok/tap/pgrok
+        brew install pgrok
         ```
     - For others, download the archive from the [Releases](https://github.com/pgrok/pgrok/releases) page.
 1. Initialize a `pgrok.yml` file with the following command (assuming you want to forward requests to `http://localhost:3000`):
