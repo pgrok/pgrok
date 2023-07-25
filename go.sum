@@ -21,8 +21,8 @@ github.com/flamego/flamego v1.9.1 h1:JplX2eFB/CM8VHuZG6m6sHQhcBdOMhGnZFbPCxtN9ao
 github.com/flamego/flamego v1.9.1/go.mod h1:WjaZO8GM/EGvIIGXlOiwp3oPuyy1fAdjWqEgEJWovJo=
 github.com/flamego/session v1.3.0 h1:mj+fyNnJeM9aNXx2CGKppH5VFFUVHNEkhjObJIVH9hY=
 github.com/flamego/session v1.3.0/go.mod h1:x4oNtRuWDnaA2uRylTm3kShbCI3lTWM+dUHuJyeeiZE=
-github.com/flamego/template v1.2.1 h1:bT3nSNG25GLkoYn5XcTFDf2emHFtE1B1dIBKNorusJs=
-github.com/flamego/template v1.2.1/go.mod h1:p6Fj/Kq0KRXj4miVGRMyXEziU4DHudtYS54Wtp/CBlA=
+github.com/flamego/template v1.2.2 h1:aMpt8RzXBb2ZGuABf9p/q8oBBpXrurUV8rgBbz7mj2o=
+github.com/flamego/template v1.2.2/go.mod h1:xTAmwCCPaOuxN5t4CpzOP7WZN5WkLRiJfJCpsiB0aUg=
 github.com/go-logfmt/logfmt v0.6.0 h1:wGYYu3uicYdqXVgoYbvnkrPVXkuLM1p1ifugDMEdRi4=
 github.com/go-logfmt/logfmt v0.6.0/go.mod h1:WYhtIu8zTZfxdn5+rREduYbwxfcBr/Vr6KEVveWlfTs=
 github.com/golang/protobuf v1.3.1/go.mod h1:6lQm79b+lXiMfvg/cZm0SGofjICqVBUtrP5yJMmIC1U=
