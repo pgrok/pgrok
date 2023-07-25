@@ -52,7 +52,7 @@ func New(logWriter io.Writer, config *conf.Database) (*DB, error) {
 	)
 
 	dsn := fmt.Sprintf(
-		"user='%s' password='%s' host='%s' port='%d' dbname='%s' search_path='public' application_name='pgrokd'",
+		"user='%s' password='%s' host='%s' port='%d' dbname='%s' search_path='public' application_name='pgrokd' client_encoding=UTF8",
 		config.User, config.Password, config.Host, config.Port, config.Database,
 	)
 	db, err := gorm.Open(

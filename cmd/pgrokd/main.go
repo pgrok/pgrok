@@ -106,17 +106,31 @@ func startWebServer(config *conf.Config, db *database.DB) {
 	f.Use(flamego.Logger())
 	f.Use(flamego.Recovery())
 	f.Use(flamego.Renderer())
+
+	var postgresDSN string
+	// Check if the host is a UNIX domain socket
+	if strings.HasPrefix(config.Database.Host, "/") {
+		postgresDSN = fmt.Sprintf("postgres://%s:%s@localhost:%d/%s?host=%s",
+			config.Database.User,
+			config.Database.Password,
+			config.Database.Port,
+			config.Database.Database,
+			config.Database.Host,
+		)
+	} else {
+		postgresDSN = fmt.Sprintf("postgres://%s:%s@%s:%d/%s",
+			config.Database.User,
+			config.Database.Password,
+			config.Database.Host,
+			config.Database.Port,
+			config.Database.Database,
+		)
+	}
 	f.Use(session.Sessioner(
 		session.Options{
 			Initer: postgres.Initer(),
 			Config: postgres.Config{
-				DSN: fmt.Sprintf("postgres://%s:%s@%s:%d/%s",
-					config.Database.User,
-					config.Database.Password,
-					config.Database.Host,
-					config.Database.Port,
-					config.Database.Database,
-				),
+				DSN:       postgresDSN,
 				Table:     "sessions",
 				InitTable: true,
 			},
