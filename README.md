@@ -35,7 +35,6 @@ Before you get started, make sure you have the following:
 1. A PostgreSQL server ([bit.io](https://bit.io/), Cloud SQL, self-host).
 
 > [!NOTE]
-> 
 > 1. All values used in this document are just examples, substitute based on your setup.
 > 1. HTTPS for the web and proxy server is not required for this to work, while recommended if possible. Examples in this document all use HTTP.
 
@@ -94,7 +93,6 @@ pgrok http 8080
 #### Raw TCP tunnels
 
 > [!IMPORTANT]
-> 
 > You need to alter the server network security policy (if applicable) to allow additional inbound requests to port range 10000-15000 from `0.0.0.0/0` (anywhere).
 
 Use the `tcp` subcommand to tunnel raw TCP traffic:
