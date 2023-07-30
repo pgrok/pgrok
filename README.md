@@ -155,7 +155,7 @@ Because the standard SSH protocol is used for tunneling, you may well just use t
 
 <p>
   <a href="https://www.bytebase.com">
-    <img src="https://www.bytebase.com/_nuxt/img/logo-full.79b60e4.svg" width=300>
+    <img src="https://raw.githubusercontent.com/sqlchat/sqlchat/main/public/bytebase.webp" width=300>
   </a>
 </p>
 
