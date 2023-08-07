@@ -4,7 +4,7 @@ go 1.20
 
 require (
 	github.com/adrg/xdg v0.4.0
-	github.com/charmbracelet/log v0.2.2
+	github.com/charmbracelet/log v0.2.3
 	github.com/coreos/go-oidc v2.2.1+incompatible
 	github.com/flamego/flamego v1.9.1
 	github.com/flamego/session v1.3.0
@@ -37,7 +37,7 @@ require (
 	github.com/mattn/go-isatty v0.0.18 // indirect
 	github.com/mattn/go-runewidth v0.0.14 // indirect
 	github.com/muesli/reflow v0.3.0 // indirect
-	github.com/muesli/termenv v0.15.1 // indirect
+	github.com/muesli/termenv v0.15.2 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/pquerna/cachecontrol v0.1.0 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
