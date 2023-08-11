@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"syscall"
@@ -26,21 +27,30 @@ func TestMain(m *testing.M) {
 		return
 	}
 
+	code := 0
+	defer func() {
+		if code != 0 {
+			os.Exit(code)
+		}
+	}()
+
 	ctx := context.Background()
 
 	shutdownOIDCServer, err := setupOIDCServer(ctx)
 	if err != nil {
+		code = 1
 		log.Print("Failed to setup OIDC server", "error", err)
 		return
 	}
 	defer func() {
-		err := shutdownOIDCServer()
+		err = shutdownOIDCServer()
 		if err != nil {
 			log.Print("Failed to shutdown OIDC server", "error", err)
 		}
 	}()
 	shutdownPgrokd, err := setupPgrokd(ctx)
 	if err != nil {
+		code = 1
 		log.Print("Failed to setup pgrokd", "error", err)
 		return
 	}
@@ -53,11 +63,16 @@ func TestMain(m *testing.M) {
 
 	// TODO: authenticate the test user
 
-	m.Run()
+	code = m.Run()
 }
 
 func setupOIDCServer(ctx context.Context) (shutdown func() error, _ error) {
-	cmd := exec.Command("go", "run", "./oidc-server")
+	err := run.Cmd(ctx, "go", "build", "-o", "../.bin/oidc-server", "./oidc-server").Run().Wait()
+	if err != nil {
+		return nil, errors.Wrap(err, "go build")
+	}
+
+	cmd := exec.Command("../.bin/oidc-server")
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	// Start OIDC server
@@ -79,7 +94,7 @@ func setupOIDCServer(ctx context.Context) (shutdown func() error, _ error) {
 
 	// Make sure the OIDC server is live
 	time.Sleep(time.Second)
-	err := run.Cmd(ctx, "curl", "http://localhost:9833/.well-known/openid-configuration").Run().Wait()
+	err = run.Cmd(ctx, "curl", "http://localhost:9833/.well-known/openid-configuration").Run().Wait()
 	if err != nil {
 		return nil, errors.Wrap(err, "probe OIDC server liveness")
 	}
@@ -89,7 +104,12 @@ func setupOIDCServer(ctx context.Context) (shutdown func() error, _ error) {
 }
 
 func setupPgrokd(ctx context.Context) (shutdown func() error, _ error) {
-	cmd := exec.Command("go", "run", "../cmd/pgrokd")
+	err := run.Cmd(ctx, "go", "build", "-o", "../.bin/pgrokd", "../cmd/pgrokd").Run().Wait()
+	if err != nil {
+		return nil, errors.Wrap(err, "go build")
+	}
+
+	cmd := exec.Command("../.bin/pgrokd")
 	cmd.Env = append(cmd.Environ(), "FLAMEGO_ENV="+string(flamego.EnvTypeProd))
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
@@ -112,7 +132,7 @@ func setupPgrokd(ctx context.Context) (shutdown func() error, _ error) {
 
 	// Make sure the web server is live
 	time.Sleep(3 * time.Second)
-	err := run.Cmd(ctx, "curl", "http://localhost:3320/signin").Run().Wait()
+	err = run.Cmd(ctx, "curl", "http://localhost:3320/signin").Run().Wait()
 	if err != nil {
 		return nil, errors.Wrap(err, "probe web server liveness")
 	}
