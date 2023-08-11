@@ -10,7 +10,8 @@ sshd:
 database:
   host: "localhost"
   port: 5432
-  user: "unknwon"
+  user: "postgres"
+  password: "postgres"
   database: "pgrokd"
 identity_provider:
   type: "oidc"
