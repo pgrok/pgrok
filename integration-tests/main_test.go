@@ -1,9 +1,15 @@
+//go:build !windows
+
 package main
 
 import (
+	"bytes"
 	"context"
 	"flag"
 	"fmt"
+	"io"
+	"net/http"
+	"net/http/cookiejar"
 	"os"
 	"os/exec"
 	"strings"
@@ -11,11 +17,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/PuerkitoBio/goquery"
 	"github.com/charmbracelet/log"
 	"github.com/flamego/flamego"
 	"github.com/pkg/errors"
 	"github.com/sourcegraph/run"
 	"go.bobheadxi.dev/streamline/streamexec"
+	"golang.org/x/net/publicsuffix"
 )
 
 func TestMain(m *testing.M) {
@@ -61,7 +69,14 @@ func TestMain(m *testing.M) {
 		}
 	}()
 
-	// TODO: authenticate the test user
+	token, url, err := authenticateUser()
+	if err != nil {
+		code = 1
+		log.Print("Failed to authenticate user", "error", err)
+		return
+	}
+	fmt.Println("token:", token)
+	fmt.Println("url:", url)
 
 	code = m.Run()
 }
@@ -141,6 +156,40 @@ func setupPgrokd(ctx context.Context) (shutdown func() error, _ error) {
 	return func() error { return kill(cmd.Process.Pid) }, nil
 }
 
+func authenticateUser() (token, url string, _ error) {
+	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
+	if err != nil {
+		return "", "", errors.Wrap(err, "new cookie jar")
+	}
+	client := &http.Client{Jar: jar}
+	resp, err := client.Get("http://localhost:3320/-/oidc/auth")
+	if err != nil {
+		return "", "", errors.Wrap(err, "sign in")
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", "", errors.Wrap(err, "read response body")
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return "", "", errors.Errorf("unexpected status code: %d - %s", resp.StatusCode, body)
+	}
+	log.Print("Got sign in page", "body", string(body))
+
+	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(body))
+	if err != nil {
+		return "", "", errors.Wrap(err, "parse home page")
+	}
+	token = doc.Find("#token").Get(0).FirstChild.Data
+	url = doc.Find("#url").Get(0).Attr[1].Val // href
+	if token == "" || url == "" {
+		return "", "", errors.New(`"token" or "url" not found`)
+	}
+	return token, url, nil
+}
+
 func kill(pid int) error {
 	pgid, err := syscall.Getpgid(pid)
 	if err != nil {
@@ -164,6 +213,7 @@ func kill(pid int) error {
 func TestHTTP(t *testing.T) {
 	// Set up test HTTP server
 	// Test pgrok with HTTP
+	// Test HTTP with SSH
 }
 
 func TestTCP(t *testing.T) {
