@@ -54,7 +54,6 @@ func TestMain(m *testing.M) {
 	// TODO: authenticate the test user
 
 	m.Run()
-
 }
 
 func setupOIDCServer(ctx context.Context) (shutdown func() error, _ error) {
@@ -83,7 +82,6 @@ func setupOIDCServer(ctx context.Context) (shutdown func() error, _ error) {
 	err := run.Cmd(ctx, "curl", "http://localhost:9833/.well-known/openid-configuration").Run().Wait()
 	if err != nil {
 		return nil, errors.Wrap(err, "probe OIDC server liveness")
-
 	}
 	log.Print("OIDC server started")
 
