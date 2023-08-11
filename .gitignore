@@ -13,8 +13,8 @@
 *.out
 
 # Application data
-pgrokd.yml
-pgrok.yml
+/pgrokd.yml
+/pgrok.yml
 /data
 
 # Dependency directories (remove the comment below to include it)
