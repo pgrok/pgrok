@@ -303,35 +303,29 @@ func setupEchoServer(ctx context.Context) (shutdown func() error, _ error) {
 }
 
 func TestHTTP(t *testing.T) {
-	t.Run("pgrok", func(t *testing.T) {
-		ctx := context.Background()
+	ctx := context.Background()
 
-		shutdownEchoServer, err := setupEchoServer(ctx)
-		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, shutdownEchoServer())
-		}()
+	shutdownEchoServer, err := setupEchoServer(ctx)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, shutdownEchoServer())
+	}()
 
-		_, shutdownPgrok, err := setupPgrok(ctx, "http")
-		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, shutdownPgrok())
-		}()
+	_, shutdownPgrok, err := setupPgrok(ctx, "http")
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, shutdownPgrok())
+	}()
 
-		// Default forward
-		body, err := run.Cmd(ctx, "curl", "--silent", fmt.Sprintf("%s/.well-known/openid-configuration", url)).Run().String()
-		require.NoError(t, err)
-		assert.Contains(t, body, `"issuer": "http://localhost:9833",`)
+	// Default forward
+	body, err := run.Cmd(ctx, "curl", "--silent", fmt.Sprintf("%s/.well-known/openid-configuration", url)).Run().String()
+	require.NoError(t, err)
+	assert.Contains(t, body, `"issuer": "http://localhost:9833",`)
 
-		// Dynamic forward
-		body, err = run.Cmd(ctx, "curl", "--silent", fmt.Sprintf("%s/echo?q=chickendinner", url)).Run().String()
-		require.NoError(t, err)
-		assert.Contains(t, body, "chickendinner")
-	})
-
-	t.Run("ssh", func(t *testing.T) {
-		// todo
-	})
+	// Dynamic forward
+	body, err = run.Cmd(ctx, "curl", "--silent", fmt.Sprintf("%s/echo?q=chickendinner", url)).Run().String()
+	require.NoError(t, err)
+	assert.Contains(t, body, "chickendinner")
 }
 
 func TestTCP(t *testing.T) {
