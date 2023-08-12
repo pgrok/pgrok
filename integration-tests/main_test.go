@@ -22,8 +22,15 @@ import (
 	"github.com/flamego/flamego"
 	"github.com/pkg/errors"
 	"github.com/sourcegraph/run"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.bobheadxi.dev/streamline/streamexec"
 	"golang.org/x/net/publicsuffix"
+)
+
+var (
+	token string
+	url   string
 )
 
 func TestMain(m *testing.M) {
@@ -69,14 +76,13 @@ func TestMain(m *testing.M) {
 		}
 	}()
 
-	token, url, err := authenticateUser()
+	token, url, err = authenticateUser()
 	if err != nil {
 		code = 1
 		log.Print("Failed to authenticate user", "error", err)
 		return
 	}
-	fmt.Println("token:", token)
-	fmt.Println("url:", url)
+	log.Print("Authenticated user", "token", token, "url", url)
 
 	code = m.Run()
 }
@@ -90,7 +96,6 @@ func setupOIDCServer(ctx context.Context) (shutdown func() error, _ error) {
 	cmd := exec.Command("../.bin/oidc-server")
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
-	// Start OIDC server
 	go func() {
 		stream, err := streamexec.Start(cmd)
 		if err != nil {
@@ -128,7 +133,6 @@ func setupPgrokd(ctx context.Context) (shutdown func() error, _ error) {
 	cmd.Env = append(cmd.Environ(), "FLAMEGO_ENV="+string(flamego.EnvTypeProd))
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
-	// Start pgrokd
 	go func() {
 		stream, err := streamexec.Start(cmd)
 		if err != nil {
@@ -145,13 +149,13 @@ func setupPgrokd(ctx context.Context) (shutdown func() error, _ error) {
 		log.Print("pgrokd exited")
 	}()
 
-	// Make sure the web server is live
+	// Make sure the pgrokd web server is live
 	time.Sleep(3 * time.Second)
 	err = run.Cmd(ctx, "curl", "http://localhost:3320/signin").Run().Wait()
 	if err != nil {
-		return nil, errors.Wrap(err, "probe web server liveness")
+		return nil, errors.Wrap(err, "probe pgrokd web server liveness")
 	}
-	log.Print("web server started")
+	log.Print("pgrokd started")
 
 	return func() error { return kill(cmd.Process.Pid) }, nil
 }
@@ -210,13 +214,135 @@ func kill(pid int) error {
 	return errors.New("cannot kill the process after 10 tries")
 }
 
+func setupPgrok(ctx context.Context, protocol string) (endpoint string, shutdown func() error, _ error) {
+	err := run.Cmd(ctx, "go", "build", "-o", "../.bin/pgrok", "../cmd/pgrok").Run().Wait()
+	if err != nil {
+		return "", nil, errors.Wrap(err, "go build")
+	}
+
+	args := []string{
+		protocol,
+		"--config", "pgrok.yml",
+		"--token", token,
+	}
+	if protocol == "tcp" {
+		args = append(args, "--forward-addr", "localhost:9833")
+	}
+
+	cmd := exec.Command("../.bin/pgrok", args...)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+
+	started := false
+	ready := make(chan struct{})
+	go func() {
+		stream, err := streamexec.Start(cmd)
+		if err != nil {
+			log.Print("Failed to start pgrok", "error", err)
+			return
+		}
+		err = stream.Stream(func(line string) {
+			fmt.Printf("[pgrok-%s] %s\n", protocol, line)
+			if !started && strings.Contains(line, "You're ready to go live") {
+				started = true
+				endpoint = line[strings.Index(line, "://")+3 : strings.Index(line, "!")]
+				ready <- struct{}{}
+			}
+		})
+		if err != nil && !strings.Contains(err.Error(), "signal: killed") {
+			log.Print("Failed to stream pgrok output", "error", err)
+			return
+		}
+		log.Printf("pgrok %s exited", protocol)
+	}()
+
+	// Make sure the pgrok is ready
+	select {
+	case <-ready:
+		log.Print("pgrok started", "protocol", protocol, "endpoint", endpoint)
+	case <-time.After(5 * time.Second):
+		return "", nil, errors.New("pgrok failed to start after 5 seconds")
+	}
+
+	return endpoint, func() error { return kill(cmd.Process.Pid) }, nil
+}
+
+func setupEchoServer(ctx context.Context) (shutdown func() error, _ error) {
+	err := run.Cmd(ctx, "go", "build", "-o", "../.bin/echo-server", "./echo-server").Run().Wait()
+	if err != nil {
+		return nil, errors.Wrap(err, "go build")
+	}
+
+	cmd := exec.Command("../.bin/echo-server")
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+
+	go func() {
+		stream, err := streamexec.Start(cmd)
+		if err != nil {
+			log.Print("Failed to start echo server", "error", err)
+			return
+		}
+		err = stream.Stream(func(line string) {
+			fmt.Println("[echo-server]", line)
+		})
+		if err != nil && !strings.Contains(err.Error(), "signal: killed") {
+			log.Print("Failed to stream echo server output", "error", err)
+			return
+		}
+		log.Print("echo server exited")
+	}()
+
+	// Make sure the server is live
+	time.Sleep(time.Second)
+	err = run.Cmd(ctx, "curl", "http://localhost:8080").Run().Wait()
+	if err != nil {
+		return nil, errors.Wrap(err, "probe echo server liveness")
+	}
+	log.Print("echo server started")
+
+	return func() error { return kill(cmd.Process.Pid) }, nil
+}
+
 func TestHTTP(t *testing.T) {
-	// Set up test HTTP server
-	// Test pgrok with HTTP
-	// Test HTTP with SSH
+	t.Run("pgrok", func(t *testing.T) {
+		ctx := context.Background()
+
+		shutdownEchoServer, err := setupEchoServer(ctx)
+		require.NoError(t, err)
+		defer func() {
+			require.NoError(t, shutdownEchoServer())
+		}()
+
+		_, shutdownPgrok, err := setupPgrok(ctx, "http")
+		require.NoError(t, err)
+		defer func() {
+			require.NoError(t, shutdownPgrok())
+		}()
+
+		// Default forward
+		body, err := run.Cmd(ctx, "curl", "--silent", fmt.Sprintf("%s/.well-known/openid-configuration", url)).Run().String()
+		require.NoError(t, err)
+		assert.Contains(t, body, `"issuer": "http://localhost:9833",`)
+
+		// Dynamic forward
+		body, err = run.Cmd(ctx, "curl", "--silent", fmt.Sprintf("%s/echo?q=chickendinner", url)).Run().String()
+		require.NoError(t, err)
+		assert.Contains(t, body, "chickendinner")
+	})
+
+	t.Run("ssh", func(t *testing.T) {
+		// todo
+	})
 }
 
 func TestTCP(t *testing.T) {
-	// Set up test TCP server
-	// Test pgrok with TCP
+	ctx := context.Background()
+	endpoint, shutdownPgrok, err := setupPgrok(ctx, "tcp")
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, shutdownPgrok())
+	}()
+
+	body, err := run.Cmd(ctx, "curl", "--silent", fmt.Sprintf("http://%s/.well-known/openid-configuration", endpoint)).Run().String()
+	require.NoError(t, err)
+	assert.Contains(t, body, `"issuer": "http://localhost:9833",`)
 }
