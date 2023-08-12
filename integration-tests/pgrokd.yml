@@ -1,0 +1,26 @@
+external_url: "http://localhost:3320"
+web:
+  port: 3320
+proxy:
+  port: 3000
+  scheme: "http"
+  domain: "localhost:3000"
+sshd:
+  port: 2222
+database:
+  host: "localhost"
+  port: 5432
+  user: "postgres"
+  password: "postgres"
+  database: "postgres"
+identity_provider:
+  type: "oidc"
+  display_name: "OIDC"
+  issuer: "http://localhost:9833"
+  client_id: "winnerwinner"
+  client_secret: "chickendinner"
+  field_mapping:
+    identifier: "email"
+    display_name: "name"
+    email: "email"
+  required_domain: "example.com"
