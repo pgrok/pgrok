@@ -31,8 +31,8 @@ Before you get started, make sure you have the following:
 
 1. A domain name (e.g. `example.com`, this will be used as the example throughout this section).
 1. A server (dedicated server, VPS) with a public IP address (e.g. `111.33.5.14`).
-1. An SSO provider (e.g. Google, Okta, Keycloak) that allows you to create OIDC clients.
-1. A PostgreSQL server ([bit.io](https://bit.io/), Cloud SQL, self-host).
+1. An SSO provider (e.g. Google, JumpCloud, Okta, GitLab, Keycloak) that allows you to create OIDC clients.
+1. A PostgreSQL server (Render, Vercel, Cloud SQL, self-host).
 
 > [!NOTE]
 > 1. All values used in this document are just examples, substitute based on your setup.
