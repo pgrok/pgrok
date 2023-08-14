@@ -7,7 +7,7 @@ require (
 	github.com/adrg/xdg v0.4.0
 	github.com/charmbracelet/log v0.2.3
 	github.com/coreos/go-oidc v2.2.1+incompatible
-	github.com/flamego/flamego v1.9.1
+	github.com/flamego/flamego v1.9.4
 	github.com/flamego/session v1.3.0
 	github.com/flamego/template v1.2.2
 	github.com/golang-jwt/jwt/v4 v4.5.0
