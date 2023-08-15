@@ -24,10 +24,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
       - name: Install Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v4
         with:
-          go-version: 1.20.x
-          cache: true
+          go-version: 1.21.x
       - name: Check Go module tidiness
         shell: bash
         run: |
@@ -49,17 +48,16 @@ jobs:
     name: Test
     strategy:
       matrix:
-        go-version: [ 1.20.x ]
+        go-version: [ 1.21.x ]
         platform: [ ubuntu-latest, macos-latest, windows-latest ]
     runs-on: ${{ matrix.platform }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
       - name: Install Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v4
         with:
           go-version: ${{ matrix.go-version }}
-          cache: true
       - name: Run tests with coverage
         run: go test -shuffle=on -v -race -coverprofile=coverage -covermode=atomic ./...
       - name: Upload coverage report to Codecov
