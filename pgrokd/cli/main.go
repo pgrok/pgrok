@@ -26,7 +26,7 @@ import (
 	"github.com/pgrok/pgrok/internal/sshd"
 	"github.com/pgrok/pgrok/internal/strutil"
 	"github.com/pgrok/pgrok/internal/userutil"
-	"github.com/pgrok/pgrok/templates"
+	"github.com/pgrok/pgrok/pgrokd/templates"
 )
 
 var version = "0.0.0+dev"
@@ -151,7 +151,11 @@ func startWebServer(config *conf.Config, db *database.DB) {
 			},
 		))
 	} else {
-		f.Use(template.Templater())
+		f.Use(template.Templater(
+			template.Options{
+				Directory: "pgrokd/templates",
+			},
+		))
 	}
 
 	f.Get("/signin", func(t template.Template, data template.Data) {

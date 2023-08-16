@@ -23,10 +23,10 @@ tasks:
   build-pgrokd:
     desc: Build the binary of pgrokd
     cmds:
-      - go build -v -trimpath -o ./.bin/pgrokd ./cmd/pgrokd
+      - go build -v -trimpath -o ./.bin/pgrokd ./pgrokd/cli
     sources:
       - go.mod
-      - cmd/pgrokd/*.go
+      - pgrokd/cli/*.go
       - internal/**/*
     method: timestamp
 
@@ -40,4 +40,4 @@ tasks:
         -X "main.date={{.BUILD_DATE}}"'
         -trimpath
         -o pgrokd
-        ./cmd/pgrokd
+        ./pgrokd/cli

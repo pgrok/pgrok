@@ -124,7 +124,7 @@ func setupOIDCServer(ctx context.Context) (shutdown func() error, _ error) {
 }
 
 func setupPgrokd(ctx context.Context) (shutdown func() error, _ error) {
-	err := run.Cmd(ctx, "go", "build", "-o", "../.bin/pgrokd", "../cmd/pgrokd").Run().Wait()
+	err := run.Cmd(ctx, "go", "build", "-o", "../.bin/pgrokd", "../pgrokd/cli").Run().Wait()
 	if err != nil {
 		return nil, errors.Wrap(err, "go build")
 	}
