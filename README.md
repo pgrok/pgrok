@@ -13,7 +13,7 @@ This is intended for small teams that need to expose the local development envir
 
 It gives stable subdomain for every user, and gated by your SSO through OIDC protocol.
 
-Think of this as a bare-bones alternative to the [ngrok's $65/user/month enterprise tier](https://ngrok.com/pricing). Trying to put this behind a production system will blow up your SLA.
+Think of this as a bare-bones alternative to the [ngrok's $39/user/month enterprise tier](https://ngrok.com/pricing). Trying to put this behind a production system will blow up your SLA.
 
 For individuals and production systems, just buy ngrok, it is still my favorite.
 
