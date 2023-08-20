@@ -19,7 +19,7 @@ tasks:
   build-pgrok:
     desc: Build the binary of pgrok
     cmds:
-      - go build -v -trimpath -o ./.bin/pgrok ./cmd/pgrok
+      - go build -v -trimpath -o ./.bin/pgrok ./pgrok/cli
   build-pgrokd:
     desc: Build the binary of pgrokd
     cmds:
