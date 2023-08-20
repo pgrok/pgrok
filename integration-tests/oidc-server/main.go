@@ -16,10 +16,9 @@ import (
 )
 
 func main() {
+	externalURL := flag.String("external-url", "http://localhost:9833", "The external URL of the server")
 	port := flag.Int("port", 9833, "The port to listen on")
 	flag.Parse()
-
-	issuer := fmt.Sprintf("http://localhost:%d", *port)
 
 	f := flamego.New()
 	f.Get("/.well-known/openid-configuration", func() string {
@@ -49,7 +48,7 @@ func main() {
     "iat",
     "nonce"
   ]
-}`, issuer)
+}`, *externalURL)
 	})
 
 	var audience, nonce string
@@ -69,7 +68,7 @@ func main() {
 		token := jwt.NewWithClaims(
 			jwt.SigningMethodRS256,
 			jwt.MapClaims{
-				"iss":   issuer,
+				"iss":   *externalURL,
 				"sub":   "unknwon",
 				"aud":   audience,
 				"exp":   time.Now().Add(time.Hour).Unix(),

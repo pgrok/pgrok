@@ -36,7 +36,6 @@ tasks:
 
   build-pgrokd-release:
     desc: Build the release binary of pgrokd
-    deps: [build-pgrokd-web]
     cmds:
       - go build -v
         -ldflags '
