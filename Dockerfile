@@ -1,4 +1,12 @@
-FROM golang:1.20-alpine3.17 AS binarybuilder
+FROM node:20-slim AS webbuilder
+RUN corepack enable
+
+WORKDIR /build
+COPY . .
+RUN pnpm --dir pgrokd/web install --frozen-lockfile --prefer-frozen-lockfile \
+    && pnpm --dir pgrokd/web run build
+
+FROM golang:1.21.0-alpine3.18 AS binarybuilder
 RUN apk --no-cache --no-progress add --virtual \
     build-deps \
     build-base \
@@ -26,9 +34,10 @@ ARG BUILD_VERSION="unknown"
 
 WORKDIR /dist
 COPY . .
+COPY --from=webbuilder /build/pgrokd/cli/dist /pgrokd/cli/dist
 RUN BUILD_VERSION=${BUILD_VERSION} task build-pgrokd-release
 
-FROM alpine:3.17
+FROM alpine:3.18
 
 LABEL org.opencontainers.image.source = "https://github.com/pgrok/pgrok"
 

@@ -1,9 +1,10 @@
 .bin/
 .task/
 .github/
-.dockerignore
+dist/
+node_modules/
 *.yml
-!Taskfile.yml
 *.md
 .editorconfig
 .gitignore
+.dockerignore
