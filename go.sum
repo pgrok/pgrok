@@ -28,8 +28,6 @@ github.com/djherbis/buffer v1.2.0/go.mod h1:fjnebbZjCUpPinBRD+TDwXSOeNQ7fPQWLfGQ
 github.com/djherbis/nio/v3 v3.0.1 h1:6wxhnuppteMa6RHA4L81Dq7ThkZH8SwnDzXDYy95vB4=
 github.com/djherbis/nio/v3 v3.0.1/go.mod h1:Ng4h80pbZFMla1yKzm61cF0tqqilXZYrogmWgZxOcmg=
 github.com/fatih/color v1.13.0 h1:8LOYc1KYPPmyKMuN8QV2DNRWNbLo6LZ0iLs8+mlH53w=
-github.com/flamego/cors v1.2.0 h1:MCEW3T9ShZng28gYzO/mF13ggZiVhurOreIHCU1wYyE=
-github.com/flamego/cors v1.2.0/go.mod h1:gfa8248X/CDD70OjLvnfXcVLdBg8KzeltF8K9LG3OGo=
 github.com/flamego/flamego v1.9.4 h1:SNsooIfNa6ljQM1rBmfg4cFcXPIhQdG/uvNHqXxPvD8=
 github.com/flamego/flamego v1.9.4/go.mod h1:2tAVbugA3fgX8xOBoqR2jmJSSvZDLBFGXTFCR5h5eAU=
 github.com/flamego/session v1.3.0 h1:mj+fyNnJeM9aNXx2CGKppH5VFFUVHNEkhjObJIVH9hY=

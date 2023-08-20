@@ -12,15 +12,12 @@ import {
 import ErrorPage from "./ErrorPage";
 import useUser, { UserContextType, UserProvider } from "./hooks/useUser";
 
-// The backend URL is different in development
-const backendURL = process.env.BACKEND_URL;
-
 // Make sure all requests carry over the session cookie
 axios.defaults.withCredentials = true;
 
 // Make an initial request to check the authentication state
 const user = await axios
-  .get(`${backendURL}/api/user-info`)
+  .get("/api/user-info")
   .then((response) => {
     const { displayName, token, url } = response.data as UserContextType;
     return {
@@ -47,7 +44,7 @@ const SignInPage = () => {
   }
   return (
     <p>
-      Please sign in with <a href={`${backendURL}${data.authURL}`}>{data.displayName}</a>.
+      Please sign in with <a href={`${data.authURL}`}>{data.displayName}</a>.
     </p>
   );
 };
@@ -77,7 +74,7 @@ export const router = createBrowserRouter(
         element={<SignInPage />}
         loader={async function () {
           let data;
-          await axios.get("http://localhost:3320/api/identity-provider").then((response) => {
+          await axios.get("/api/identity-provider").then((response) => {
             data = response.data as FetchIdentityProviderResponse;
           });
           return data;

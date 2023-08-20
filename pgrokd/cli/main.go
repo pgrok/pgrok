@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
+	"net/http/httputil"
 	"net/url"
 	"os"
 	"strings"
@@ -15,7 +16,6 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/coreos/go-oidc"
-	"github.com/flamego/cors"
 	"github.com/flamego/flamego"
 	"github.com/flamego/session"
 	"github.com/flamego/session/postgres"
@@ -112,26 +112,6 @@ func startWebServer(config *conf.Config, db *database.DB) {
 	f.Use(flamego.Recovery())
 	f.Use(flamego.Renderer())
 
-	var postgresDSN string
-	// Check if the host is a UNIX domain socket
-	if strings.HasPrefix(config.Database.Host, "/") {
-		postgresDSN = fmt.Sprintf("postgres://%s:%s@localhost:%d/%s?host=%s",
-			config.Database.User,
-			config.Database.Password,
-			config.Database.Port,
-			config.Database.Database,
-			config.Database.Host,
-		)
-	} else {
-		postgresDSN = fmt.Sprintf("postgres://%s:%s@%s:%d/%s",
-			config.Database.User,
-			config.Database.Password,
-			config.Database.Host,
-			config.Database.Port,
-			config.Database.Database,
-		)
-	}
-
 	if flamego.Env() == flamego.EnvTypeProd {
 		webFS, err := fs.Sub(webAssets, "dist")
 		if err != nil {
@@ -165,14 +145,37 @@ func startWebServer(config *conf.Config, db *database.DB) {
 			http.ServeContent(w, r, "index.html", indexFileStat.ModTime(), indexReader)
 		})
 	} else {
-		f.Use(cors.CORS(
-			cors.Options{
-				AllowDomain:      []string{"localhost:5173"},
-				AllowCredentials: true,
-			},
-		))
+		// Proxy all non-backend URLs to Vite
+		viteURL, err := url.Parse("http://localhost:5173")
+		if err != nil {
+			log.Fatal("Failed to parse vite URL", "error", err.Error())
+			return
+		}
+		viteProxy := httputil.NewSingleHostReverseProxy(viteURL)
+		f.Get("/{**}", func(w http.ResponseWriter, r *http.Request) {
+			viteProxy.ServeHTTP(w, r)
+		})
 	}
 
+	var postgresDSN string
+	// Check if the host is a UNIX domain socket
+	if strings.HasPrefix(config.Database.Host, "/") {
+		postgresDSN = fmt.Sprintf("postgres://%s:%s@localhost:%d/%s?host=%s",
+			config.Database.User,
+			config.Database.Password,
+			config.Database.Port,
+			config.Database.Database,
+			config.Database.Host,
+		)
+	} else {
+		postgresDSN = fmt.Sprintf("postgres://%s:%s@%s:%d/%s",
+			config.Database.User,
+			config.Database.Password,
+			config.Database.Host,
+			config.Database.Port,
+			config.Database.Database,
+		)
+	}
 	f.Use(session.Sessioner(
 		session.Options{
 			Initer: postgres.Initer(),
@@ -191,15 +194,16 @@ func startWebServer(config *conf.Config, db *database.DB) {
 	))
 
 	// Behind authentication
-	f.Group("/api", func() {
-		f.Get("/user-info", func(r flamego.Render, principle *database.Principal) {
-			r.JSON(http.StatusOK, map[string]string{
-				"displayName": principle.DisplayName,
-				"token":       principle.Token,
-				"url":         config.Proxy.Scheme + "://" + principle.Subdomain + "." + config.Proxy.Domain,
+	f.Group("/api",
+		func() {
+			f.Get("/user-info", func(r flamego.Render, principle *database.Principal) {
+				r.JSON(http.StatusOK, map[string]string{
+					"displayName": principle.DisplayName,
+					"token":       principle.Token,
+					"url":         config.Proxy.Scheme + "://" + principle.Subdomain + "." + config.Proxy.Domain,
+				})
 			})
-		})
-	},
+		},
 		func(c flamego.Context, r flamego.Render, s session.Session) {
 			userID, ok := s.Get("userID").(int64)
 			if !ok || userID <= 0 {
@@ -310,12 +314,7 @@ func startWebServer(config *conf.Config, db *database.DB) {
 			}
 
 			s.Set("userID", principle.ID)
-
-			if flamego.Env() != flamego.EnvTypeProd {
-				c.Redirect("http://localhost:5173")
-			} else {
-				c.Redirect("/")
-			}
+			c.Redirect("/")
 		})
 	})
 
