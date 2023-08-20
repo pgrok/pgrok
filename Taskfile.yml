@@ -44,5 +44,5 @@ tasks:
         -X "main.commit={{.BUILD_COMMIT}}"
         -X "main.date={{.BUILD_DATE}}"'
         -trimpath
-        -o pgrokd
+        -o ./.bin/pgrokd
         ./pgrokd/cli

@@ -42,7 +42,7 @@ RUN echo https://dl-cdn.alpinelinux.org/alpine/edge/community/ >> /etc/apk/repos
   tini
 
 WORKDIR /app/pgrokd/
-COPY --from=binarybuilder /dist/pgrokd .
+COPY --from=binarybuilder /dist/.bin/pgrokd .
 
 USER nonroot
 VOLUME ["/var/opt/pgrokd"]
