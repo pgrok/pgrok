@@ -13,9 +13,4 @@ export default defineConfig({
       bundler: "vite",
     }) as PluginOption[],
   ],
-  define: {
-    "process.env": {
-      BACKEND_URL: "http://localhost:3320",
-    },
-  },
 });

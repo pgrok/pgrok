@@ -1,16 +1,13 @@
 import axios from "axios";
 import { StrictMode } from "react";
 import ReactDOM from "react-dom/client";
-import {
-  Route,
-  useLoaderData,
-  createBrowserRouter,
-  createRoutesFromElements,
-  Navigate,
-  RouterProvider,
-} from "react-router-dom";
+import { Route, createBrowserRouter, createRoutesFromElements, Navigate, RouterProvider } from "react-router-dom";
+import "./App.css";
 import ErrorPage from "./ErrorPage";
-import useUser, { UserContextType, UserProvider } from "./hooks/useUser";
+import { UserContextType, UserProvider } from "./hooks/useUser";
+import DashboardPage from "./pages/Dashboard";
+import SignInPage from "./pages/SignIn";
+import { FetchIdentityProviderResponse } from "./types";
 
 // Make sure all requests carry over the session cookie
 axios.defaults.withCredentials = true;
@@ -30,37 +27,6 @@ const user = await axios
   .catch(() => {
     return {} as UserContextType;
   });
-
-interface FetchIdentityProviderResponse {
-  error: string;
-  displayName: string;
-  authURL: string;
-}
-
-const SignInPage = () => {
-  const data = useLoaderData() as FetchIdentityProviderResponse;
-  if (data.error) {
-    return <p>{data.error}</p>;
-  }
-  return (
-    <p>
-      Please sign in with <a href={`${data.authURL}`}>{data.displayName}</a>.
-    </p>
-  );
-};
-
-const DashboardPage = () => {
-  const user = useUser();
-  return (
-    <p>
-      Welcome, {user.displayName}. Your token is <code>{user.token}</code>, and the URL is{" "}
-      <a target="_blank" rel="noreferrer" href={user.url}>
-        {user.url}
-      </a>
-      .
-    </p>
-  );
-};
 
 const ProtectedRoute = ({ children }: { children: JSX.Element }): JSX.Element => {
   return user.authed === true ? children : <Navigate to="/sign-in" replace />;

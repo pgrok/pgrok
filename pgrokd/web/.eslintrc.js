@@ -12,7 +12,7 @@ module.exports = {
     "plugin:import/typescript",
     "plugin:unicorn/recommended",
   ],
-  ignorePatterns: ["dist", ".eslintrc.js"],
+  ignorePatterns: ["dist", ".eslintrc.js", "postcss.config.js", "tailwind.config.js"],
   parser: "@typescript-eslint/parser",
   parserOptions: {
     ecmaVersion: "latest",
