@@ -1,6 +1,6 @@
 # Docs: https://goreleaser.com
 builds:
-  - main: ./cmd/pgrok
+  - main: ./pgrok/cli
     binary: pgrok
     env:
       - CGO_ENABLED=0

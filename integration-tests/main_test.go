@@ -235,7 +235,7 @@ func kill(pid int) error {
 }
 
 func setupPgrok(ctx context.Context, protocol string) (endpoint string, shutdown func() error, _ error) {
-	err := run.Cmd(ctx, "go", "build", "-o", "../.bin/pgrok", "../cmd/pgrok").Run().Wait()
+	err := run.Cmd(ctx, "go", "build", "-o", "../.bin/pgrok", "../pgrok/cli").Run().Wait()
 	if err != nil {
 		return "", nil, errors.Wrap(err, "go build")
 	}
