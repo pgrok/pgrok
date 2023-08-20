@@ -29,9 +29,14 @@ tasks:
       - pgrokd/cli/*.go
       - internal/**/*
     method: timestamp
+  build-pgrokd-web:
+    desc: Build the web app of pgrokd
+    cmds:
+      - pnpm --dir pgrokd/web run build
 
   build-pgrokd-release:
     desc: Build the release binary of pgrokd
+    deps: [build-pgrokd-web]
     cmds:
       - go build -v
         -ldflags '
