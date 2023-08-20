@@ -3,8 +3,8 @@
 package main
 
 import (
-	"bytes"
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -17,7 +17,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/PuerkitoBio/goquery"
 	"github.com/charmbracelet/log"
 	"github.com/flamego/flamego"
 	"github.com/pkg/errors"
@@ -124,7 +123,12 @@ func setupOIDCServer(ctx context.Context) (shutdown func() error, _ error) {
 }
 
 func setupPgrokd(ctx context.Context) (shutdown func() error, _ error) {
-	err := run.Cmd(ctx, "go", "build", "-o", "../.bin/pgrokd", "../pgrokd/cli").Run().Wait()
+	err := run.Cmd(ctx, "pnpm", "--dir ../pgrokd/web", "run", "build").Run().Wait()
+	if err != nil {
+		return nil, errors.Wrap(err, "pnpm run build")
+	}
+
+	err = run.Cmd(ctx, "go", "build", "-o", "../.bin/pgrokd", "../pgrokd/cli").Run().Wait()
 	if err != nil {
 		return nil, errors.Wrap(err, "go build")
 	}
@@ -166,28 +170,44 @@ func authenticateUser() (token, url string, _ error) {
 		return "", "", errors.Wrap(err, "new cookie jar")
 	}
 	client := &http.Client{Jar: jar}
+
+	// Perform sign in
 	resp, err := client.Get("http://localhost:3320/-/oidc/auth")
 	if err != nil {
 		return "", "", errors.Wrap(err, "sign in")
 	}
-	defer func() { _ = resp.Body.Close() }()
-
 	body, err := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
 	if err != nil {
-		return "", "", errors.Wrap(err, "read response body")
+		return "", "", errors.Wrap(err, "read sign in response body")
 	}
-
 	if resp.StatusCode != http.StatusOK {
-		return "", "", errors.Errorf("unexpected status code: %d - %s", resp.StatusCode, body)
+		return "", "", errors.Errorf("unexpected sign in status code: %d - %s", resp.StatusCode, body)
 	}
-	log.Print("Got sign in page", "body", string(body))
 
-	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(body))
+	// Get user info
+	resp, err = client.Get("http://localhost:3320/api/user-info")
 	if err != nil {
-		return "", "", errors.Wrap(err, "parse home page")
+		return "", "", errors.Wrap(err, "get user info")
 	}
-	token = doc.Find("#token").Get(0).FirstChild.Data
-	url = doc.Find("#url").Get(0).Attr[1].Val // href
+	body, err = io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if err != nil {
+		return "", "", errors.Wrap(err, "read user info response body")
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", "", errors.Errorf("unexpected user info status code: %d - %s", resp.StatusCode, body)
+	}
+	log.Print("Got user info", "body", string(body))
+
+	var userInfo map[string]string
+	err = json.Unmarshal(body, &userInfo)
+	if err != nil {
+		return "", "", errors.Wrap(err, "unmarshal user info")
+	}
+
+	token = userInfo["token"]
+	url = userInfo["url"]
 	if token == "" || url == "" {
 		return "", "", errors.New(`"token" or "url" not found`)
 	}
