@@ -3,13 +3,11 @@ module github.com/pgrok/pgrok
 go 1.20
 
 require (
-	github.com/PuerkitoBio/goquery v1.8.1
 	github.com/adrg/xdg v0.4.0
 	github.com/charmbracelet/log v0.2.3
 	github.com/coreos/go-oidc v2.2.1+incompatible
 	github.com/flamego/flamego v1.9.4
 	github.com/flamego/session v1.3.0
-	github.com/flamego/template v1.2.2
 	github.com/golang-jwt/jwt/v4 v4.5.0
 	github.com/lestrrat-go/jwx/v2 v2.0.12
 	github.com/pkg/errors v0.9.1
@@ -29,7 +27,6 @@ require (
 require (
 	bitbucket.org/creachadair/shell v0.0.7 // indirect
 	github.com/alecthomas/participle/v2 v2.0.0 // indirect
-	github.com/andybalholm/cascadia v1.3.1 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/charmbracelet/lipgloss v0.7.1 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect

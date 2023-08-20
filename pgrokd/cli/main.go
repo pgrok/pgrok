@@ -1,10 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"embed"
 	"flag"
 	"fmt"
+	"io/fs"
 	"net/http"
+	"net/http/httputil"
 	"net/url"
 	"os"
 	"strings"
@@ -15,7 +19,6 @@ import (
 	"github.com/flamego/flamego"
 	"github.com/flamego/session"
 	"github.com/flamego/session/postgres"
-	"github.com/flamego/template"
 	"github.com/pkg/errors"
 	"golang.org/x/oauth2"
 
@@ -26,7 +29,6 @@ import (
 	"github.com/pgrok/pgrok/internal/sshd"
 	"github.com/pgrok/pgrok/internal/strutil"
 	"github.com/pgrok/pgrok/internal/userutil"
-	"github.com/pgrok/pgrok/pgrokd/templates"
 )
 
 var version = "0.0.0+dev"
@@ -101,11 +103,59 @@ func startProxyServer(logger *log.Logger, port int, proxies *reverseproxy.Cluste
 	}
 }
 
+//go:embed *
+var webAssets embed.FS
+
 func startWebServer(config *conf.Config, db *database.DB) {
 	f := flamego.New()
 	f.Use(flamego.Logger())
 	f.Use(flamego.Recovery())
 	f.Use(flamego.Renderer())
+
+	if flamego.Env() == flamego.EnvTypeProd {
+		webFS, err := fs.Sub(webAssets, "dist")
+		if err != nil {
+			log.Fatal("Failed to load embedded web assets", "error", err.Error())
+			return
+		}
+		f.Use(flamego.Static(
+			flamego.StaticOptions{
+				FileSystem: http.FS(webFS),
+			},
+		))
+
+		// Make sure the page refresh works
+		indexFile, err := webAssets.Open("dist/index.html")
+		if err != nil {
+			log.Fatal(`Failed to open "dist/index.html"`, "error", err.Error())
+			return
+		}
+		indexFileStat, err := indexFile.Stat()
+		if err != nil {
+			log.Fatal(`Failed to stat "dist/index.html"`, "error", err.Error())
+			return
+		}
+		index, err := webAssets.ReadFile("dist/index.html")
+		if err != nil {
+			log.Fatal(`Failed to read "dist/index.html"`, "error", err.Error())
+			return
+		}
+		indexReader := bytes.NewReader(index)
+		f.Get("/{**}", func(w http.ResponseWriter, r *http.Request) {
+			http.ServeContent(w, r, "index.html", indexFileStat.ModTime(), indexReader)
+		})
+	} else {
+		// Proxy all non-backend URLs to Vite
+		viteURL, err := url.Parse("http://localhost:5173")
+		if err != nil {
+			log.Fatal("Failed to parse vite URL", "error", err.Error())
+			return
+		}
+		viteProxy := httputil.NewSingleHostReverseProxy(viteURL)
+		f.Get("/{**}", func(w http.ResponseWriter, r *http.Request) {
+			viteProxy.ServeHTTP(w, r)
+		})
+	}
 
 	var postgresDSN string
 	// Check if the host is a UNIX domain socket
@@ -134,35 +184,53 @@ func startWebServer(config *conf.Config, db *database.DB) {
 				Table:     "sessions",
 				InitTable: true,
 			},
+			Cookie: session.CookieOptions{
+				Name: "pgrokd_session",
+			},
 			ErrorFunc: func(err error) {
 				log.Error("session", "error", err)
 			},
 		},
 	))
 
-	if flamego.Env() == flamego.EnvTypeProd {
-		fs, err := template.EmbedFS(templates.Templates, ".", []string{".tmpl"})
-		if err != nil {
-			log.Fatal("Failed to load embedded templates", "error", err.Error())
-		}
-		f.Use(template.Templater(
-			template.Options{
-				FileSystem: fs,
-			},
-		))
-	} else {
-		f.Use(template.Templater(
-			template.Options{
-				Directory: "pgrokd/templates",
-			},
-		))
-	}
+	// Behind authentication
+	f.Group("/api",
+		func() {
+			f.Get("/user-info", func(r flamego.Render, principle *database.Principal) {
+				r.JSON(http.StatusOK, map[string]string{
+					"displayName": principle.DisplayName,
+					"token":       principle.Token,
+					"url":         config.Proxy.Scheme + "://" + principle.Subdomain + "." + config.Proxy.Domain,
+				})
+			})
+		},
+		func(c flamego.Context, r flamego.Render, s session.Session) {
+			userID, ok := s.Get("userID").(int64)
+			if !ok || userID <= 0 {
+				c.ResponseWriter().WriteHeader(http.StatusUnauthorized)
+				return
+			}
 
-	f.Get("/signin", func(t template.Template, data template.Data) {
-		if config.IdentityProvider != nil {
-			data["DisplayName"] = config.IdentityProvider.DisplayName
+			principle, err := db.GetPrincipalByID(c.Request().Context(), userID)
+			if err != nil {
+				r.PlainText(http.StatusInternalServerError, fmt.Sprintf("Failed to get principle: %v", err))
+				return
+			}
+			c.Map(principle)
+		},
+	)
+
+	f.Get("/api/identity-provider", func(r flamego.Render) {
+		if config.IdentityProvider == nil {
+			r.JSON(http.StatusInternalServerError, map[string]string{
+				"error": "No identity provider is configured, please ask your admin to configure an identity provider.",
+			})
+			return
 		}
-		t.HTML(http.StatusOK, "signin")
+		r.JSON(http.StatusOK, map[string]string{
+			"displayName": config.IdentityProvider.DisplayName,
+			"authURL":     "/-/oidc/auth",
+		})
 	})
 
 	f.Group("/-", func() {
@@ -249,31 +317,6 @@ func startWebServer(config *conf.Config, db *database.DB) {
 			c.Redirect("/")
 		})
 	})
-
-	f.Group("/",
-		func() {
-			f.Get("", func(t template.Template, data template.Data, principle *database.Principal) {
-				data["DisplayName"] = principle.DisplayName
-				data["Token"] = principle.Token
-				data["URL"] = config.Proxy.Scheme + "://" + principle.Subdomain + "." + config.Proxy.Domain
-				t.HTML(http.StatusOK, "home")
-			})
-		},
-		func(c flamego.Context, r flamego.Render, s session.Session) {
-			userID, ok := s.Get("userID").(int64)
-			if !ok || userID <= 0 {
-				c.Redirect("/signin")
-				return
-			}
-
-			principle, err := db.GetPrincipalByID(c.Request().Context(), userID)
-			if err != nil {
-				r.PlainText(http.StatusInternalServerError, fmt.Sprintf("Failed to get principle: %v", err))
-				return
-			}
-			c.Map(principle)
-		},
-	)
 
 	address := fmt.Sprintf("0.0.0.0:%d", config.Web.Port)
 	log.Info("Web server listening on",

@@ -5,9 +5,10 @@ dist
 # Configuration and application files
 /pgrokd.yml
 /pgrok.yml
-/.idea
+.idea
 .envrc
 .task
+.vite
 
 # System junk
 .DS_Store
