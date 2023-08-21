@@ -149,6 +149,10 @@ Because the standard SSH protocol is used for tunneling, you may well just use t
 
 ![pgrok network diagram](https://user-images.githubusercontent.com/2946214/229048941-cc12139d-f250-49fa-806d-19c27996ee09.png)
 
+## Contributing
+
+Please read through our [contributing guide](.github/contributing.md) and [set up your development environment](docs/dev/local_development.md).
+
 ## Sponsors
 
 <p>
