@@ -11,7 +11,7 @@ First of all, there are some common steps:
 
 1. Add the following DNS records for your domain name:
     1. `A` record for `example.com` to `111.33.5.14` (with **DNS only**)
-        > ![IMPORTANT]
+        > [!IMPORTANT]
         > Do **not** proxy the main domain (example.com) becasue Cloudflare proxyed traffic does not work with SSH connections.
     1. `A` record for `*.example.com` to `111.33.5.14` (with **Proxied**)
 1. Set up the server with the [single binary](./single-binary.md), [Docker](./docker.md#standalone-docker-container) or [Docker Compose](./docker.md#docker-compose).
