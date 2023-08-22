@@ -30,6 +30,4 @@ jobs:
           run_install: |
             - cwd: pgrokd/web
       - name: Run ESLint
-        run: |
-          cd pgrokd/web
-          pnpm run lint
+        run: pnpm --dir pgrokd/web run lint
