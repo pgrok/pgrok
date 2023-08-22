@@ -36,15 +36,15 @@ Before you get started, make sure you have the following:
 
 > [!NOTE]
 > 1. All values used in this document are just examples, substitute based on your setup.
-> 1. HTTPS for the web and proxy server is not required for this to work, while recommended if possible. Examples in this document all use HTTP.
+> 1. All examples in this document use HTTP for brevity, you may refer to our example walkthrough of [setting HTTPS with Caddy and Cloudflare](docs/admin/https.md).
 
 ### Set up the server (`pgrokd`)
 
 1. Add the following DNS records for your domain name:
-    1. `A` record for `example.com` to `111.33.5.14`
-    1. `A` record for `*.example.com` to `111.33.5.14`
+    1. `A` record for `example.com` to `111.33.5.14` (with **DNS only** if using Cloudflare)
+    1. `A` record for `*.example.com` to `111.33.5.14` (with **DNS only** if using Cloudflare)
 1. Set up the server with the [single binary](./docs/admin/single-binary.md), [Docker](./docs/admin/docker.md#standalone-docker-container) or [Docker Compose](./docs/admin/docker.md#docker-compose).
-1. Alter your network security policy (if applicable) to allow inbound requests to port 2222 from `0.0.0.0/0` (anywhere).
+1. Alter your network security policy (if applicable) to allow inbound requests to port `2222` from `0.0.0.0/0` (anywhere).
 1. [Download and install Caddy 2](https://caddyserver.com/docs/install) on your server, and use the following Caddyfile config:
     ```caddyfile
     http://example.com {
