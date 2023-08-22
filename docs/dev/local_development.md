@@ -108,8 +108,10 @@ The following command will start processes defined in the [`Procfile`](../../Pro
 overmind start
 ```
 
-In particular, following processes will be started:
+Then, visit http://localhost:3320!
 
-- The web, proxy and SSHD servers of the pgrokd
-- The `vite` server for the pgrokd web app
-- The mock [oidc-server](../../integration-tests/oidc-server/) for your convenience
+Few things to note:
+
+- The web, proxy and SSHD servers of the pgrokd are started
+- No need to access the Vite server for the pgrokd web app as all requests to it are proxyed by the pgrokd web server
+- A [mock OIDC server](../../integration-tests/oidc-server/) is started for your convenience
