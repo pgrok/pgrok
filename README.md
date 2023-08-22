@@ -36,7 +36,7 @@ Before you get started, make sure you have the following:
 
 > [!NOTE]
 > 1. All values used in this document are just examples, substitute based on your setup.
-> 1. All examples in this document use HTTP for brevity, you may refer to our example walkthrough of [setting HTTPS with Caddy and Cloudflare](docs/admin/https.md).
+> 1. All examples in this document use HTTP for brevity, you may refer to our example walkthrough of [setting HTTPS with Caddy and Cloudflare](./docs/admin/https.md).
 
 ### Set up the server (`pgrokd`)
 
