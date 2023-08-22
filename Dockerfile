@@ -34,7 +34,7 @@ ARG BUILD_VERSION="unknown"
 
 WORKDIR /dist
 COPY . .
-COPY --from=webbuilder /build/pgrokd/cli/dist /pgrokd/cli/dist
+COPY --from=webbuilder /build/pgrokd/cli/dist /dist/pgrokd/cli/dist
 RUN BUILD_VERSION=${BUILD_VERSION} task build-pgrokd-release
 
 FROM alpine:3.18
