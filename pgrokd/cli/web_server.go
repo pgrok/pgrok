@@ -239,6 +239,11 @@ func startWebServer(config *conf.Config, db *database.DB) {
 			s.Set("userID", principle.ID)
 			c.Redirect("/")
 		})
+
+		f.Get("/sign-out", func(c flamego.Context, s session.Session) {
+			s.Delete("userID")
+			c.Redirect("/")
+		})
 	})
 
 	address := fmt.Sprintf("0.0.0.0:%d", config.Web.Port)

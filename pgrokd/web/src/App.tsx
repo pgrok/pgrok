@@ -3,9 +3,9 @@ import { StrictMode } from "react";
 import ReactDOM from "react-dom/client";
 import { Route, createBrowserRouter, createRoutesFromElements, Navigate, RouterProvider } from "react-router-dom";
 import "./App.css";
-import ErrorPage from "./ErrorPage";
 import { UserContextType, UserProvider } from "./hooks/useUser";
 import DashboardPage from "./pages/Dashboard";
+import ErrorPage from "./pages/Error";
 import SignInPage from "./pages/SignIn";
 import { FetchIdentityProviderResponse } from "./types";
 
@@ -45,6 +45,7 @@ export const router = createBrowserRouter(
           });
           return data;
         }}
+        errorElement={<ErrorPage />}
       />
 
       <Route
