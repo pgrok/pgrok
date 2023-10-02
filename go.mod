@@ -11,7 +11,7 @@ require (
 	github.com/golang-jwt/jwt/v4 v4.5.0
 	github.com/lestrrat-go/jwx/v2 v2.0.12
 	github.com/pkg/errors v0.9.1
-	github.com/puzpuzpuz/xsync/v2 v2.5.0
+	github.com/puzpuzpuz/xsync/v2 v2.5.1
 	github.com/sourcegraph/run v0.12.0
 	github.com/stretchr/testify v1.8.4
 	github.com/urfave/cli/v2 v2.25.7
