@@ -17,7 +17,7 @@ require (
 	github.com/urfave/cli/v2 v2.25.7
 	go.bobheadxi.dev/streamline v1.3.1
 	golang.org/x/crypto v0.14.0
-	golang.org/x/net v0.16.0
+	golang.org/x/net v0.17.0
 	golang.org/x/oauth2 v0.13.0
 	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/driver/postgres v1.5.2
