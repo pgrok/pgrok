@@ -46,8 +46,8 @@ func (c *Client) handleHint(req *ssh.Request) {
 }
 
 func (c *Client) handleTCPIPForward(
-	proxy conf.Proxy,
 	ctx context.Context,
+	proxy conf.Proxy,
 	cancel context.CancelFunc,
 	req *ssh.Request,
 	newProxy func(forward string),
@@ -242,15 +242,14 @@ func (c *Client) handleServerInfo(proxy conf.Proxy, req *ssh.Request) {
 	var hostURL string
 	switch c.protocol {
 	case "tcp":
-		host := proxy.Domain
-		tcpHost := proxy.Tcp.Domain
-		if tcpHost == "" {
-			tcpHost = host
+		host := proxy.Tcp.Domain
+		if host == "" {
+			host = proxy.Domain
 		}
 		if i := strings.Index(host, ":"); i > 0 {
 			host = host[:i]
 		}
-		hostURL = "tcp://" + tcpHost + ":" + strconv.Itoa(c.principal.LastTCPPort)
+		hostURL = "tcp://" + host + ":" + strconv.Itoa(c.principal.LastTCPPort)
 	case "http":
 		hostURL = proxy.Scheme + "://" + c.serverConn.Permissions.Extensions["host"]
 	default:
