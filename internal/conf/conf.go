@@ -25,6 +25,7 @@ type Proxy struct {
 	Port   int    `yaml:"port"`
 	Scheme string `yaml:"scheme"`
 	Domain string `yaml:"domain"`
+	TcpDomain string `yaml:"tcpdomain"`
 }
 
 type Database struct {

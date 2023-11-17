@@ -243,10 +243,14 @@ func (c *Client) handleServerInfo(proxy conf.Proxy, req *ssh.Request) {
 	switch c.protocol {
 	case "tcp":
 		host := proxy.Domain
+		tcpHost := proxy.TcpDomain
+		if tcpHost == "" {
+			tcpHost = host
+		}
 		if i := strings.Index(host, ":"); i > 0 {
 			host = host[:i]
 		}
-		hostURL = "tcp://" + host + ":" + strconv.Itoa(c.principal.LastTCPPort)
+		hostURL = "tcp://" + tcpHost + ":" + strconv.Itoa(c.principal.LastTCPPort)
 	case "http":
 		hostURL = proxy.Scheme + "://" + c.serverConn.Permissions.Extensions["host"]
 	default:
