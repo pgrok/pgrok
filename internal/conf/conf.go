@@ -4,6 +4,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/creasty/defaults"
 	"github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
 )
@@ -62,6 +63,7 @@ func Load(configPath string) (*Config, error) {
 	}
 
 	var config Config
+	defaults.Set(&config)
 	err = yaml.Unmarshal(p, &config)
 	if err != nil {
 		return nil, errors.Wrap(err, "unmarshal")
