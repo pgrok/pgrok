@@ -26,10 +26,10 @@ type Proxy struct {
 	Port   int    `yaml:"port"`
 	Scheme string `yaml:"scheme"`
 	Domain string `yaml:"domain"`
-	Tcp    struct {
+	TCP    struct {
 		Domain    string `yaml:"domain"`
 		PortStart int    `default:"10000" yaml:"port_start"`
-		PortEnd   int    `default:"10500" yaml:"port_end"`
+		PortEnd   int    `default:"15000" yaml:"port_end"`
 	} `yaml:"tcp"`
 }
 

@@ -77,14 +77,14 @@ func (c *Client) handleTCPIPForward(
 	switch c.protocol {
 	case "tcp":
 		// Attempt to use the same port as the last time
-		if c.principal.LastTCPPort >= proxy.Tcp.PortStart && c.principal.LastTCPPort < proxy.Tcp.PortEnd {
+		if c.principal.LastTCPPort >= proxy.TCP.PortStart && c.principal.LastTCPPort < proxy.TCP.PortEnd {
 			listener, err = net.Listen("tcp", "0.0.0.0:"+strconv.Itoa(c.principal.LastTCPPort))
 			if err == nil {
 				port = c.principal.LastTCPPort
 				break
 			}
 		}
-		listener, port, err = acquireAvailablePort(proxy.Tcp.PortStart, proxy.Tcp.PortEnd)
+		listener, port, err = acquireAvailablePort(proxy.TCP.PortStart, proxy.TCP.PortEnd)
 
 	case "http":
 		listener, port, err = acquireAvailablePort(15000, 20000)
@@ -242,7 +242,7 @@ func (c *Client) handleServerInfo(proxy conf.Proxy, req *ssh.Request) {
 	var hostURL string
 	switch c.protocol {
 	case "tcp":
-		host := proxy.Tcp.Domain
+		host := proxy.TCP.Domain
 		if host == "" {
 			host = proxy.Domain
 		}
