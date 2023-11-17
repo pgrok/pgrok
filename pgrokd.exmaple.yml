@@ -13,6 +13,14 @@ proxy:
   scheme: "http"
   # The domain name of the proxy URLs.
   domain: "localhost:3000"
+  # Optional TCP Proxy settings
+  tcp:
+    # The domain name of the proxy URLs - defaults to proxy.domain value
+    domain: "localhost"
+    # TCP proxy start port
+    port_start: 10000
+    # TCP proxy end port
+    port_end: 15000
 # Settings for the SSH server.
 sshd:
   # The listening port of the SSH server.
