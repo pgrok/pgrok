@@ -41,6 +41,8 @@ func NormalizeIdentifier(id string) (string, error) {
 	// Trim leading and trailing dashes and periods.
 	id = sequencesToTrim.ReplaceAllString(id, "")
 
+	id = strings.ToLower(id)
+
 	if id == "" {
 		return "", errors.Errorf("username %q could not be normalized to acceptable format", origName)
 	}
