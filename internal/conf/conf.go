@@ -25,6 +25,11 @@ type Proxy struct {
 	Port   int    `yaml:"port"`
 	Scheme string `yaml:"scheme"`
 	Domain string `yaml:"domain"`
+	TCP    struct {
+		Domain    string `yaml:"domain"`
+		PortStart int    `yaml:"port_start"`
+		PortEnd   int    `yaml:"port_end"`
+	} `yaml:"tcp"`
 }
 
 type Database struct {
@@ -57,6 +62,15 @@ func Load(configPath string) (*Config, error) {
 	}
 
 	var config Config
+
+	if config.Proxy.TCP.PortStart <= 0 {
+		config.Proxy.TCP.PortStart = 10000
+	}
+
+	if config.Proxy.TCP.PortEnd <= 0 {
+		config.Proxy.TCP.PortEnd = 15000
+	}
+
 	err = yaml.Unmarshal(p, &config)
 	if err != nil {
 		return nil, errors.Wrap(err, "unmarshal")

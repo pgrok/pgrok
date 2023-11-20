@@ -123,6 +123,7 @@ func Start(
 					go client.handleTCPIPForward(
 						ctx,
 						cancel,
+						proxy,
 						req,
 						func(forward string) { newProxy(serverConn.Permissions.Extensions["host"], forward) },
 						func() { removeProxy(serverConn.Permissions.Extensions["host"]) },

@@ -17,6 +17,7 @@ import (
 
 	"github.com/pgrok/pgrok/internal/conf"
 	"github.com/pgrok/pgrok/internal/database"
+	"github.com/pgrok/pgrok/internal/strutil"
 )
 
 // Client is a SSH client that has established a connection.
@@ -48,6 +49,7 @@ func (c *Client) handleHint(req *ssh.Request) {
 func (c *Client) handleTCPIPForward(
 	ctx context.Context,
 	cancel context.CancelFunc,
+	proxy conf.Proxy,
 	req *ssh.Request,
 	newProxy func(forward string),
 	removeProxy func(),
@@ -75,16 +77,15 @@ func (c *Client) handleTCPIPForward(
 	var listener net.Listener
 	switch c.protocol {
 	case "tcp":
-		const tcpPortStart, tcpPortEnd = 10000, 15000
 		// Attempt to use the same port as the last time
-		if c.principal.LastTCPPort >= tcpPortStart && c.principal.LastTCPPort < tcpPortEnd {
+		if c.principal.LastTCPPort >= proxy.TCP.PortStart && c.principal.LastTCPPort < proxy.TCP.PortEnd {
 			listener, err = net.Listen("tcp", "0.0.0.0:"+strconv.Itoa(c.principal.LastTCPPort))
 			if err == nil {
 				port = c.principal.LastTCPPort
 				break
 			}
 		}
-		listener, port, err = acquireAvailablePort(tcpPortStart, tcpPortEnd)
+		listener, port, err = acquireAvailablePort(proxy.TCP.PortStart, proxy.TCP.PortEnd)
 
 	case "http":
 		listener, port, err = acquireAvailablePort(15000, 20000)
@@ -242,7 +243,7 @@ func (c *Client) handleServerInfo(proxy conf.Proxy, req *ssh.Request) {
 	var hostURL string
 	switch c.protocol {
 	case "tcp":
-		host := proxy.Domain
+		host := strutil.Coalesce(proxy.TCP.Domain, proxy.Domain)
 		if i := strings.Index(host, ":"); i > 0 {
 			host = host[:i]
 		}
