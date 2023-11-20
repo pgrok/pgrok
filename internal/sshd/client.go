@@ -17,6 +17,7 @@ import (
 
 	"github.com/pgrok/pgrok/internal/conf"
 	"github.com/pgrok/pgrok/internal/database"
+	"github.com/pgrok/pgrok/internal/strutil"
 )
 
 // Client is a SSH client that has established a connection.
@@ -47,8 +48,8 @@ func (c *Client) handleHint(req *ssh.Request) {
 
 func (c *Client) handleTCPIPForward(
 	ctx context.Context,
-	proxy conf.Proxy,
 	cancel context.CancelFunc,
+	proxy conf.Proxy,
 	req *ssh.Request,
 	newProxy func(forward string),
 	removeProxy func(),
@@ -242,10 +243,7 @@ func (c *Client) handleServerInfo(proxy conf.Proxy, req *ssh.Request) {
 	var hostURL string
 	switch c.protocol {
 	case "tcp":
-		host := proxy.TCP.Domain
-		if host == "" {
-			host = proxy.Domain
-		}
+		host := strutil.Coalesce(proxy.TCP.Domain, proxy.Domain)
 		if i := strings.Index(host, ":"); i > 0 {
 			host = host[:i]
 		}

@@ -122,8 +122,8 @@ func Start(
 				case "tcpip-forward":
 					go client.handleTCPIPForward(
 						ctx,
-						proxy,
 						cancel,
+						proxy,
 						req,
 						func(forward string) { newProxy(serverConn.Permissions.Extensions["host"], forward) },
 						func() { removeProxy(serverConn.Permissions.Extensions["host"]) },
