@@ -4,7 +4,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/creasty/defaults"
 	"github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
 )
@@ -28,8 +27,8 @@ type Proxy struct {
 	Domain string `yaml:"domain"`
 	TCP    struct {
 		Domain    string `yaml:"domain"`
-		PortStart int    `default:"10000" yaml:"port_start"`
-		PortEnd   int    `default:"15000" yaml:"port_end"`
+		PortStart int    `yaml:"port_start"`
+		PortEnd   int    `yaml:"port_end"`
 	} `yaml:"tcp"`
 }
 
@@ -63,7 +62,15 @@ func Load(configPath string) (*Config, error) {
 	}
 
 	var config Config
-	defaults.Set(&config)
+
+	if config.Proxy.TCP.PortStart == 0 {
+		config.Proxy.TCP.PortStart = 10000
+	}
+
+	if config.Proxy.TCP.PortEnd == 0 {
+		config.Proxy.TCP.PortEnd = 15000
+	}
+
 	err = yaml.Unmarshal(p, &config)
 	if err != nil {
 		return nil, errors.Wrap(err, "unmarshal")

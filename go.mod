@@ -6,7 +6,6 @@ require (
 	github.com/adrg/xdg v0.4.0
 	github.com/charmbracelet/log v0.2.5
 	github.com/coreos/go-oidc v2.2.1+incompatible
-	github.com/creasty/defaults v1.7.0
 	github.com/flamego/flamego v1.9.4
 	github.com/flamego/session v1.6.0
 	github.com/golang-jwt/jwt/v4 v4.5.0
