@@ -63,11 +63,11 @@ func Load(configPath string) (*Config, error) {
 
 	var config Config
 
-	if config.Proxy.TCP.PortStart == 0 {
+	if config.Proxy.TCP.PortStart <= 0 {
 		config.Proxy.TCP.PortStart = 10000
 	}
 
-	if config.Proxy.TCP.PortEnd == 0 {
+	if config.Proxy.TCP.PortEnd <= 0 {
 		config.Proxy.TCP.PortEnd = 15000
 	}
 
