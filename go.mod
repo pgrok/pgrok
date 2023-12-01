@@ -9,7 +9,7 @@ require (
 	github.com/flamego/flamego v1.9.4
 	github.com/flamego/session v1.6.0
 	github.com/golang-jwt/jwt/v4 v4.5.0
-	github.com/lestrrat-go/jwx/v2 v2.0.16
+	github.com/lestrrat-go/jwx/v2 v2.0.17
 	github.com/pkg/errors v0.9.1
 	github.com/puzpuzpuz/xsync/v2 v2.5.1
 	github.com/sourcegraph/run v0.12.0
