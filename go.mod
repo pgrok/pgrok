@@ -4,7 +4,7 @@ go 1.20
 
 require (
 	github.com/adrg/xdg v0.4.0
-	github.com/charmbracelet/log v0.2.5
+	github.com/charmbracelet/log v0.3.1
 	github.com/coreos/go-oidc v2.2.1+incompatible
 	github.com/flamego/flamego v1.9.4
 	github.com/flamego/session v1.6.0
@@ -28,7 +28,7 @@ require (
 	bitbucket.org/creachadair/shell v0.0.7 // indirect
 	github.com/alecthomas/participle/v2 v2.0.0 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
-	github.com/charmbracelet/lipgloss v0.8.0 // indirect
+	github.com/charmbracelet/lipgloss v0.9.1 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.2.0 // indirect
@@ -53,7 +53,7 @@ require (
 	github.com/lestrrat-go/option v1.0.1 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
 	github.com/mattn/go-isatty v0.0.18 // indirect
-	github.com/mattn/go-runewidth v0.0.14 // indirect
+	github.com/mattn/go-runewidth v0.0.15 // indirect
 	github.com/muesli/reflow v0.3.0 // indirect
 	github.com/muesli/termenv v0.15.2 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
@@ -65,6 +65,7 @@ require (
 	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
 	go.opentelemetry.io/otel v1.11.0 // indirect
 	go.opentelemetry.io/otel/trace v1.11.0 // indirect
+	golang.org/x/exp v0.0.0-20231006140011-7918f672742d // indirect
 	golang.org/x/sys v0.15.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
