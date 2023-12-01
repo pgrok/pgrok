@@ -30,8 +30,8 @@ github.com/djherbis/nio/v3 v3.0.1/go.mod h1:Ng4h80pbZFMla1yKzm61cF0tqqilXZYrogmW
 github.com/fatih/color v1.13.0 h1:8LOYc1KYPPmyKMuN8QV2DNRWNbLo6LZ0iLs8+mlH53w=
 github.com/flamego/flamego v1.9.4 h1:SNsooIfNa6ljQM1rBmfg4cFcXPIhQdG/uvNHqXxPvD8=
 github.com/flamego/flamego v1.9.4/go.mod h1:2tAVbugA3fgX8xOBoqR2jmJSSvZDLBFGXTFCR5h5eAU=
-github.com/flamego/session v1.6.0 h1:NIHyyhZNtxYF1s6bLzg3pVcLruk47vHN0K0b4uVrEas=
-github.com/flamego/session v1.6.0/go.mod h1:uYKf2wegdunfAK54PnDtRjppAN2C0AmbuEMd2OQAPOs=
+github.com/flamego/session v1.6.1 h1:GZFmm1tTAt9xM6rBDdQSS9UI97Q9eFUzVC/TQV9h7Fo=
+github.com/flamego/session v1.6.1/go.mod h1:MHrQNkyfw0+mw9wcaWvvJLG6MuX/fIO5HB6BFJYi5h0=
 github.com/frankban/quicktest v1.14.3 h1:FJKSZTDHjyhriyC81FLQ0LY93eSai0ZyR/ZIkd3ZUKE=
 github.com/go-logfmt/logfmt v0.6.0 h1:wGYYu3uicYdqXVgoYbvnkrPVXkuLM1p1ifugDMEdRi4=
 github.com/go-logfmt/logfmt v0.6.0/go.mod h1:WYhtIu8zTZfxdn5+rREduYbwxfcBr/Vr6KEVveWlfTs=
