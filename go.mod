@@ -7,7 +7,7 @@ require (
 	github.com/charmbracelet/log v0.3.1
 	github.com/coreos/go-oidc v2.2.1+incompatible
 	github.com/flamego/flamego v1.9.4
-	github.com/flamego/session v1.6.1
+	github.com/flamego/session v1.6.2
 	github.com/golang-jwt/jwt/v4 v4.5.0
 	github.com/lestrrat-go/jwx/v2 v2.0.17
 	github.com/pkg/errors v0.9.1
@@ -43,7 +43,8 @@ require (
 	github.com/itchyny/timefmt-go v0.1.5 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a // indirect
-	github.com/jackc/pgx/v5 v5.4.3 // indirect
+	github.com/jackc/pgx/v5 v5.5.0 // indirect
+	github.com/jackc/puddle/v2 v2.2.1 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/lestrrat-go/blackmagic v1.0.2 // indirect
@@ -66,6 +67,7 @@ require (
 	go.opentelemetry.io/otel v1.11.0 // indirect
 	go.opentelemetry.io/otel/trace v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20231006140011-7918f672742d // indirect
+	golang.org/x/sync v0.1.0 // indirect
 	golang.org/x/sys v0.15.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
