@@ -14,7 +14,7 @@ require (
 	github.com/puzpuzpuz/xsync/v2 v2.5.1
 	github.com/sourcegraph/run v0.12.0
 	github.com/stretchr/testify v1.8.4
-	github.com/urfave/cli/v2 v2.25.7
+	github.com/urfave/cli/v2 v2.27.1
 	go.bobheadxi.dev/streamline v1.3.1
 	golang.org/x/crypto v0.17.0
 	golang.org/x/net v0.19.0
