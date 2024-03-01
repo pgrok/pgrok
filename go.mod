@@ -16,7 +16,7 @@ require (
 	github.com/stretchr/testify v1.8.4
 	github.com/urfave/cli/v2 v2.27.1
 	go.bobheadxi.dev/streamline v1.3.2
-	golang.org/x/crypto v0.19.0
+	golang.org/x/crypto v0.20.0
 	golang.org/x/net v0.21.0
 	golang.org/x/oauth2 v0.16.0
 	gopkg.in/yaml.v3 v3.0.1
