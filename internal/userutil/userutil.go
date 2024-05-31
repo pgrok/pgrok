@@ -1,6 +1,9 @@
 package userutil
 
 import (
+	"bytes"
+	"encoding/json"
+	"net/http"
 	"regexp"
 	"strings"
 
@@ -47,4 +50,37 @@ func NormalizeIdentifier(id string) (string, error) {
 		return "", errors.Errorf("username %q could not be normalized to acceptable format", origName)
 	}
 	return id, nil
+}
+
+// SendWebhook sends a webhook to the configured webhook URL with the given content as json.
+func SendWebhook(data map[string]any, endpoint string) (err error) {
+	// Encode data to JSON
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		return
+	}
+	// Set up the HTTP request
+
+	req, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(jsonData))
+	if err != nil {
+		return
+	}
+	// Set the content type header to JSON
+	req.Header.Set("Content-Type", "application/json")
+
+	// Send the request
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return
+	}
+
+	defer resp.Body.Close()
+
+	// Check the response status code
+	if resp.StatusCode != http.StatusOK {
+		return errors.Errorf("webhook failed with status code %d", resp.StatusCode)
+	}
+	return nil
+
 }
