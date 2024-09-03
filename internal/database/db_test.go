@@ -32,7 +32,7 @@ func TestGORMLogger(t *testing.T) {
 			logger := &gormLogger{
 				Logger: log.NewWithOptions(&buf, log.Options{Level: log.DebugLevel}),
 			}
-			logger.Printf(test.format)
+			logger.Print(test.format)
 			assert.Equal(t, test.want, buf.String())
 		})
 	}
