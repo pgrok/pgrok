@@ -18,7 +18,7 @@ require (
 	go.bobheadxi.dev/streamline v1.3.2
 	golang.org/x/crypto v0.27.0
 	golang.org/x/net v0.28.0
-	golang.org/x/oauth2 v0.22.0
+	golang.org/x/oauth2 v0.23.0
 	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/driver/postgres v1.5.9
 	gorm.io/gorm v1.25.11
