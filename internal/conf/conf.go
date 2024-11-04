@@ -10,6 +10,7 @@ import (
 
 type Config struct {
 	ExternalURL string `yaml:"external_url"`
+	WebhookURL  string `yaml:"webhook_url"`
 	Web         struct {
 		Port int `yaml:"port"`
 	} `yaml:"web"`
