@@ -28,3 +28,5 @@ snapshot:
   name_template: "{{ incpatch .Version }}-next"
 changelog:
   disable: true
+git:
+  tag_sort: semver
