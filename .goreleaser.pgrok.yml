@@ -27,10 +27,10 @@ checksum:
 snapshot:
   name_template: "{{ incpatch .Version }}-next"
 changelog:
-  skip: true
+  disable: true
 
 brews:
-  - tap:
+  - repository:
       owner: pgrok
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
