@@ -22,14 +22,13 @@ jobs:
         with:
           go-version: 1.23.x
       - name: Build and release
-        uses: goreleaser/goreleaser-action@v4
+        uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
           version: "~> v2"
           args: release --clean --config .goreleaser.pgrok.yml
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
   pgrokd:
     runs-on: ubuntu-latest
     steps:
@@ -52,7 +51,7 @@ jobs:
       - name: Build web app
         run: pnpm --dir pgrokd/web run build
       - name: Build and release
-        uses: goreleaser/goreleaser-action@v4
+        uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
           version: "~> v2"
