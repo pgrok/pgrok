@@ -1,4 +1,5 @@
 # Docs: https://goreleaser.com
+version: 2
 builds:
   - main: ./pgrokd/cli
     binary: pgrokd
