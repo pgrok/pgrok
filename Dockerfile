@@ -6,26 +6,26 @@ COPY . .
 RUN pnpm --dir pgrokd/web install --frozen-lockfile --prefer-frozen-lockfile \
     && pnpm --dir pgrokd/web run build
 
-FROM golang:1.21.0-alpine3.18 AS binarybuilder
+FROM golang:alpine3.21 AS binarybuilder
 RUN apk --no-cache --no-progress add --virtual \
     build-deps \
     build-base \
     git
 
 # Install Task
-RUN export url="https://github.com/go-task/task/releases/download/v3.22.0/task_linux_"; \
+RUN export url="https://github.com/go-task/task/releases/download/v3.40.1/task_linux_"; \
   if [ `uname -m` == "aarch64" ]; then \
        export arch='arm64' \
     && wget --quiet ${url}${arch}.tar.gz -O task_linux_${arch}.tar.gz \
-    && sh -c 'echo "9827e63054ddec1ffe0f246f9bb0c0de0d30deac2055481b44304d13cc928fe2  task_linux_${arch}.tar.gz" | sha256sum -c'; \
+    && sh -c 'echo "17f325293d08f6f964e0530842e9ef1410dd5f83ee6475b493087391032b0cfd  task_linux_${arch}.tar.gz" | sha256sum -c'; \
   elif [ `uname -m` == "armv7l" ]; then \
        export arch='arm' \
     && wget --quiet ${url}${arch}.tar.gz -O task_linux_${arch}.tar.gz \
-    && sh -c 'echo "068793abf6b6c18bfcc9f22207b12de7f25d922960cd5b48e3547851216bc456  task_linux_${arch}.tar.gz" | sha256sum -c'; \
+    && sh -c 'echo "e5b0261e9f6563ce3ace9e038520eb59d2c77c8d85f2b47ab41e1fe7cf321528  task_linux_${arch}.tar.gz" | sha256sum -c'; \
   else \
        export arch='amd64' \
     && wget --quiet ${url}${arch}.tar.gz -O task_linux_${arch}.tar.gz \
-    && sh -c 'echo "1079079045b66cde89827c0129aff180ad2d67fda71415164a2a3e98f37c40e7  task_linux_${arch}.tar.gz" | sha256sum -c'; \
+    && sh -c 'echo "a35462ec71410cccfc428072de830e4478bc57a919d0131ef7897759270dff8f  task_linux_${arch}.tar.gz" | sha256sum -c'; \
   fi \
   && tar -xzf task_linux_${arch}.tar.gz \
   && mv task /usr/local/bin/task
@@ -37,7 +37,7 @@ COPY . .
 COPY --from=webbuilder /build/pgrokd/cli/dist /dist/pgrokd/cli/dist
 RUN BUILD_VERSION=${BUILD_VERSION} task build-pgrokd-release
 
-FROM alpine:3.18
+FROM alpine:3.21
 
 LABEL org.opencontainers.image.source = "https://github.com/pgrok/pgrok"
 
