@@ -28,7 +28,8 @@ jobs:
           version: "~> v2"
           args: release --clean --config .goreleaser.pgrok.yml
         env:
-          GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
   pgrokd:
     runs-on: ubuntu-latest
     steps:
