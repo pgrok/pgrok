@@ -5,7 +5,7 @@ go 1.23.4
 require (
 	github.com/adrg/xdg v0.5.3
 	github.com/charmbracelet/log v0.4.0
-	github.com/coreos/go-oidc v2.2.1+incompatible
+	github.com/coreos/go-oidc v2.3.0+incompatible
 	github.com/flamego/flamego v1.9.5
 	github.com/flamego/session v1.6.5
 	github.com/golang-jwt/jwt/v4 v4.5.1
@@ -69,5 +69,5 @@ require (
 	golang.org/x/sync v0.10.0 // indirect
 	golang.org/x/sys v0.28.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
-	gopkg.in/square/go-jose.v2 v2.6.0 // indirect
+	gopkg.in/go-jose/go-jose.v2 v2.6.3 // indirect
 )
