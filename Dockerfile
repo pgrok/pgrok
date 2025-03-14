@@ -1,4 +1,5 @@
-FROM node:20-slim AS webbuilder
+FROM node:22-slim AS webbuilder
+RUN npm install --global corepack@0.31.0
 RUN corepack enable
 
 WORKDIR /build
