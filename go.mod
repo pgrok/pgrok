@@ -1,12 +1,13 @@
 module github.com/pgrok/pgrok
 
 go 1.23.4
+toolchain go1.24.1
 
 require (
 	github.com/adrg/xdg v0.5.3
 	github.com/charmbracelet/log v0.4.0
 	github.com/coreos/go-oidc v2.3.0+incompatible
-	github.com/flamego/flamego v1.9.5
+	github.com/flamego/flamego v1.9.6
 	github.com/flamego/session v1.6.5
 	github.com/golang-jwt/jwt/v4 v4.5.1
 	github.com/lestrrat-go/jwx/v2 v2.1.4

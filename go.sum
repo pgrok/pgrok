@@ -30,8 +30,8 @@ github.com/djherbis/nio/v3 v3.0.1 h1:6wxhnuppteMa6RHA4L81Dq7ThkZH8SwnDzXDYy95vB4
 github.com/djherbis/nio/v3 v3.0.1/go.mod h1:Ng4h80pbZFMla1yKzm61cF0tqqilXZYrogmWgZxOcmg=
 github.com/fatih/color v1.16.0 h1:zmkK9Ngbjj+K0yRhTVONQh1p/HknKYSlNT+vZCzyokM=
 github.com/fatih/color v1.16.0/go.mod h1:fL2Sau1YI5c0pdGEVCbKQbLXB6edEj1ZgiY4NijnWvE=
-github.com/flamego/flamego v1.9.5 h1:GbUHZ58bEaI6MfiC8SAaRR96VEHDGjA1dZVWN3qtmEQ=
-github.com/flamego/flamego v1.9.5/go.mod h1:n1CMZUtcP30xeJJ+di9E+wrfWWzptAxjkKabIV806to=
+github.com/flamego/flamego v1.9.6 h1:9HgCcWLoImy4zkdHVvTjEJoR5NMZn4B8W8uM6c+ABCs=
+github.com/flamego/flamego v1.9.6/go.mod h1:n1CMZUtcP30xeJJ+di9E+wrfWWzptAxjkKabIV806to=
 github.com/flamego/session v1.6.5 h1:YlQfMGjV84JcGihg5OjufKP5qOh/05iOfHYrf5qta5I=
 github.com/flamego/session v1.6.5/go.mod h1:EhBKxrWSmkqa2XwQSC6WbwXn7pLzyFY0BREtTwJBpQU=
 github.com/frankban/quicktest v1.14.3 h1:FJKSZTDHjyhriyC81FLQ0LY93eSai0ZyR/ZIkd3ZUKE=
