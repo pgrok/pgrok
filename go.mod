@@ -8,7 +8,7 @@ require (
 	github.com/coreos/go-oidc v2.3.0+incompatible
 	github.com/flamego/flamego v1.9.5
 	github.com/flamego/session v1.6.5
-	github.com/golang-jwt/jwt/v4 v4.5.1
+	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/lestrrat-go/jwx/v2 v2.1.4
 	github.com/pkg/errors v0.9.1
 	github.com/puzpuzpuz/xsync/v2 v2.5.1
