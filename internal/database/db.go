@@ -89,9 +89,10 @@ type gormLogger struct {
 }
 
 func (l *gormLogger) Printf(format string, args ...any) {
+	msg := fmt.Sprintf(format, args...)
 	print := l.Debug
-	if strings.Contains(format, "[error]") {
+	if strings.Contains(msg, "[error]") {
 		print = l.Error
 	}
-	print(fmt.Sprintf(format, args...))
+	print(msg)
 }
