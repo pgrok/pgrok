@@ -9,7 +9,7 @@ require (
 	github.com/flamego/flamego v1.9.5
 	github.com/flamego/session v1.6.5
 	github.com/golang-jwt/jwt/v4 v4.5.2
-	github.com/lestrrat-go/jwx/v2 v2.1.4
+	github.com/lestrrat-go/jwx/v2 v2.1.6
 	github.com/pkg/errors v0.9.1
 	github.com/puzpuzpuz/xsync/v2 v2.5.1
 	github.com/sourcegraph/run v0.12.0
@@ -47,7 +47,7 @@ require (
 	github.com/jackc/puddle/v2 v2.2.1 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
-	github.com/lestrrat-go/blackmagic v1.0.2 // indirect
+	github.com/lestrrat-go/blackmagic v1.0.3 // indirect
 	github.com/lestrrat-go/httpcc v1.0.1 // indirect
 	github.com/lestrrat-go/httprc v1.0.6 // indirect
 	github.com/lestrrat-go/iter v1.0.2 // indirect
