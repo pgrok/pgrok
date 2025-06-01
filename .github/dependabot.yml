@@ -5,7 +5,5 @@ updates:
     directory: "/"
     schedule:
       interval: "monthly"
-    reviewers:
-      - "unknwon"
     commit-message:
       prefix: "mod:"
