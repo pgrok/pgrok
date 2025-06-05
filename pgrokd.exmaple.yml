@@ -1,6 +1,9 @@
 # The external facing URL what will appear in the browser address bar.
 external_url: "http://localhost:3320"
 
+# A webhook which will be sent once a user is authenticated. (keep empty to disable)
+#webhook_url: "http://localhost:3000/webhook"
+
 # Settings for the web server.
 web:
   # The listening port of the web server.
