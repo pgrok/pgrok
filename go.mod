@@ -14,7 +14,7 @@ require (
 	github.com/puzpuzpuz/xsync/v2 v2.5.1
 	github.com/sourcegraph/run v0.12.0
 	github.com/stretchr/testify v1.10.0
-	github.com/urfave/cli/v2 v2.27.6
+	github.com/urfave/cli/v2 v2.27.7
 	go.bobheadxi.dev/streamline v1.3.2
 	golang.org/x/crypto v0.38.0
 	golang.org/x/net v0.40.0
@@ -33,7 +33,7 @@ require (
 	github.com/charmbracelet/x/ansi v0.8.0 // indirect
 	github.com/charmbracelet/x/cellbuf v0.0.13-0.20250311204145-2c3ea96c31dd // indirect
 	github.com/charmbracelet/x/term v0.2.1 // indirect
-	github.com/cpuguy83/go-md2man/v2 v2.0.5 // indirect
+	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0 // indirect
 	github.com/djherbis/buffer v1.2.0 // indirect
