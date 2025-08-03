@@ -6,7 +6,7 @@ require (
 	github.com/adrg/xdg v0.5.3
 	github.com/charmbracelet/log v0.4.2
 	github.com/coreos/go-oidc v2.3.0+incompatible
-	github.com/flamego/flamego v1.9.5
+	github.com/flamego/flamego v1.9.7
 	github.com/flamego/session v1.6.5
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/lestrrat-go/jwx/v2 v2.1.6
@@ -26,7 +26,7 @@ require (
 
 require (
 	bitbucket.org/creachadair/shell v0.0.7 // indirect
-	github.com/alecthomas/participle/v2 v2.1.1 // indirect
+	github.com/alecthomas/participle/v2 v2.1.4 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/charmbracelet/colorprofile v0.2.3-0.20250311203215-f60798e515dc // indirect
 	github.com/charmbracelet/lipgloss v1.1.0 // indirect
