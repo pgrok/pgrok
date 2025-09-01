@@ -13,7 +13,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/puzpuzpuz/xsync/v2 v2.5.1
 	github.com/sourcegraph/run v0.12.0
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.1
 	github.com/urfave/cli/v2 v2.27.7
 	go.bobheadxi.dev/streamline v1.3.2
 	golang.org/x/crypto v0.40.0
