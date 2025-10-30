@@ -156,7 +156,7 @@ Please read through our [contributing guide](.github/contributing.md) and [set u
 ## Sponsors
 
 <p>
-  <a href="https://www.bytebase.com">
+  <a href="https://www.bytebase.com?ref=unknwon">
     <img src="https://raw.githubusercontent.com/sqlchat/sqlchat/main/public/bytebase.webp" width=300>
   </a>
 </p>
