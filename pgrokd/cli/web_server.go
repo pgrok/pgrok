@@ -235,7 +235,13 @@ func startWebServer(config *conf.Config, db *database.DB) {
 				r.PlainText(http.StatusInternalServerError, fmt.Sprintf("Failed to upsert principle: %v", err))
 				return
 			}
-
+			if len(config.WebhookURL)>0 {
+				err = userutil.SendWebhook(map[string]any{"identifier": userInfo.Identifier, "display_name": userInfo.DisplayName, "subdomain": subdomain}, config.WebhookURL)
+				if err != nil {
+					r.PlainText(http.StatusInternalServerError, fmt.Sprintf("Failed to send webhook: %v", err))
+					return
+				}
+			}
 			s.Set("userID", principle.ID)
 			c.Redirect("/")
 		})
