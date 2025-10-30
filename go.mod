@@ -1,6 +1,6 @@
 module github.com/pgrok/pgrok
 
-go 1.24.0
+go 1.25.0
 
 require (
 	github.com/adrg/xdg v0.5.3
