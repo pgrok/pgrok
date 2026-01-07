@@ -7,7 +7,7 @@ COPY . .
 RUN pnpm --dir pgrokd/web install --frozen-lockfile --prefer-frozen-lockfile \
     && pnpm --dir pgrokd/web run build
 
-FROM golang:alpine3.21 AS binarybuilder
+FROM golang:alpine3.23 AS binarybuilder
 RUN apk --no-cache --no-progress add --virtual \
     build-deps \
     build-base \
@@ -38,7 +38,7 @@ COPY . .
 COPY --from=webbuilder /build/pgrokd/cli/dist /dist/pgrokd/cli/dist
 RUN BUILD_VERSION=${BUILD_VERSION} task build-pgrokd-release
 
-FROM alpine:3.21
+FROM alpine:3.23
 
 LABEL org.opencontainers.image.source = "https://github.com/pgrok/pgrok"
 
