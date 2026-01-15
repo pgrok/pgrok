@@ -27,6 +27,7 @@ type Client struct {
 	serverConn *ssh.ServerConn
 	principal  *database.Principal
 	protocol   string
+	host       string
 }
 
 func (c *Client) handleHint(req *ssh.Request) {
@@ -249,7 +250,7 @@ func (c *Client) handleServerInfo(proxy conf.Proxy, req *ssh.Request) {
 		}
 		hostURL = "tcp://" + host + ":" + strconv.Itoa(c.principal.LastTCPPort)
 	case "http":
-		hostURL = proxy.Scheme + "://" + c.serverConn.Permissions.Extensions["host"]
+		hostURL = proxy.Scheme + "://" + c.host
 	default:
 		_ = req.Reply(false, []byte(fmt.Sprintf("unsupported protocol: %s", c.protocol)))
 		return
