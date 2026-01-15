@@ -34,7 +34,6 @@ func Start(
 			return &ssh.Permissions{
 				Extensions: map[string]string{
 					"principal-id": strconv.FormatInt(principal.ID, 10),
-					"host":         principal.Subdomain + "." + proxy.Domain,
 				},
 			}, nil
 		},
@@ -114,6 +113,7 @@ func Start(
 				serverConn: serverConn,
 				principal:  principal,
 				protocol:   "http",
+				host:       principal.Subdomain + "." + proxy.Domain,
 			}
 			for req := range reqs {
 				switch req.Type {
@@ -125,8 +125,8 @@ func Start(
 						cancel,
 						proxy,
 						req,
-						func(forward string) { newProxy(serverConn.Permissions.Extensions["host"], forward) },
-						func() { removeProxy(serverConn.Permissions.Extensions["host"]) },
+						func(forward string) { newProxy(client.host, forward) },
+						func() { removeProxy(client.host) },
 					)
 				case "cancel-tcpip-forward":
 					go func(req *ssh.Request) {
