@@ -17,6 +17,7 @@ import (
 
 	"github.com/pgrok/pgrok/internal/conf"
 	"github.com/pgrok/pgrok/internal/database"
+	"github.com/pgrok/pgrok/internal/reverseproxy"
 	"github.com/pgrok/pgrok/internal/strutil"
 )
 
@@ -52,8 +53,7 @@ func (c *Client) handleTCPIPForward(
 	cancel context.CancelFunc,
 	proxy conf.Proxy,
 	req *ssh.Request,
-	newProxy func(forward string),
-	removeProxy func(),
+	proxies *reverseproxy.Cluster,
 ) {
 	// RFC 4254 7.1, https://www.rfc-editor.org/rfc/rfc4254#section-7.1
 	var forwardRequest struct {
@@ -204,11 +204,11 @@ func (c *Client) handleTCPIPForward(
 	}
 
 	if c.protocol == "http" {
-		newProxy(listener.Addr().String())
+		proxies.Set(c.host, listener.Addr().String())
 	}
 	<-ctx.Done()
 	if c.protocol == "http" {
-		removeProxy()
+		proxies.Remove(c.host)
 	}
 }
 
