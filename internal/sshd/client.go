@@ -208,7 +208,7 @@ func (c *Client) handleTCPIPForward(
 		maxRetries := 10
 		for _, exists := proxies.Get(c.host); exists && maxRetries > 0; maxRetries-- {
 
-			newHost := randomHex(8) + "." + c.host
+			newHost := randomHex(8) + "-" + c.host
 			_, exists = proxies.Get(newHost)
 
 			if !exists {
