@@ -2,6 +2,7 @@ package sshd
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/pgrok/pgrok/internal/conf"
 	"github.com/pgrok/pgrok/internal/database"
+	"github.com/pgrok/pgrok/internal/reverseproxy"
 	"github.com/pgrok/pgrok/internal/strutil"
 )
 
@@ -52,8 +54,7 @@ func (c *Client) handleTCPIPForward(
 	cancel context.CancelFunc,
 	proxy conf.Proxy,
 	req *ssh.Request,
-	newProxy func(forward string),
-	removeProxy func(),
+	proxies *reverseproxy.Cluster,
 ) {
 	// RFC 4254 7.1, https://www.rfc-editor.org/rfc/rfc4254#section-7.1
 	var forwardRequest struct {
@@ -204,12 +205,31 @@ func (c *Client) handleTCPIPForward(
 	}
 
 	if c.protocol == "http" {
-		newProxy(listener.Addr().String())
+		maxRetries := 3
+		for _, exists := proxies.Get(c.host); exists && maxRetries > 0; maxRetries-- {
+			newHost := randomHex(8) + "-" + c.host
+			_, exists = proxies.Get(newHost)
+			if !exists {
+				c.host = newHost
+				break
+			}
+		}
+		c.logger.Warn("Failed to find unused subdomain after %d retries.", maxRetries)
+		proxies.Set(c.host, listener.Addr().String())
 	}
 	<-ctx.Done()
 	if c.protocol == "http" {
-		removeProxy()
+		proxies.Remove(c.host)
 	}
+}
+
+func randomHex(n int) string {
+	r := mathrand.New(mathrand.NewSource(time.Now().UnixNano()))
+	bytes := make([]byte, n)
+	for i := range bytes {
+		bytes[i] = byte(r.Intn(256))
+	}
+	return hex.EncodeToString(bytes)
 }
 
 // acquireAvailablePort tries to find an available port in the range [start,
