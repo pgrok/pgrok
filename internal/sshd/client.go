@@ -24,12 +24,14 @@ import (
 
 // Client is a SSH client that has established a connection.
 type Client struct {
-	logger     *log.Logger
-	db         *database.DB
-	serverConn *ssh.ServerConn
-	principal  *database.Principal
-	protocol   string
-	host       string
+	logger          *log.Logger
+	db              *database.DB
+	serverConn      *ssh.ServerConn
+	principal       *database.Principal
+	protocol        string
+	host            string
+	hostReady       context.Context
+	hostReadyCancel context.CancelFunc
 }
 
 func (c *Client) handleHint(req *ssh.Request) {
@@ -214,6 +216,7 @@ func (c *Client) handleTCPIPForward(
 				break
 			}
 		}
+		c.hostReadyCancel() // Prevent race where server-info request reads host before setting it
 		c.logger.Warn("Failed to find unused subdomain after %d retries.", maxRetries)
 		proxies.Set(c.host, listener.Addr().String())
 	}
@@ -270,6 +273,7 @@ func (c *Client) handleServerInfo(proxy conf.Proxy, req *ssh.Request) {
 		}
 		hostURL = "tcp://" + host + ":" + strconv.Itoa(c.principal.LastTCPPort)
 	case "http":
+		<-c.hostReady.Done()
 		hostURL = proxy.Scheme + "://" + c.host
 	default:
 		_ = req.Reply(false, []byte(fmt.Sprintf("unsupported protocol: %s", c.protocol)))
