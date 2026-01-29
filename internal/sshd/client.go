@@ -208,6 +208,7 @@ func (c *Client) handleTCPIPForward(
 
 	if c.protocol == "http" {
 		maxRetries := 3
+		exists := false
 		for _, exists := proxies.Get(c.host); exists && maxRetries > 0; maxRetries-- {
 			newHost := randomHex(8) + "-" + c.host
 			_, exists = proxies.Get(newHost)
@@ -217,7 +218,9 @@ func (c *Client) handleTCPIPForward(
 			}
 		}
 		c.hostReadyCancel() // Prevent race where server-info request reads host before setting it
-		c.logger.Warn("Failed to find unused subdomain after %d retries.", maxRetries)
+		if exists {
+			c.logger.Warn("Failed to find unused subdomain", "retries", maxRetries)
+		}
 		proxies.Set(c.host, listener.Addr().String())
 	}
 	<-ctx.Done()
