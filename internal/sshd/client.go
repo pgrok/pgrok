@@ -208,17 +208,7 @@ func (c *Client) handleTCPIPForward(
 	}
 
 	if c.protocol == "http" {
-		if _, exists := proxies.Get(c.host); exists {
-			id := uuid.New()
-			candidate := hex.EncodeToString(id[:]) + "-" + c.host
-
-			if _, taken := proxies.Get(candidate); taken {
-				c.logger.Warn("Failed to find unused subdomain")
-			} else {
-				c.host = candidate
-			}
-		}
-		c.hostReadyCancel() // Prevent race where server-info request reads host before setting it
+		c.findUnusedHost(proxies)
 		proxies.Set(c.host, listener.Addr().String())
 	}
 	<-ctx.Done()
@@ -241,6 +231,20 @@ func acquireAvailablePort(start, end int) (_ net.Listener, port int, _ error) {
 		}
 	}
 	return nil, 0, errors.New("no luck after 100 attempts")
+}
+
+func (c *Client) findUnusedHost(proxies *reverseproxy.Cluster) {
+	if _, exists := proxies.Get(c.host); exists {
+		id := uuid.New()
+		candidate := hex.EncodeToString(id[:]) + "-" + c.host
+
+		if _, taken := proxies.Get(candidate); taken {
+			c.logger.Warn("Failed to find unused subdomain")
+		} else {
+			c.host = candidate
+		}
+	}
+	c.hostReadyCancel() // Prevent race where server-info request reads host before setting it
 }
 
 func (c *Client) handleServerInfo(proxy conf.Proxy, req *ssh.Request) {
