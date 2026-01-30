@@ -234,7 +234,7 @@ func kill(pid int) error {
 	return errors.New("cannot kill the process after 10 tries")
 }
 
-func setupPgrok(ctx context.Context, protocol string) (endpoint string, shutdown func() error, _ error) {
+func setupPgrok(ctx context.Context, protocol string, port ...int) (endpoint string, shutdown func() error, _ error) {
 	err := run.Cmd(ctx, "go", "build", "-o", "../.bin/pgrok", "../pgrok/cli").Run().Wait()
 	if err != nil {
 		return "", nil, errors.Wrap(err, "go build")
@@ -247,6 +247,9 @@ func setupPgrok(ctx context.Context, protocol string) (endpoint string, shutdown
 	}
 	if protocol == "tcp" {
 		args = append(args, "--forward-addr", "localhost:9833")
+	}
+	if len(port) > 0 {
+		args = append(args, fmt.Sprintf("%d", port[0]))
 	}
 
 	cmd := exec.Command("../.bin/pgrok", args...)
@@ -346,6 +349,37 @@ func TestHTTP(t *testing.T) {
 	body, err = run.Cmd(ctx, "curl", "--silent", fmt.Sprintf("%s/echo?q=chickendinner", url)).Run().String()
 	require.NoError(t, err)
 	assert.Contains(t, body, "chickendinner")
+}
+
+func TestMultipleHTTP(t *testing.T) {
+	ctx := context.Background()
+
+	shutdownEchoServer, err := setupEchoServer(ctx)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, shutdownEchoServer())
+	}()
+
+	endpoint1, shutdownPgrok1, err := setupPgrok(ctx, "http", 8001)
+	require.NoError(t, err)
+	require.Equal(t, "unknwon.localhost:3000", endpoint1)
+
+	endpoint2, shutdownPgrok2, err := setupPgrok(ctx, "http", 8002)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, shutdownPgrok2())
+	}()
+	require.Regexp(t, "^[0-9a-f]{32}-unknwon.localhost:3000$", endpoint2)
+
+	require.NoError(t, shutdownPgrok1())
+
+	endpoint3, shutdownPgrok3, err := setupPgrok(ctx, "http", 8003) // check if initial subdomain is allocated again if it's free
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, shutdownPgrok3())
+	}()
+
+	require.Equal(t, "unknwon.localhost:3000", endpoint3)
 }
 
 func TestTCP(t *testing.T) {
