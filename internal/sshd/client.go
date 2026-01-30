@@ -208,21 +208,17 @@ func (c *Client) handleTCPIPForward(
 	}
 
 	if c.protocol == "http" {
-		maxRetries := 3
-		exists := false
-		for _, exists := proxies.Get(c.host); exists && maxRetries > 0; maxRetries-- {
-			uuid := uuid.New()
-			newHost := hex.EncodeToString(uuid[:]) + "-" + c.host
-			_, exists = proxies.Get(newHost)
-			if !exists {
-				c.host = newHost
-				break
+		if _, exists := proxies.Get(c.host); exists {
+			id := uuid.New()
+			candidate := hex.EncodeToString(id[:]) + "-" + c.host
+
+			if _, taken := proxies.Get(candidate); taken {
+				c.logger.Warn("Failed to find unused subdomain")
+			} else {
+				c.host = candidate
 			}
 		}
 		c.hostReadyCancel() // Prevent race where server-info request reads host before setting it
-		if exists {
-			c.logger.Warn("Failed to find unused subdomain", "retries", maxRetries)
-		}
 		proxies.Set(c.host, listener.Addr().String())
 	}
 	<-ctx.Done()
