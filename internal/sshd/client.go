@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/ssh"
 
@@ -210,7 +211,8 @@ func (c *Client) handleTCPIPForward(
 		maxRetries := 3
 		exists := false
 		for _, exists := proxies.Get(c.host); exists && maxRetries > 0; maxRetries-- {
-			newHost := randomHex(8) + "-" + c.host
+			uuid := uuid.New()
+			newHost := hex.EncodeToString(uuid[:]) + "-" + c.host
 			_, exists = proxies.Get(newHost)
 			if !exists {
 				c.host = newHost
@@ -227,15 +229,6 @@ func (c *Client) handleTCPIPForward(
 	if c.protocol == "http" {
 		proxies.Remove(c.host)
 	}
-}
-
-func randomHex(n int) string {
-	r := mathrand.New(mathrand.NewSource(time.Now().UnixNano()))
-	bytes := make([]byte, n)
-	for i := range bytes {
-		bytes[i] = byte(r.Intn(256))
-	}
-	return hex.EncodeToString(bytes)
 }
 
 // acquireAvailablePort tries to find an available port in the range [start,
