@@ -102,13 +102,11 @@ jobs:
             gh release view "$RELEASE_TAG" || gh release create "$RELEASE_TAG" --title "$RELEASE_TITLE" --notes "$RELEASE_NOTES" --prerelease
           fi
 
-          # Delete existing assets matching this platform
           PATTERN="pgrok_.*_${{ matrix.goos }}_${{ matrix.goarch }}\."
           gh release view "$RELEASE_TAG" --json assets --jq ".assets[].name" | grep -E "$PATTERN" | while read -r asset; do
             gh release delete-asset "$RELEASE_TAG" "$asset" --yes || true
           done
 
-          # Upload new archives
           if [ "${{ matrix.goos }}" = "windows" ]; then
             gh release upload "$RELEASE_TAG" dist/pgrok_*.zip --clobber
           else
@@ -204,64 +202,20 @@ jobs:
             gh release view "$RELEASE_TAG" || gh release create "$RELEASE_TAG" --title "$RELEASE_TITLE" --notes "$RELEASE_NOTES" --prerelease
           fi
 
-          # Delete existing assets matching this platform
           PATTERN="pgrokd_.*_${{ matrix.goos }}_${{ matrix.goarch }}\."
           gh release view "$RELEASE_TAG" --json assets --jq ".assets[].name" | grep -E "$PATTERN" | while read -r asset; do
             gh release delete-asset "$RELEASE_TAG" "$asset" --yes || true
           done
 
-          # Upload new archives
           if [ "${{ matrix.goos }}" = "windows" ]; then
             gh release upload "$RELEASE_TAG" dist/pgrokd_*.zip --clobber
           else
             gh release upload "$RELEASE_TAG" dist/pgrokd_*.tar.gz --clobber
           fi
 
-  checksums:
-    name: Generate checksums
-    needs: [pgrok, pgrokd]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Determine release tag
-        id: version
-        run: |
-          if [ "${{ github.event_name }}" = "release" ]; then
-            echo "release_tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
-          elif [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            echo "release_tag=latest-commit-build" >> "$GITHUB_OUTPUT"
-          else
-            echo "release_tag=release-archive-testing" >> "$GITHUB_OUTPUT"
-          fi
-      - name: Download all release assets
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-        run: |
-          RELEASE_TAG="${{ steps.version.outputs.release_tag }}"
-          mkdir -p assets
-          cd assets
-          gh release download "$RELEASE_TAG" --pattern "*.tar.gz" || true
-          gh release download "$RELEASE_TAG" --pattern "*.zip" || true
-      - name: Generate checksums
-        run: |
-          cd assets
-          sha256sum * > checksums.txt || true
-      - name: Upload checksums
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-        run: |
-          RELEASE_TAG="${{ steps.version.outputs.release_tag }}"
-
-          # Delete existing checksum file
-          gh release delete-asset "$RELEASE_TAG" "checksums.txt" --yes || true
-
-          # Upload new checksums
-          gh release upload "$RELEASE_TAG" assets/checksums.txt --clobber
-
   homebrew-tap:
     name: Update Homebrew tap
-    needs: [pgrok, checksums]
+    needs: [pgrok]
     if: github.event_name == 'release'
     runs-on: ubuntu-latest
     steps:
@@ -269,7 +223,7 @@ jobs:
         id: release
         run: |
           VERSION="${{ github.event.release.tag_name }}"
-          VERSION="${VERSION#v}"  # Remove 'v' prefix
+          VERSION="${VERSION#v}"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
       - name: Download release assets
         env:
@@ -351,7 +305,7 @@ jobs:
 
   homebrew-core:
     name: Bump Homebrew core formula
-    needs: [pgrok, checksums]
+    needs: [pgrok]
     if: github.event_name == 'release'
     runs-on: macos-latest
     steps:
@@ -360,7 +314,7 @@ jobs:
           HOMEBREW_GITHUB_API_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
         run: |
           VERSION="${{ github.event.release.tag_name }}"
-          VERSION="${VERSION#v}"  # Remove 'v' prefix
+          VERSION="${VERSION#v}"
 
           brew tap homebrew/core
           brew bump-formula-pr pgrok \
@@ -371,7 +325,7 @@ jobs:
   notify-failure:
     name: Notify on failure
     runs-on: ubuntu-latest
-    needs: [pgrok, pgrokd, checksums]
+    needs: [pgrok, pgrokd]
     if: ${{ failure() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     steps:
       - name: Send email on failure
