@@ -24,22 +24,22 @@ jobs:
       packages: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           fetch-depth: 0
       - name: Get latest tag
         id: latest-tag
-        uses: WyriHaximus/github-action-get-previous-tag@v1
+        uses: WyriHaximus/github-action-get-previous-tag@04e8485ecb6487243907e330d522ff60f02283ce # v1
       - name: Compute short commit SHA
         id: short-sha
-        uses: benjlevesque/short-sha@v2.1
+        uses: benjlevesque/short-sha@726c11b3a56efd7710e7019505b802f083c98dcb # v2.1
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
         with:
           platforms: linux/amd64,linux/arm64,linux/arm/v7
       - name: Set up Docker Buildx
         id: buildx
-        uses: docker/setup-buildx-action@v2
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
       - name: Inspect builder
         run: |
           echo "Name:      ${{ steps.buildx.outputs.name }}"
@@ -48,13 +48,13 @@ jobs:
           echo "Flags:     ${{ steps.buildx.outputs.flags }}"
           echo "Platforms: ${{ steps.buildx.outputs.platforms }}"
       - name: Login to GitHub Container registry
-        uses: docker/login-action@v2
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build and push images
-        uses: docker/build-push-action@v4
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           context: .
           build-args: |
@@ -64,26 +64,16 @@ jobs:
           tags: |
             ghcr.io/pgrok/pgrokd:insiders
       - name: Scan for container vulnerabilities
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@22438a435773de8c97dc0958cc0b823c45b064ac # master
         with:
           image-ref: ghcr.io/pgrok/pgrokd:insiders
           exit-code: '1'
       - name: Send email on failure
-        uses: dawidd6/action-send-mail@v3
         if: ${{ failure() }}
+        uses: unknwon/send-email-on-failure@89339a1bc93f4ad1d30f3b7e4911fcba985c9adb # v1
         with:
-          server_address: smtp.mailgun.org
-          server_port: 465
-          username: ${{ secrets.SMTP_USERNAME }}
-          password: ${{ secrets.SMTP_PASSWORD }}
-          subject: GitHub Actions (${{ github.repository }}) job result
-          to: github-actions-8ce6454@unknwon.io
-          from: GitHub Actions (${{ github.repository }})
-          reply_to: noreply@unknwon.io
-          body: |
-            The job "${{ github.job }}" of ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }} completed with "${{ job.status }}".
-
-            View the job run at: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          smtp_username: ${{ secrets.SMTP_USERNAME }}
+          smtp_password: ${{ secrets.SMTP_PASSWORD }}
 
   buildx-pull-request:
     if: ${{ github.event_name == 'pull_request'}}
@@ -92,10 +82,10 @@ jobs:
       contents: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
       - name: Set up Docker Buildx
         id: buildx
-        uses: docker/setup-buildx-action@v2
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
       - name: Inspect builder
         run: |
           echo "Name:      ${{ steps.buildx.outputs.name }}"
@@ -105,9 +95,9 @@ jobs:
           echo "Platforms: ${{ steps.buildx.outputs.platforms }}"
       - name: Compute short commit SHA
         id: short-sha
-        uses: benjlevesque/short-sha@v2.1
+        uses: benjlevesque/short-sha@726c11b3a56efd7710e7019505b802f083c98dcb # v2.1
       - name: Build and push images
-        uses: docker/build-push-action@v4
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           context: .
           build-args: |
@@ -117,7 +107,7 @@ jobs:
           tags: |
             ttl.sh/pgrok/pgrokd-${{ steps.short-sha.outputs.sha }}:1d
       - name: Scan for container vulnerabilities
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@22438a435773de8c97dc0958cc0b823c45b064ac # master
         with:
           image-ref: ttl.sh/pgrok/pgrokd-${{ steps.short-sha.outputs.sha }}:1d
           exit-code: '1'
@@ -134,14 +124,14 @@ jobs:
       - name: Compute image tag name
         run: echo "IMAGE_TAG=$(echo $GITHUB_REF_NAME | cut -c 2-)" >> $GITHUB_ENV
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
         with:
           platforms: linux/amd64,linux/arm64,linux/arm/v7
       - name: Set up Docker Buildx
         id: buildx
-        uses: docker/setup-buildx-action@v2
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
       - name: Inspect builder
         run: |
           echo "Name:      ${{ steps.buildx.outputs.name }}"
@@ -150,13 +140,13 @@ jobs:
           echo "Flags:     ${{ steps.buildx.outputs.flags }}"
           echo "Platforms: ${{ steps.buildx.outputs.platforms }}"
       - name: Login to GitHub Container registry
-        uses: docker/login-action@v2
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build and push images
-        uses: docker/build-push-action@v4
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           context: .
           build-args: |
@@ -167,18 +157,8 @@ jobs:
             ghcr.io/pgrok/pgrokd:${{ env.IMAGE_TAG }}
             ghcr.io/pgrok/pgrokd:latest
       - name: Send email on failure
-        uses: dawidd6/action-send-mail@v3
         if: ${{ failure() }}
+        uses: unknwon/send-email-on-failure@89339a1bc93f4ad1d30f3b7e4911fcba985c9adb # v1
         with:
-          server_address: smtp.mailgun.org
-          server_port: 465
-          username: ${{ secrets.SMTP_USERNAME }}
-          password: ${{ secrets.SMTP_PASSWORD }}
-          subject: GitHub Actions (${{ github.repository }}) job result
-          to: github-actions-8ce6454@unknwon.io
-          from: GitHub Actions (${{ github.repository }})
-          reply_to: noreply@unknwon.io
-          body: |
-            The job "${{ github.job }}" of ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }} completed with "${{ job.status }}".
-
-            View the job run at: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          smtp_username: ${{ secrets.SMTP_USERNAME }}
+          smtp_password: ${{ secrets.SMTP_PASSWORD }}

@@ -1,61 +1,383 @@
-# Docs: https://goreleaser.com/ci/actions/
 name: Release
+
 on:
   release:
-    types: [ published ]
+    types: [published]
+  push:
+    branches:
+      - main
+  pull_request:
+    paths:
+      - '.github/workflows/release.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GOPROXY: "https://proxy.golang.org"
 
 permissions:
   contents: write
 
 jobs:
   pgrok:
+    name: pgrok ${{ matrix.goos }}/${{ matrix.goarch }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {goos: linux, goarch: amd64}
+          - {goos: linux, goarch: arm64}
+          - {goos: darwin, goarch: amd64}
+          - {goos: darwin, goarch: arm64}
+          - {goos: windows, goarch: amd64}
+          - {goos: windows, goarch: arm64}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Fetch all Git tags
-        run: git fetch --force --tags
-      - name: Install Go
-        uses: actions/setup-go@v4
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - name: Setup Go
+        uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
         with:
           go-version: 1.25.x
-      - name: Build and release
-        uses: goreleaser/goreleaser-action@v6
-        with:
-          distribution: goreleaser
-          version: "~> v2"
-          args: release --clean --config .goreleaser.pgrok.yml
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            echo "version=${{ github.event.release.tag_name }}" | sed 's/version=v/version=/' >> "$GITHUB_OUTPUT"
+            echo "release_tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "version=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+            echo "release_tag=latest-commit-build" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+            echo "release_tag=release-archive-testing" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Build binary
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+        run: |
+          BINARY_NAME="pgrok"
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            BINARY_NAME="pgrok.exe"
+          fi
+
+          go build -v \
+            -ldflags "-X main.version=${{ steps.version.outputs.version }}" \
+            -trimpath -o "$BINARY_NAME" ./pgrok/cli
+      - name: Create archives
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          ARCHIVE_BASE="pgrok_${VERSION}_${{ matrix.goos }}_${{ matrix.goarch }}"
+
+          BINARY_NAME="pgrok"
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            BINARY_NAME="pgrok.exe"
+            zip "${ARCHIVE_BASE}.zip" "$BINARY_NAME"
+          else
+            tar -czvf "${ARCHIVE_BASE}.tar.gz" "$BINARY_NAME"
+          fi
+      - name: Upload to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          RELEASE_TAG="${{ steps.version.outputs.release_tag }}"
+
+          if [ "${{ github.event_name }}" != "release" ]; then
+            git tag -f "$RELEASE_TAG"
+            git push origin "$RELEASE_TAG" --force || true
+
+            RELEASE_TITLE="Release Archive Testing"
+            RELEASE_NOTES="Automated testing release for workflow development."
+            if [ "$RELEASE_TAG" = "latest-commit-build" ]; then
+              RELEASE_TITLE="Latest Commit Build"
+              RELEASE_NOTES="Automated build from the latest commit on main branch. This release is updated automatically with every push to main."
+            fi
+
+            gh release view "$RELEASE_TAG" || gh release create "$RELEASE_TAG" --title "$RELEASE_TITLE" --notes "$RELEASE_NOTES" --prerelease
+          fi
+
+          # Delete existing assets matching this platform
+          PATTERN="pgrok_.*_${{ matrix.goos }}_${{ matrix.goarch }}\."
+          gh release view "$RELEASE_TAG" --json assets --jq ".assets[].name" | grep -E "$PATTERN" | while read -r asset; do
+            gh release delete-asset "$RELEASE_TAG" "$asset" --yes || true
+          done
+
+          # Upload new archives
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            gh release upload "$RELEASE_TAG" pgrok_*.zip --clobber
+          else
+            gh release upload "$RELEASE_TAG" pgrok_*.tar.gz --clobber
+          fi
+
   pgrokd:
+    name: pgrokd ${{ matrix.goos }}/${{ matrix.goarch }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {goos: linux, goarch: amd64}
+          - {goos: linux, goarch: arm64}
+          - {goos: darwin, goarch: amd64}
+          - {goos: darwin, goarch: arm64}
+          - {goos: windows, goarch: amd64}
+          - {goos: windows, goarch: arm64}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Fetch all Git tags
-        run: git fetch --force --tags
-      - name: Install Go
-        uses: actions/setup-go@v4
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - name: Setup Go
+        uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
         with:
           go-version: 1.25.x
       - name: Install pnpm
-        uses: pnpm/action-setup@v2
+        uses: pnpm/action-setup@9fd676a19091d4595eefd76e4bd31c97133911f1 # v4.2.0
         with:
           version: 10
-          run_install: |
-            - cwd: pgrokd/web
+      - name: Setup Node.js
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: 22
+          cache: 'pnpm'
+          cache-dependency-path: pgrokd/web/pnpm-lock.yaml
+      - name: Install web dependencies
+        run: pnpm --dir pgrokd/web install
       - name: Build web app
         run: pnpm --dir pgrokd/web run build
-      - name: Build and release
-        uses: goreleaser/goreleaser-action@v6
-        with:
-          distribution: goreleaser
-          version: "~> v2"
-          args: release --clean --config .goreleaser.pgrokd.yml
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            echo "version=${{ github.event.release.tag_name }}" | sed 's/version=v/version=/' >> "$GITHUB_OUTPUT"
+            echo "release_tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "version=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+            echo "release_tag=latest-commit-build" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+            echo "release_tag=release-archive-testing" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Build binary
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+        run: |
+          BINARY_NAME="pgrokd"
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            BINARY_NAME="pgrokd.exe"
+          fi
+
+          go build -v \
+            -ldflags "-X main.version=${{ steps.version.outputs.version }}" \
+            -trimpath -o "$BINARY_NAME" ./pgrokd/cli
+      - name: Create archives
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          ARCHIVE_BASE="pgrokd_${VERSION}_${{ matrix.goos }}_${{ matrix.goarch }}"
+
+          BINARY_NAME="pgrokd"
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            BINARY_NAME="pgrokd.exe"
+            zip "${ARCHIVE_BASE}.zip" "$BINARY_NAME"
+          else
+            tar -czvf "${ARCHIVE_BASE}.tar.gz" "$BINARY_NAME"
+          fi
+      - name: Upload to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          RELEASE_TAG="${{ steps.version.outputs.release_tag }}"
+
+          if [ "${{ github.event_name }}" != "release" ]; then
+            git tag -f "$RELEASE_TAG"
+            git push origin "$RELEASE_TAG" --force || true
+
+            RELEASE_TITLE="Release Archive Testing"
+            RELEASE_NOTES="Automated testing release for workflow development."
+            if [ "$RELEASE_TAG" = "latest-commit-build" ]; then
+              RELEASE_TITLE="Latest Commit Build"
+              RELEASE_NOTES="Automated build from the latest commit on main branch. This release is updated automatically with every push to main."
+            fi
+
+            gh release view "$RELEASE_TAG" || gh release create "$RELEASE_TAG" --title "$RELEASE_TITLE" --notes "$RELEASE_NOTES" --prerelease
+          fi
+
+          # Delete existing assets matching this platform
+          PATTERN="pgrokd_.*_${{ matrix.goos }}_${{ matrix.goarch }}\."
+          gh release view "$RELEASE_TAG" --json assets --jq ".assets[].name" | grep -E "$PATTERN" | while read -r asset; do
+            gh release delete-asset "$RELEASE_TAG" "$asset" --yes || true
+          done
+
+          # Upload new archives
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            gh release upload "$RELEASE_TAG" pgrokd_*.zip --clobber
+          else
+            gh release upload "$RELEASE_TAG" pgrokd_*.tar.gz --clobber
+          fi
+
+  checksums:
+    name: Generate checksums
+    needs: [pgrok, pgrokd]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine release tag
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            echo "release_tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "release_tag=latest-commit-build" >> "$GITHUB_OUTPUT"
+          else
+            echo "release_tag=release-archive-testing" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Download all release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          RELEASE_TAG="${{ steps.version.outputs.release_tag }}"
+          mkdir -p assets
+          cd assets
+          gh release download "$RELEASE_TAG" --pattern "*.tar.gz" || true
+          gh release download "$RELEASE_TAG" --pattern "*.zip" || true
+      - name: Generate checksums
+        run: |
+          cd assets
+          sha256sum * > checksums.txt || true
+      - name: Upload checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          RELEASE_TAG="${{ steps.version.outputs.release_tag }}"
+
+          # Delete existing checksum file
+          gh release delete-asset "$RELEASE_TAG" "checksums.txt" --yes || true
+
+          # Upload new checksums
+          gh release upload "$RELEASE_TAG" assets/checksums.txt --clobber
+
+  homebrew-tap:
+    name: Update Homebrew tap
+    needs: [pgrok, checksums]
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get release info
+        id: release
+        run: |
+          VERSION="${{ github.event.release.tag_name }}"
+          VERSION="${VERSION#v}"  # Remove 'v' prefix
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+      - name: Download release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          mkdir -p assets
+          cd assets
+          gh release download "${{ github.event.release.tag_name }}" --pattern "pgrok_*.tar.gz"
+      - name: Calculate SHA256 checksums
+        id: sha256
+        run: |
+          cd assets
+          echo "darwin_amd64=$(sha256sum pgrok_${{ steps.release.outputs.version }}_darwin_amd64.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "darwin_arm64=$(sha256sum pgrok_${{ steps.release.outputs.version }}_darwin_arm64.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "linux_amd64=$(sha256sum pgrok_${{ steps.release.outputs.version }}_linux_amd64.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "linux_arm64=$(sha256sum pgrok_${{ steps.release.outputs.version }}_linux_arm64.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+      - name: Checkout homebrew-tap
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          repository: pgrok/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+          path: homebrew-tap
+      - name: Update formula
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+          TAG: ${{ github.event.release.tag_name }}
+          SHA_DARWIN_ARM64: ${{ steps.sha256.outputs.darwin_arm64 }}
+          SHA_DARWIN_AMD64: ${{ steps.sha256.outputs.darwin_amd64 }}
+          SHA_LINUX_ARM64: ${{ steps.sha256.outputs.linux_arm64 }}
+          SHA_LINUX_AMD64: ${{ steps.sha256.outputs.linux_amd64 }}
+        run: |
+          cat > homebrew-tap/Formula/pgrok.rb << EOF
+          class Pgrok < Formula
+            desc "Poor man's ngrok"
+            homepage "https://github.com/pgrok/pgrok"
+            version "${VERSION}"
+            license "MIT"
+
+            on_macos do
+              on_arm do
+                url "https://github.com/pgrok/pgrok/releases/download/${TAG}/pgrok_${VERSION}_darwin_arm64.tar.gz"
+                sha256 "${SHA_DARWIN_ARM64}"
+              end
+              on_intel do
+                url "https://github.com/pgrok/pgrok/releases/download/${TAG}/pgrok_${VERSION}_darwin_amd64.tar.gz"
+                sha256 "${SHA_DARWIN_AMD64}"
+              end
+            end
+
+            on_linux do
+              on_arm do
+                url "https://github.com/pgrok/pgrok/releases/download/${TAG}/pgrok_${VERSION}_linux_arm64.tar.gz"
+                sha256 "${SHA_LINUX_ARM64}"
+              end
+              on_intel do
+                url "https://github.com/pgrok/pgrok/releases/download/${TAG}/pgrok_${VERSION}_linux_amd64.tar.gz"
+                sha256 "${SHA_LINUX_AMD64}"
+              end
+            end
+
+            def install
+              bin.install "pgrok"
+            end
+
+            test do
+              assert_match version.to_s, shell_output("\#{bin}/pgrok --version")
+            end
+          end
+          EOF
+      - name: Commit and push
+        run: |
+          cd homebrew-tap
+          git config user.name "Joe Chen"
+          git config user.email "jc@unknwon.io"
+          git add Formula/pgrok.rb
+          git commit -m "pgrok ${{ steps.release.outputs.version }}"
+          git push
+
+  homebrew-core:
+    name: Bump Homebrew core formula
+    needs: [pgrok, checksums]
+    if: github.event_name == 'release'
+    runs-on: macos-latest
+    steps:
+      - name: Update Homebrew formula
+        env:
+          HOMEBREW_GITHUB_API_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ github.event.release.tag_name }}"
+          VERSION="${VERSION#v}"  # Remove 'v' prefix
+
+          brew tap homebrew/core
+          brew bump-formula-pr pgrok \
+            --version "$VERSION" \
+            --no-browse \
+            --message "Automated bump from pgrok release workflow"
+
+  notify-failure:
+    name: Notify on failure
+    runs-on: ubuntu-latest
+    needs: [pgrok, pgrokd, checksums]
+    if: ${{ failure() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    steps:
+      - name: Send email on failure
+        uses: unknwon/send-email-on-failure@89339a1bc93f4ad1d30f3b7e4911fcba985c9adb # v1
+        with:
+          smtp_username: ${{ secrets.SMTP_USERNAME }}
+          smtp_password: ${{ secrets.SMTP_PASSWORD }}
