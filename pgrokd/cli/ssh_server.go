@@ -16,8 +16,7 @@ func startSSHServer(logger *log.Logger, sshdPort int, proxy conf.Proxy, db *data
 		sshdPort,
 		proxy,
 		db,
-		func(host, forward string) { proxies.Set(host, forward) },
-		func(host string) { proxies.Remove(host) },
+		proxies,
 	)
 	if err != nil {
 		logger.Fatal("Failed to start server", "error", err)

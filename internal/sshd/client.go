@@ -2,6 +2,7 @@ package sshd
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,22 +13,26 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/pgrok/pgrok/internal/conf"
 	"github.com/pgrok/pgrok/internal/database"
+	"github.com/pgrok/pgrok/internal/reverseproxy"
 	"github.com/pgrok/pgrok/internal/strutil"
 )
 
 // Client is a SSH client that has established a connection.
 type Client struct {
-	logger     *log.Logger
-	db         *database.DB
-	serverConn *ssh.ServerConn
-	principal  *database.Principal
-	protocol   string
-	host       string
+	logger          *log.Logger
+	db              *database.DB
+	serverConn      *ssh.ServerConn
+	principal       *database.Principal
+	protocol        string
+	host            string
+	hostReady       context.Context
+	hostReadyCancel context.CancelFunc
 }
 
 func (c *Client) handleHint(req *ssh.Request) {
@@ -52,8 +57,7 @@ func (c *Client) handleTCPIPForward(
 	cancel context.CancelFunc,
 	proxy conf.Proxy,
 	req *ssh.Request,
-	newProxy func(forward string),
-	removeProxy func(),
+	proxies *reverseproxy.Cluster,
 ) {
 	// RFC 4254 7.1, https://www.rfc-editor.org/rfc/rfc4254#section-7.1
 	var forwardRequest struct {
@@ -204,11 +208,12 @@ func (c *Client) handleTCPIPForward(
 	}
 
 	if c.protocol == "http" {
-		newProxy(listener.Addr().String())
+		c.findUnusedHost(proxies)
+		proxies.Set(c.host, listener.Addr().String())
 	}
 	<-ctx.Done()
 	if c.protocol == "http" {
-		removeProxy()
+		proxies.Remove(c.host)
 	}
 }
 
@@ -226,6 +231,20 @@ func acquireAvailablePort(start, end int) (_ net.Listener, port int, _ error) {
 		}
 	}
 	return nil, 0, errors.New("no luck after 100 attempts")
+}
+
+func (c *Client) findUnusedHost(proxies *reverseproxy.Cluster) {
+	if _, exists := proxies.Get(c.host); exists {
+		id := uuid.New()
+		candidate := hex.EncodeToString(id[:]) + "-" + c.host
+
+		if _, taken := proxies.Get(candidate); taken {
+			c.logger.Warn("Failed to find unused subdomain")
+		} else {
+			c.host = candidate
+		}
+	}
+	c.hostReadyCancel() // Prevent race where server-info request reads host before setting it
 }
 
 func (c *Client) handleServerInfo(proxy conf.Proxy, req *ssh.Request) {
@@ -250,6 +269,7 @@ func (c *Client) handleServerInfo(proxy conf.Proxy, req *ssh.Request) {
 		}
 		hostURL = "tcp://" + host + ":" + strconv.Itoa(c.principal.LastTCPPort)
 	case "http":
+		<-c.hostReady.Done()
 		hostURL = proxy.Scheme + "://" + c.host
 	default:
 		_ = req.Reply(false, []byte(fmt.Sprintf("unsupported protocol: %s", c.protocol)))
