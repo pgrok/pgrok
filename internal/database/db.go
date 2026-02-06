@@ -23,9 +23,11 @@ import (
 type DB struct {
 	*gorm.DB
 	embeddedServerHandle *embeddedpostgres.EmbeddedPostgres
+	embeddedWorkspace    string
 }
 
 func assemblePostgresConfig(dbSettings *conf.Database, workspace string) embeddedpostgres.Config {
+	// BinariesPath("") triggers automatic download of PostgreSQL binaries
 	return embeddedpostgres.DefaultConfig().
 		Username(dbSettings.User).
 		Password(dbSettings.Password).
@@ -36,10 +38,10 @@ func assemblePostgresConfig(dbSettings *conf.Database, workspace string) embedde
 		BinariesPath("")
 }
 
-func bootEmbeddedServer(dbSettings *conf.Database) (*embeddedpostgres.EmbeddedPostgres, error) {
+func bootEmbeddedServer(dbSettings *conf.Database) (*embeddedpostgres.EmbeddedPostgres, string, error) {
 	workspace, mkErr := os.MkdirTemp("", "pgrokd-pg-")
 	if mkErr != nil {
-		return nil, errors.Wrap(mkErr, "mktemp workspace failed")
+		return nil, "", errors.Wrap(mkErr, "mktemp workspace failed")
 	}
 
 	pgConfig := assemblePostgresConfig(dbSettings, workspace)
@@ -47,10 +49,10 @@ func bootEmbeddedServer(dbSettings *conf.Database) (*embeddedpostgres.EmbeddedPo
 	bootErr := serverHandle.Start()
 	if bootErr != nil {
 		os.RemoveAll(workspace)
-		return nil, errors.Wrap(bootErr, "embedded server boot failed")
+		return nil, "", errors.Wrap(bootErr, "embedded server boot failed")
 	}
 
-	return serverHandle, nil
+	return serverHandle, workspace, nil
 }
 
 func resolveHostAndPort(dbSettings *conf.Database) (string, int) {
@@ -76,11 +78,12 @@ func New(logWriter io.Writer, config *conf.Database) (*DB, error) {
 	bootFailure = true
 
 	if config.EnableEmbedded {
-		serverHandle, bootErr := bootEmbeddedServer(config)
+		serverHandle, workspace, bootErr := bootEmbeddedServer(config)
 		if bootErr != nil {
 			return nil, bootErr
 		}
 		dbHandle.embeddedServerHandle = serverHandle
+		dbHandle.embeddedWorkspace = workspace
 	}
 
 	pgHost, pgPort := resolveHostAndPort(config)
@@ -144,10 +147,15 @@ func New(logWriter io.Writer, config *conf.Database) (*DB, error) {
 	return dbHandle, nil
 }
 
-// Terminate stops the embedded server if present.
+// Terminate stops the embedded server if present and cleans up workspace.
 func (db *DB) Terminate() error {
 	if db.embeddedServerHandle != nil {
-		return db.embeddedServerHandle.Stop()
+		if err := db.embeddedServerHandle.Stop(); err != nil {
+			return err
+		}
+		if db.embeddedWorkspace != "" {
+			os.RemoveAll(db.embeddedWorkspace)
+		}
 	}
 	return nil
 }
