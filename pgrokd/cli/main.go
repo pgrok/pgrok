@@ -3,7 +3,9 @@ package main
 import (
 	"flag"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -45,5 +47,12 @@ func main() {
 	go startProxyServer(log.Default(), config.Proxy.Port, proxies)
 	go startWebServer(config, db)
 
-	select {}
+	shutdownSignal := make(chan os.Signal, 1)
+	signal.Notify(shutdownSignal, syscall.SIGINT, syscall.SIGTERM)
+	<-shutdownSignal
+
+	log.Info("Shutting down pgrokd...")
+	if err := db.Terminate(); err != nil {
+		log.Error("Failed to terminate database", "error", err.Error())
+	}
 }

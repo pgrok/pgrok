@@ -1,0 +1,37 @@
+# Test configuration for embedded Postgres
+external_url: "http://localhost:3320"
+
+web:
+  port: 3320
+
+proxy:
+  port: 3000
+  scheme: "http"
+  domain: "localhost:3000"
+  tcp:
+    domain: "localhost"
+    port_start: 10000
+    port_end: 15000
+
+sshd:
+  port: 2222
+
+# Using embedded PostgreSQL for testing
+database:
+  host: "localhost"
+  port: 5555
+  user: "pgrok_test"
+  password: "test123"
+  database: "pgrokd_test"
+  enable_embedded: true
+
+identity_provider:
+  type: "oidc"
+  display_name: "Test Provider"
+  issuer: "https://example.com"
+  client_id: "test"
+  client_secret: "test"
+  field_mapping:
+    identifier: "email"
+    display_name: "name"
+    email: "email"

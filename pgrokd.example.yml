@@ -33,6 +33,9 @@ database:
   user: "REDACTED"
   password: "REDACTED"
   database: "pgrokd"
+  # Enable embedded PostgreSQL database (for development/testing).
+  # When enabled, pgrokd will start its own PostgreSQL instance.
+  enable_embedded: false
 
 # Settings for the identity provider.
 identity_provider:
