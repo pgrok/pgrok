@@ -104,11 +104,11 @@ func TestAssemblePostgresConfig(t *testing.T) {
 	assert.Contains(t, connectionURL, "testuser")
 	assert.Contains(t, connectionURL, "testdb")
 	assert.Contains(t, connectionURL, "5555")
-	
+
 	// Verify paths use our custom pgrok prefix
 	expectedDataPath := filepath.Join(testWorkspace, "pgrok_pgdata")
 	expectedRuntimePath := filepath.Join(testWorkspace, "pgrok_pgruntime")
-	
+
 	// These paths should be configured but we can only verify via the behavior
 	// The assemblePostgresConfig function sets these correctly
 	assert.NotNil(t, result)
