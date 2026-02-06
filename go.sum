@@ -154,6 +154,8 @@ go.opentelemetry.io/otel/sdk v1.11.0 h1:ZnKIL9V9Ztaq+ME43IUi/eo22mNsb6a7tGfzaOWB
 go.opentelemetry.io/otel/sdk v1.11.0/go.mod h1:REusa8RsyKaq0OlyangWXaw97t2VogoO4SSEeKkSTAk=
 go.opentelemetry.io/otel/trace v1.11.0 h1:20U/Vj42SX+mASlXLmSGBg6jpI1jQtv682lZtTAOVFI=
 go.opentelemetry.io/otel/trace v1.11.0/go.mod h1:nyYjis9jy0gytE9LXGU+/m1sHTKbRY0fX0hulNNDP1U=
+go.uber.org/goleak v1.3.0 h1:2K3zAYmnTNqV73imy9J1T3WC+gmCePx2hEGkimedGto=
+go.uber.org/goleak v1.3.0/go.mod h1:CoHD4mav9JJNrW/WLlf7HGZPjdw8EucARQHekz1X6bE=
 golang.org/x/crypto v0.47.0 h1:V6e3FRj+n4dbpw86FJ8Fv7XVOql7TEwpHapKoMJ/GO8=
 golang.org/x/crypto v0.47.0/go.mod h1:ff3Y9VzzKbwSSEzWqJsJVBnWmRwRSHt/6Op5n9bQc4A=
 golang.org/x/exp v0.0.0-20231006140011-7918f672742d h1:jtJma62tbqLibJ5sFQz8bKtEM8rJBtfilJ2qTU199MI=
