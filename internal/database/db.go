@@ -72,7 +72,9 @@ func New(logWriter io.Writer, config *conf.Database) (*DB, error) {
 	var bootFailure bool
 	defer func() {
 		if bootFailure && dbHandle.embeddedServerHandle != nil {
-			dbHandle.embeddedServerHandle.Stop()
+			if stopErr := dbHandle.embeddedServerHandle.Stop(); stopErr != nil {
+				log.Error("Failed to stop embedded server during cleanup", "error", stopErr)
+			}
 		}
 	}()
 	bootFailure = true
