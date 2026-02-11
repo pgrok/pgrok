@@ -269,8 +269,8 @@ func (c *Client) handleServerInfo(proxy conf.Proxy, req *ssh.Request) {
 		hostURL = "tcp://" + host + ":" + strconv.Itoa(c.principal.LastTCPPort)
 	case "http":
 		<-c.ready.Done()
-		if err := context.Cause(c.ready); err != nil {
-			_ = req.Reply(false, []byte(err.Error()))
+		if cause := context.Cause(c.ready); cause != nil && cause != context.Canceled {
+			_ = req.Reply(false, []byte(cause.Error()))
 			return
 		}
 		hostURL = proxy.Scheme + "://" + c.host
