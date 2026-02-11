@@ -360,14 +360,19 @@ func TestMultipleHTTP(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "unknwon.localhost:3000", endpoint1)
 
-	endpoint2, shutdownPgrok2, err := setupPgrok(ctx, "http", 8002)
+	endpoint2, shutdownPgrok2, err := setupPgrok(ctx, "http", 8080)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, shutdownPgrok2()) })
 	prefix, _, _ := strings.Cut(endpoint2, "-unknwon.localhost:3000")
 	require.NoError(t, uuid.Validate(prefix))
-	require.NoError(t, shutdownPgrok1())
+
+	// Sanity-check on a request forward
+	body, err := run.Cmd(ctx, "curl", "--silent", fmt.Sprintf("%s/echo?q=chickendinner", url)).Run().String()
+	require.NoError(t, err)
+	require.Contains(t, body, "chickendinner")
 
 	// The initial subdomain should be free to allocate again
+	require.NoError(t, shutdownPgrok1())
 	endpoint3, shutdownPgrok3, err := setupPgrok(ctx, "http", 8003)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, shutdownPgrok3()) })
