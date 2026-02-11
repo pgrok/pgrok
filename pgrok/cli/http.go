@@ -190,11 +190,12 @@ func tryConnect(protocol, remoteAddr, forwardAddr, token string) error {
 	ok, reply, err := client.SendRequest("server-info", true, payload)
 	if err != nil {
 		return errors.Wrap(err, "query server info")
-	} else if ok {
-		err = json.Unmarshal(reply, &serverInfo)
-		if err != nil {
-			return errors.Wrap(err, "unmarshal server info")
-		}
+	} else if !ok {
+		return errors.Errorf("query server info rejected: %s", reply)
+	}
+	err = json.Unmarshal(reply, &serverInfo)
+	if err != nil {
+		return errors.Wrap(err, "unmarshal server info")
 	}
 
 	message := "🎉 You're ready to go live!"

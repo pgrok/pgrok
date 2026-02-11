@@ -29,9 +29,26 @@ func (c *Cluster) Get(host string) (*httputil.ReverseProxy, bool) {
 	return proxy, ok
 }
 
-// Set creates a new proxy pointing to the forward address for the given host.
-func (c *Cluster) Set(host, forward string) {
-	proxy := &httputil.ReverseProxy{
+// Set atomically sets a proxy for the given host. If the host is already taken,
+// it tries the alternative host. It returns the actually used host or an error
+// if both are taken.
+func (c *Cluster) Set(host, alternative, forward string) (string, error) {
+	c.proxiesLock.Lock()
+	defer c.proxiesLock.Unlock()
+
+	if _, exists := c.proxies[host]; !exists {
+		c.proxies[host] = newProxy(forward)
+		return host, nil
+	}
+	if _, exists := c.proxies[alternative]; !exists {
+		c.proxies[alternative] = newProxy(forward)
+		return alternative, nil
+	}
+	return "", errors.New("host and alternative are both taken")
+}
+
+func newProxy(forward string) *httputil.ReverseProxy {
+	return &httputil.ReverseProxy{
 		Director: func(r *http.Request) {
 			r.URL.Scheme = "http"
 			r.URL.Host = forward
@@ -41,11 +58,6 @@ func (c *Cluster) Set(host, forward string) {
 			_, _ = w.Write([]byte(errors.Cause(err).Error()))
 		},
 	}
-
-	c.proxiesLock.Lock()
-	defer c.proxiesLock.Unlock()
-
-	c.proxies[host] = proxy
 }
 
 // Remove removes the proxy with given host from the cluster.

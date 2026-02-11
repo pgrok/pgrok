@@ -2,6 +2,7 @@ package sshd
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,22 +13,26 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/pgrok/pgrok/internal/conf"
 	"github.com/pgrok/pgrok/internal/database"
+	"github.com/pgrok/pgrok/internal/reverseproxy"
 	"github.com/pgrok/pgrok/internal/strutil"
 )
 
 // Client is a SSH client that has established a connection.
 type Client struct {
-	logger     *log.Logger
-	db         *database.DB
-	serverConn *ssh.ServerConn
-	principal  *database.Principal
-	protocol   string
-	host       string
+	logger      *log.Logger
+	db          *database.DB
+	serverConn  *ssh.ServerConn
+	principal   *database.Principal
+	protocol    string
+	host        string
+	ready       context.Context
+	signalReady context.CancelCauseFunc
 }
 
 func (c *Client) handleHint(req *ssh.Request) {
@@ -52,8 +57,7 @@ func (c *Client) handleTCPIPForward(
 	cancel context.CancelFunc,
 	proxy conf.Proxy,
 	req *ssh.Request,
-	newProxy func(forward string),
-	removeProxy func(),
+	proxies *reverseproxy.Cluster,
 ) {
 	// RFC 4254 7.1, https://www.rfc-editor.org/rfc/rfc4254#section-7.1
 	var forwardRequest struct {
@@ -99,6 +103,7 @@ func (c *Client) handleTCPIPForward(
 			"remote", c.serverConn.RemoteAddr(),
 			"error", err,
 		)
+		c.signalReady(err)
 		return
 	}
 	defer func() {
@@ -117,7 +122,6 @@ func (c *Client) handleTCPIPForward(
 		Port uint32
 	}
 	payload := &forwardResponse{Port: uint32(port)}
-	_ = req.Reply(true, ssh.Marshal(payload))
 
 	go func() {
 		for {
@@ -204,11 +208,25 @@ func (c *Client) handleTCPIPForward(
 	}
 
 	if c.protocol == "http" {
-		newProxy(listener.Addr().String())
+		id := uuid.New()
+		alternative := hex.EncodeToString(id[:]) + "-" + c.host
+		host, err := proxies.Set(c.host, alternative, listener.Addr().String())
+		if err != nil {
+			_ = req.Reply(false, []byte(err.Error()))
+			c.logger.Error("Failed to acquire available host",
+				"remote", c.serverConn.RemoteAddr(),
+				"error", err,
+			)
+			c.signalReady(err)
+			return
+		}
+		c.host = host
+		c.signalReady(nil)
 	}
+	_ = req.Reply(true, ssh.Marshal(payload))
 	<-ctx.Done()
 	if c.protocol == "http" {
-		removeProxy()
+		proxies.Remove(c.host)
 	}
 }
 
@@ -250,6 +268,11 @@ func (c *Client) handleServerInfo(proxy conf.Proxy, req *ssh.Request) {
 		}
 		hostURL = "tcp://" + host + ":" + strconv.Itoa(c.principal.LastTCPPort)
 	case "http":
+		<-c.ready.Done()
+		if cause := context.Cause(c.ready); cause != nil && cause != context.Canceled {
+			_ = req.Reply(false, []byte(cause.Error()))
+			return
+		}
 		hostURL = proxy.Scheme + "://" + c.host
 	default:
 		_ = req.Reply(false, []byte(fmt.Sprintf("unsupported protocol: %s", c.protocol)))

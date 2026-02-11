@@ -14,6 +14,7 @@ import (
 	"github.com/pgrok/pgrok/internal/conf"
 	"github.com/pgrok/pgrok/internal/cryptoutil"
 	"github.com/pgrok/pgrok/internal/database"
+	"github.com/pgrok/pgrok/internal/reverseproxy"
 )
 
 // Start starts a SSH server listening on the given port.
@@ -22,8 +23,7 @@ func Start(
 	port int,
 	proxy conf.Proxy,
 	db *database.DB,
-	newProxy func(host, forward string),
-	removeProxy func(host string),
+	proxies *reverseproxy.Cluster,
 ) error {
 	config := &ssh.ServerConfig{
 		PasswordCallback: func(conn ssh.ConnMetadata, token []byte) (*ssh.Permissions, error) {
@@ -107,13 +107,16 @@ func Start(
 				return
 			}
 
+			ready, signalReady := context.WithCancelCause(context.Background())
 			client := &Client{
-				logger:     logger,
-				db:         db,
-				serverConn: serverConn,
-				principal:  principal,
-				protocol:   "http",
-				host:       principal.Subdomain + "." + proxy.Domain,
+				logger:      logger,
+				db:          db,
+				serverConn:  serverConn,
+				principal:   principal,
+				protocol:    "http",
+				host:        principal.Subdomain + "." + proxy.Domain,
+				ready:       ready,
+				signalReady: signalReady,
 			}
 			for req := range reqs {
 				switch req.Type {
@@ -125,8 +128,7 @@ func Start(
 						cancel,
 						proxy,
 						req,
-						func(forward string) { newProxy(client.host, forward) },
-						func() { removeProxy(client.host) },
+						proxies,
 					)
 				case "cancel-tcpip-forward":
 					go func(req *ssh.Request) {

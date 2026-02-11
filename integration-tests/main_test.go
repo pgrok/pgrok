@@ -12,6 +12,7 @@ import (
 	"net/http/cookiejar"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -19,6 +20,7 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/flamego/flamego"
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/sourcegraph/run"
 	"github.com/stretchr/testify/assert"
@@ -234,7 +236,7 @@ func kill(pid int) error {
 	return errors.New("cannot kill the process after 10 tries")
 }
 
-func setupPgrok(ctx context.Context, protocol string) (endpoint string, shutdown func() error, _ error) {
+func setupPgrok(ctx context.Context, protocol string, port int) (endpoint string, shutdown func() error, _ error) {
 	err := run.Cmd(ctx, "go", "build", "-o", "../.bin/pgrok", "../pgrok/cli").Run().Wait()
 	if err != nil {
 		return "", nil, errors.Wrap(err, "go build")
@@ -247,6 +249,9 @@ func setupPgrok(ctx context.Context, protocol string) (endpoint string, shutdown
 	}
 	if protocol == "tcp" {
 		args = append(args, "--forward-addr", "localhost:9833")
+	}
+	if port > 0 {
+		args = append(args, strconv.Itoa(port))
 	}
 
 	cmd := exec.Command("../.bin/pgrok", args...)
@@ -327,15 +332,11 @@ func TestHTTP(t *testing.T) {
 
 	shutdownEchoServer, err := setupEchoServer(ctx)
 	require.NoError(t, err)
-	defer func() {
-		require.NoError(t, shutdownEchoServer())
-	}()
+	t.Cleanup(func() { require.NoError(t, shutdownEchoServer()) })
 
-	_, shutdownPgrok, err := setupPgrok(ctx, "http")
+	_, shutdownPgrok, err := setupPgrok(ctx, "http", 0)
 	require.NoError(t, err)
-	defer func() {
-		require.NoError(t, shutdownPgrok())
-	}()
+	t.Cleanup(func() { require.NoError(t, shutdownPgrok()) })
 
 	// Default forward
 	body, err := run.Cmd(ctx, "curl", "--silent", fmt.Sprintf("%s/.well-known/openid-configuration", url)).Run().String()
@@ -348,9 +349,39 @@ func TestHTTP(t *testing.T) {
 	assert.Contains(t, body, "chickendinner")
 }
 
+func TestMultipleHTTP(t *testing.T) {
+	ctx := context.Background()
+
+	shutdownEchoServer, err := setupEchoServer(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, shutdownEchoServer()) })
+
+	endpoint1, shutdownPgrok1, err := setupPgrok(ctx, "http", 8001)
+	require.NoError(t, err)
+	require.Equal(t, "unknwon.localhost:3000", endpoint1)
+
+	endpoint2, shutdownPgrok2, err := setupPgrok(ctx, "http", 8080)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, shutdownPgrok2()) })
+	prefix, _, _ := strings.Cut(endpoint2, "-unknwon.localhost:3000")
+	require.NoError(t, uuid.Validate(prefix))
+
+	// Sanity-check on a request forward
+	body, err := run.Cmd(ctx, "curl", "--silent", fmt.Sprintf("%s/echo?q=chickendinner", url)).Run().String()
+	require.NoError(t, err)
+	require.Contains(t, body, "chickendinner")
+
+	// The initial subdomain should be free to allocate again
+	require.NoError(t, shutdownPgrok1())
+	endpoint3, shutdownPgrok3, err := setupPgrok(ctx, "http", 8003)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, shutdownPgrok3()) })
+	require.Equal(t, "unknwon.localhost:3000", endpoint3)
+}
+
 func TestTCP(t *testing.T) {
 	ctx := context.Background()
-	endpoint, shutdownPgrok, err := setupPgrok(ctx, "tcp")
+	endpoint, shutdownPgrok, err := setupPgrok(ctx, "tcp", 0)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, shutdownPgrok())
