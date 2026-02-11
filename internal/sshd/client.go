@@ -38,6 +38,7 @@ type Client struct {
 func (c *Client) handleHint(req *ssh.Request) {
 	var payload struct {
 		Protocol string `json:"protocol"`
+		Uuid     string `json:"uuid,omitempty"`
 	}
 	err := json.Unmarshal(req.Payload, &payload)
 	if err != nil {
@@ -47,6 +48,9 @@ func (c *Client) handleHint(req *ssh.Request) {
 	if payload.Protocol != "tcp" && payload.Protocol != "http" {
 		_ = req.Reply(false, []byte("unsupported protocol: "+payload.Protocol))
 		return
+	}
+	if payload.Uuid != "" {
+		c.host = payload.Uuid + "-" + c.host
 	}
 	c.protocol = payload.Protocol
 	_ = req.Reply(true, nil)
