@@ -107,17 +107,16 @@ func Start(
 				return
 			}
 
-			hostReady, hostReadyCancel := context.WithCancel(context.Background())
-
+			ready, signalReady := context.WithCancelCause(context.Background())
 			client := &Client{
-				logger:          logger,
-				db:              db,
-				serverConn:      serverConn,
-				principal:       principal,
-				protocol:        "http",
-				host:            principal.Subdomain + "." + proxy.Domain,
-				hostReady:       hostReady,
-				hostReadyCancel: hostReadyCancel,
+				logger:      logger,
+				db:          db,
+				serverConn:  serverConn,
+				principal:   principal,
+				protocol:    "http",
+				host:        principal.Subdomain + "." + proxy.Domain,
+				ready:       ready,
+				signalReady: signalReady,
 			}
 			for req := range reqs {
 				switch req.Type {

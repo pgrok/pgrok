@@ -12,6 +12,7 @@ import (
 	"net/http/cookiejar"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -19,6 +20,7 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/flamego/flamego"
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/sourcegraph/run"
 	"github.com/stretchr/testify/assert"
@@ -234,7 +236,7 @@ func kill(pid int) error {
 	return errors.New("cannot kill the process after 10 tries")
 }
 
-func setupPgrok(ctx context.Context, protocol string, port ...int) (endpoint string, shutdown func() error, _ error) {
+func setupPgrok(ctx context.Context, protocol string, port int) (endpoint string, shutdown func() error, _ error) {
 	err := run.Cmd(ctx, "go", "build", "-o", "../.bin/pgrok", "../pgrok/cli").Run().Wait()
 	if err != nil {
 		return "", nil, errors.Wrap(err, "go build")
@@ -248,8 +250,8 @@ func setupPgrok(ctx context.Context, protocol string, port ...int) (endpoint str
 	if protocol == "tcp" {
 		args = append(args, "--forward-addr", "localhost:9833")
 	}
-	if len(port) > 0 {
-		args = append(args, fmt.Sprintf("%d", port[0]))
+	if port > 0 {
+		args = append(args, strconv.Itoa(port))
 	}
 
 	cmd := exec.Command("../.bin/pgrok", args...)
@@ -330,15 +332,11 @@ func TestHTTP(t *testing.T) {
 
 	shutdownEchoServer, err := setupEchoServer(ctx)
 	require.NoError(t, err)
-	defer func() {
-		require.NoError(t, shutdownEchoServer())
-	}()
+	t.Cleanup(func() { require.NoError(t, shutdownEchoServer()) })
 
-	_, shutdownPgrok, err := setupPgrok(ctx, "http")
+	_, shutdownPgrok, err := setupPgrok(ctx, "http", 0)
 	require.NoError(t, err)
-	defer func() {
-		require.NoError(t, shutdownPgrok())
-	}()
+	t.Cleanup(func() { require.NoError(t, shutdownPgrok()) })
 
 	// Default forward
 	body, err := run.Cmd(ctx, "curl", "--silent", fmt.Sprintf("%s/.well-known/openid-configuration", url)).Run().String()
@@ -356,9 +354,7 @@ func TestMultipleHTTP(t *testing.T) {
 
 	shutdownEchoServer, err := setupEchoServer(ctx)
 	require.NoError(t, err)
-	defer func() {
-		require.NoError(t, shutdownEchoServer())
-	}()
+	t.Cleanup(func() { require.NoError(t, shutdownEchoServer()) })
 
 	endpoint1, shutdownPgrok1, err := setupPgrok(ctx, "http", 8001)
 	require.NoError(t, err)
@@ -366,25 +362,21 @@ func TestMultipleHTTP(t *testing.T) {
 
 	endpoint2, shutdownPgrok2, err := setupPgrok(ctx, "http", 8002)
 	require.NoError(t, err)
-	defer func() {
-		require.NoError(t, shutdownPgrok2())
-	}()
-	require.Regexp(t, "^[0-9a-f]{32}-unknwon.localhost:3000$", endpoint2)
-
+	t.Cleanup(func() { require.NoError(t, shutdownPgrok2()) })
+	prefix, _, _ := strings.Cut(endpoint2, "-unknwon.localhost:3000")
+	require.NoError(t, uuid.Validate(prefix))
 	require.NoError(t, shutdownPgrok1())
 
-	endpoint3, shutdownPgrok3, err := setupPgrok(ctx, "http", 8003) // check if initial subdomain is allocated again if it's free
+	// The initial subdomain should be free to allocate again
+	endpoint3, shutdownPgrok3, err := setupPgrok(ctx, "http", 8003)
 	require.NoError(t, err)
-	defer func() {
-		require.NoError(t, shutdownPgrok3())
-	}()
-
+	t.Cleanup(func() { require.NoError(t, shutdownPgrok3()) })
 	require.Equal(t, "unknwon.localhost:3000", endpoint3)
 }
 
 func TestTCP(t *testing.T) {
 	ctx := context.Background()
-	endpoint, shutdownPgrok, err := setupPgrok(ctx, "tcp")
+	endpoint, shutdownPgrok, err := setupPgrok(ctx, "tcp", 0)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, shutdownPgrok())
