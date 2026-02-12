@@ -87,6 +87,7 @@ func actionTCP(c *cli.Context) error {
 			strutil.Coalesce(c.String("remote-addr"), config.RemoteAddr),
 			forwardAddr,
 			strutil.Coalesce(c.String("token"), config.Token),
+			"", // no uuid as tcp doesn't use it
 		)
 		if err != nil {
 			if time.Now().After(cooldownAfter) {
