@@ -35,9 +35,9 @@ jobs:
           - {goos: windows, goarch: amd64}
           - {goos: windows, goarch: arm64}
     steps:
-      - name: Checkout code
+      - name: Check out code
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
-      - name: Setup Go
+      - name: Set up Go
         uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
         with:
           go-version: 1.25.x
@@ -92,10 +92,10 @@ jobs:
             git tag -f "$RELEASE_TAG"
             git push origin "$RELEASE_TAG" --force || true
 
-            RELEASE_TITLE="Release Archive Testing"
+            RELEASE_TITLE="Release archive testing"
             RELEASE_NOTES="Automated testing release for workflow development."
             if [ "$RELEASE_TAG" = "latest-commit-build" ]; then
-              RELEASE_TITLE="Latest Commit Build"
+              RELEASE_TITLE="Latest commit build"
               RELEASE_NOTES="Automated build from the latest commit on main branch. This release is updated automatically with every push to main."
             fi
 
@@ -127,9 +127,9 @@ jobs:
           - {goos: windows, goarch: amd64}
           - {goos: windows, goarch: arm64}
     steps:
-      - name: Checkout code
+      - name: Check out code
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
-      - name: Setup Go
+      - name: Set up Go
         uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
         with:
           go-version: 1.25.x
@@ -302,25 +302,6 @@ jobs:
           git add Formula/pgrok.rb
           git commit -m "pgrok ${{ steps.release.outputs.version }}"
           git push
-
-  homebrew-core:
-    name: Bump Homebrew core formula
-    needs: [pgrok]
-    if: github.event_name == 'release'
-    runs-on: macos-latest
-    steps:
-      - name: Update Homebrew formula
-        env:
-          HOMEBREW_GITHUB_API_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
-        run: |
-          VERSION="${{ github.event.release.tag_name }}"
-          VERSION="${VERSION#v}"
-
-          brew tap homebrew/core
-          brew bump-formula-pr pgrok \
-            --version "$VERSION" \
-            --no-browse \
-            --message "Automated bump from pgrok release workflow"
 
   notify-failure:
     name: Notify on failure

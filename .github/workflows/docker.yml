@@ -23,7 +23,7 @@ jobs:
       contents: read
       packages: write
     steps:
-      - name: Checkout code
+      - name: Check out code
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           fetch-depth: 0
@@ -81,7 +81,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Checkout code
+      - name: Check out code
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
       - name: Set up Docker Buildx
         id: buildx
@@ -123,7 +123,7 @@ jobs:
     steps:
       - name: Compute image tag name
         run: echo "IMAGE_TAG=$(echo $GITHUB_REF_NAME | cut -c 2-)" >> $GITHUB_ENV
-      - name: Checkout code
+      - name: Check out code
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
       - name: Set up QEMU
         uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
