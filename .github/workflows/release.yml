@@ -303,25 +303,6 @@ jobs:
           git commit -m "pgrok ${{ steps.release.outputs.version }}"
           git push
 
-  homebrew-core:
-    name: Bump Homebrew core formula
-    needs: [pgrok]
-    if: github.event_name == 'release'
-    runs-on: macos-latest
-    steps:
-      - name: Update Homebrew formula
-        env:
-          HOMEBREW_GITHUB_API_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
-        run: |
-          VERSION="${{ github.event.release.tag_name }}"
-          VERSION="${VERSION#v}"
-
-          brew tap homebrew/core
-          brew bump-formula-pr pgrok \
-            --version "$VERSION" \
-            --no-browse \
-            --message "Automated bump from pgrok release workflow"
-
   notify-failure:
     name: Notify on failure
     runs-on: ubuntu-latest
