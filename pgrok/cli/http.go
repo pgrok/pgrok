@@ -47,6 +47,11 @@ func commandHTTP(homeDir string) *cli.Command {
 				Usage:   "The authentication token",
 				Aliases: []string{"t"},
 			},
+			&cli.StringFlag{
+				Name:    "uuid",
+				Usage:   "specify a custom uuid(prefix) to be used in the subdomain",
+				Aliases: []string{"u"},
+			},
 		),
 	}
 }
@@ -106,6 +111,7 @@ func actionHTTP(c *cli.Context) error {
 			strutil.Coalesce(c.String("remote-addr"), config.RemoteAddr),
 			surl.Host,
 			strutil.Coalesce(c.String("token"), config.Token),
+			c.String("uuid"),
 		)
 		if err != nil {
 			if time.Now().After(cooldownAfter) {
@@ -151,7 +157,7 @@ const (
 	protocolTCP  string = "tcp"
 )
 
-func tryConnect(protocol, remoteAddr, forwardAddr, token string) error {
+func tryConnect(protocol, remoteAddr, forwardAddr, token string, uuid string) error {
 	client, err := ssh.Dial(
 		"tcp",
 		remoteAddr,
@@ -168,7 +174,7 @@ func tryConnect(protocol, remoteAddr, forwardAddr, token string) error {
 	}
 
 	// Hint the server before establishing the reverse tunnel
-	payload, err := json.Marshal(map[string]string{"protocol": protocol})
+	payload, err := json.Marshal(map[string]string{"protocol": protocol, "uuid": uuid})
 	if err != nil {
 		return errors.Wrap(err, "marshal payload")
 	}
