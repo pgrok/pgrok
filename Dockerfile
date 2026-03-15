@@ -40,7 +40,7 @@ RUN BUILD_VERSION=${BUILD_VERSION} task build-pgrokd-release
 
 FROM alpine:3.23
 
-LABEL org.opencontainers.image.source = "https://github.com/pgrok/pgrok"
+LABEL org.opencontainers.image.source="https://github.com/pgrok/pgrok"
 
 RUN addgroup --gid 10001 --system nonroot \
   && adduser  --uid 10000 --system --ingroup nonroot --home /home/nonroot nonroot
@@ -49,7 +49,8 @@ RUN echo https://dl-cdn.alpinelinux.org/alpine/edge/community/ >> /etc/apk/repos
   && apk --no-cache --no-progress add \
   ca-certificates \
   curl \
-  tini
+  tini \
+  "zlib>1.3.2"
 
 WORKDIR /app/pgrokd/
 COPY --from=binarybuilder /dist/.bin/pgrokd .

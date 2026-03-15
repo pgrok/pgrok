@@ -64,7 +64,7 @@ jobs:
           tags: |
             ghcr.io/pgrok/pgrokd:insiders
       - name: Scan for container vulnerabilities
-        uses: aquasecurity/trivy-action@22438a435773de8c97dc0958cc0b823c45b064ac # master
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
         with:
           image-ref: ghcr.io/pgrok/pgrokd:insiders
           exit-code: '1'
@@ -107,7 +107,7 @@ jobs:
           tags: |
             ttl.sh/pgrok/pgrokd-${{ steps.short-sha.outputs.sha }}:1d
       - name: Scan for container vulnerabilities
-        uses: aquasecurity/trivy-action@22438a435773de8c97dc0958cc0b823c45b064ac # master
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
         with:
           image-ref: ttl.sh/pgrok/pgrokd-${{ steps.short-sha.outputs.sha }}:1d
           exit-code: '1'
