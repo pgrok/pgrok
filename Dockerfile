@@ -40,7 +40,7 @@ RUN BUILD_VERSION=${BUILD_VERSION} task build-pgrokd-release
 
 FROM alpine:3.23
 
-LABEL org.opencontainers.image.source = "https://github.com/pgrok/pgrok"
+LABEL org.opencontainers.image.source="https://github.com/pgrok/pgrok"
 
 RUN addgroup --gid 10001 --system nonroot \
   && adduser  --uid 10000 --system --ingroup nonroot --home /home/nonroot nonroot
