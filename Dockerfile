@@ -49,7 +49,8 @@ RUN echo https://dl-cdn.alpinelinux.org/alpine/edge/community/ >> /etc/apk/repos
   && apk --no-cache --no-progress add \
   ca-certificates \
   curl \
-  tini
+  tini \
+  "zlib>1.3.2"
 
 WORKDIR /app/pgrokd/
 COPY --from=binarybuilder /dist/.bin/pgrokd .
