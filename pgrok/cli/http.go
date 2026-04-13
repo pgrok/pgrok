@@ -49,7 +49,7 @@ func commandHTTP(homeDir string) *cli.Command {
 			},
 			&cli.StringFlag{
 				Name:    "uuid",
-				Usage:   "specify a custom uuid(prefix) to be used in the subdomain",
+				Usage:   "specify a custom subdomain prefix to be used in the tunnel URL",
 				Aliases: []string{"u"},
 			},
 		),
