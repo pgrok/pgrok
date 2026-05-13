@@ -1,0 +1,5 @@
+# CVE-2026-40200: musl libc stack-based vulnerability.
+# Fixed in musl 1.2.6-r2, but alpine 3.23.4 (latest) still ships 1.2.5-r23.
+# No alpine image tag with the fix is available yet. Revisit once alpine 3.24
+# is released or 3.23.x ships an updated musl package.
+CVE-2026-40200
