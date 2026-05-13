@@ -21,8 +21,61 @@ permissions:
   contents: write
 
 jobs:
+  prepare-release:
+    name: Prepare release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      release_tag: ${{ steps.version.outputs.release_tag }}
+    steps:
+      - name: Check out code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            release_tag="${{ github.event.release.tag_name }}"
+            version="${release_tag#v}"
+          elif [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            release_tag="latest-commit-build"
+            version="$(git rev-parse --short HEAD)"
+          else
+            release_tag="release-archive-testing"
+            version="$(git rev-parse --short HEAD)"
+          fi
+
+          {
+            echo "version=$version"
+            echo "release_tag=$release_tag"
+          } >> "$GITHUB_OUTPUT"
+      - name: Ensure rolling tag and release exist
+        if: ${{ github.event_name != 'release' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.version.outputs.release_tag }}
+        run: |
+          git tag -f "$RELEASE_TAG"
+          git push origin "$RELEASE_TAG" --force
+
+          RELEASE_TITLE="Release archive testing"
+          RELEASE_NOTES="Automated testing release for workflow development."
+          if [ "$RELEASE_TAG" = "latest-commit-build" ]; then
+            RELEASE_TITLE="Latest commit build"
+            RELEASE_NOTES="Automated build from the latest commit on main branch. This release is updated automatically with every push to main."
+          fi
+
+          # Single-flight: this job is the only one that creates the release,
+          # so the build matrix never races on `gh release create`.
+          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" \
+              --title "$RELEASE_TITLE" \
+              --notes "$RELEASE_NOTES" \
+              --prerelease
+          fi
+
   pgrok:
     name: pgrok ${{ matrix.goos }}/${{ matrix.goarch }}
+    needs: prepare-release
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -30,10 +83,12 @@ jobs:
         include:
           - {goos: linux, goarch: amd64}
           - {goos: linux, goarch: arm64}
+          - {goos: linux, goarch: "386"}
           - {goos: darwin, goarch: amd64}
           - {goos: darwin, goarch: arm64}
           - {goos: windows, goarch: amd64}
           - {goos: windows, goarch: arm64}
+          - {goos: windows, goarch: "386"}
     steps:
       - name: Check out code
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
@@ -41,19 +96,6 @@ jobs:
         uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
         with:
           go-version: 1.26.x
-      - name: Determine version
-        id: version
-        run: |
-          if [ "${{ github.event_name }}" = "release" ]; then
-            echo "version=${{ github.event.release.tag_name }}" | sed 's/version=v/version=/' >> "$GITHUB_OUTPUT"
-            echo "release_tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
-          elif [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            echo "version=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
-            echo "release_tag=latest-commit-build" >> "$GITHUB_OUTPUT"
-          else
-            echo "version=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
-            echo "release_tag=release-archive-testing" >> "$GITHUB_OUTPUT"
-          fi
       - name: Build binary
         env:
           GOOS: ${{ matrix.goos }}
@@ -67,12 +109,12 @@ jobs:
           fi
 
           go build -v \
-            -ldflags "-X main.version=${{ steps.version.outputs.version }}" \
+            -ldflags "-X main.version=${{ needs.prepare-release.outputs.version }}" \
             -trimpath -o "dist/$BINARY_NAME" ./pgrok/cli
       - name: Create archives
         working-directory: dist
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
+          VERSION="${{ needs.prepare-release.outputs.version }}"
           ARCHIVE_BASE="pgrok_${VERSION}_${{ matrix.goos }}_${{ matrix.goarch }}"
 
           BINARY_NAME="pgrok"
@@ -85,23 +127,8 @@ jobs:
       - name: Upload to release
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.prepare-release.outputs.release_tag }}
         run: |
-          RELEASE_TAG="${{ steps.version.outputs.release_tag }}"
-
-          if [ "${{ github.event_name }}" != "release" ]; then
-            git tag -f "$RELEASE_TAG"
-            git push origin "$RELEASE_TAG" --force || true
-
-            RELEASE_TITLE="Release archive testing"
-            RELEASE_NOTES="Automated testing release for workflow development."
-            if [ "$RELEASE_TAG" = "latest-commit-build" ]; then
-              RELEASE_TITLE="Latest commit build"
-              RELEASE_NOTES="Automated build from the latest commit on main branch. This release is updated automatically with every push to main."
-            fi
-
-            gh release view "$RELEASE_TAG" || gh release create "$RELEASE_TAG" --title "$RELEASE_TITLE" --notes "$RELEASE_NOTES" --prerelease
-          fi
-
           PATTERN="pgrok_.*_${{ matrix.goos }}_${{ matrix.goarch }}\."
           gh release view "$RELEASE_TAG" --json assets --jq ".assets[].name" | grep -E "$PATTERN" | while read -r asset; do
             gh release delete-asset "$RELEASE_TAG" "$asset" --yes || true
@@ -115,6 +142,7 @@ jobs:
 
   pgrokd:
     name: pgrokd ${{ matrix.goos }}/${{ matrix.goarch }}
+    needs: prepare-release
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -122,10 +150,12 @@ jobs:
         include:
           - {goos: linux, goarch: amd64}
           - {goos: linux, goarch: arm64}
+          - {goos: linux, goarch: "386"}
           - {goos: darwin, goarch: amd64}
           - {goos: darwin, goarch: arm64}
           - {goos: windows, goarch: amd64}
           - {goos: windows, goarch: arm64}
+          - {goos: windows, goarch: "386"}
     steps:
       - name: Check out code
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
@@ -141,19 +171,6 @@ jobs:
             - cwd: pgrokd/web
       - name: Build web app
         run: pnpm --dir pgrokd/web run build
-      - name: Determine version
-        id: version
-        run: |
-          if [ "${{ github.event_name }}" = "release" ]; then
-            echo "version=${{ github.event.release.tag_name }}" | sed 's/version=v/version=/' >> "$GITHUB_OUTPUT"
-            echo "release_tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
-          elif [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            echo "version=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
-            echo "release_tag=latest-commit-build" >> "$GITHUB_OUTPUT"
-          else
-            echo "version=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
-            echo "release_tag=release-archive-testing" >> "$GITHUB_OUTPUT"
-          fi
       - name: Build binary
         env:
           GOOS: ${{ matrix.goos }}
@@ -167,12 +184,12 @@ jobs:
           fi
 
           go build -v \
-            -ldflags "-X main.version=${{ steps.version.outputs.version }}" \
+            -ldflags "-X main.version=${{ needs.prepare-release.outputs.version }}" \
             -trimpath -o "dist/$BINARY_NAME" ./pgrokd/cli
       - name: Create archives
         working-directory: dist
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
+          VERSION="${{ needs.prepare-release.outputs.version }}"
           ARCHIVE_BASE="pgrokd_${VERSION}_${{ matrix.goos }}_${{ matrix.goarch }}"
 
           BINARY_NAME="pgrokd"
@@ -185,23 +202,8 @@ jobs:
       - name: Upload to release
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.prepare-release.outputs.release_tag }}
         run: |
-          RELEASE_TAG="${{ steps.version.outputs.release_tag }}"
-
-          if [ "${{ github.event_name }}" != "release" ]; then
-            git tag -f "$RELEASE_TAG"
-            git push origin "$RELEASE_TAG" --force || true
-
-            RELEASE_TITLE="Release Archive Testing"
-            RELEASE_NOTES="Automated testing release for workflow development."
-            if [ "$RELEASE_TAG" = "latest-commit-build" ]; then
-              RELEASE_TITLE="Latest Commit Build"
-              RELEASE_NOTES="Automated build from the latest commit on main branch. This release is updated automatically with every push to main."
-            fi
-
-            gh release view "$RELEASE_TAG" || gh release create "$RELEASE_TAG" --title "$RELEASE_TITLE" --notes "$RELEASE_NOTES" --prerelease
-          fi
-
           PATTERN="pgrokd_.*_${{ matrix.goos }}_${{ matrix.goarch }}\."
           gh release view "$RELEASE_TAG" --json assets --jq ".assets[].name" | grep -E "$PATTERN" | while read -r asset; do
             gh release delete-asset "$RELEASE_TAG" "$asset" --yes || true
