@@ -1,4 +1,4 @@
-FROM node:22-slim AS webbuilder
+FROM node:24-slim@sha256:24dc26ef1e3c3690f27ebc4136c9c186c3133b25563ae4d7f0692e4d1fe5db0e AS webbuilder
 RUN npm install --global corepack@0.31.0
 RUN corepack enable
 
@@ -7,7 +7,7 @@ COPY . .
 RUN pnpm --dir pgrokd/web install --frozen-lockfile --prefer-frozen-lockfile \
     && pnpm --dir pgrokd/web run build
 
-FROM golang:alpine3.23 AS binarybuilder
+FROM golang:1.26-alpine3.23@sha256:91eda9776261207ea25fd06b5b7fed8d397dd2c0a283e77f2ab6e91bfa71079d AS binarybuilder
 RUN apk --no-cache --no-progress add --virtual \
     build-deps \
     build-base \
@@ -38,7 +38,7 @@ COPY . .
 COPY --from=webbuilder /build/pgrokd/cli/dist /dist/pgrokd/cli/dist
 RUN BUILD_VERSION=${BUILD_VERSION} task build-pgrokd-release
 
-FROM alpine:3.23
+FROM alpine:3.23@sha256:5b10f432ef3da1b8d4c7eb6c487f2f5a8f096bc91145e68878dd4a5019afde11
 
 LABEL org.opencontainers.image.source="https://github.com/pgrok/pgrok"
 

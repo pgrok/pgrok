@@ -1,4 +1,4 @@
-![pgrok banner](https://user-images.githubusercontent.com/2946214/227126410-3e9dae19-d0c0-4a96-9040-1322e389c8db.png)
+![pgrok banner](assets/banner.png)
 
 <div align="center">
   <h3>Poor man's ngrok</h3>
