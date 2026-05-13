@@ -1,6 +1,7 @@
 {
   "name": "pgrokd",
   "type": "module",
+  "packageManager": "pnpm@10.15.0",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build --outDir=../cli/dist --emptyOutDir",
