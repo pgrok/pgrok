@@ -1,4 +1,4 @@
-FROM node:24-slim@sha256:24dc26ef1e3c3690f27ebc4136c9c186c3133b25563ae4d7f0692e4d1fe5db0e AS webbuilder
+FROM --platform=$BUILDPLATFORM node:24-slim@sha256:24dc26ef1e3c3690f27ebc4136c9c186c3133b25563ae4d7f0692e4d1fe5db0e AS webbuilder
 RUN npm install --global corepack@0.31.0
 RUN corepack enable
 
