@@ -183,7 +183,7 @@ jobs:
             BINARY_NAME="pgrokd.exe"
           fi
 
-          go build -v \
+          go build -v -tags prod \
             -ldflags "-X main.version=${{ needs.prepare-release.outputs.version }}" \
             -trimpath -o "dist/$BINARY_NAME" ./pgrokd/cli
       - name: Create archives

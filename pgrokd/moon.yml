@@ -19,8 +19,21 @@ fileGroups:
     - "/pgrokd/cli/dist/**/*"
 
 tasks:
+  # Dev build: the web app is NOT embedded (the !prod build tag proxies to the
+  # live Vite server), so this does not need pgrokd-web:build.
   build:
     command: "go build -v -trimpath -o .bin/pgrokd ./pgrokd/cli"
+    options:
+      runFromWorkspaceRoot: true
+    inputs:
+      - "@group(sources)"
+      - "@group(configs)"
+    outputs:
+      - "/.bin/pgrokd"
+
+  # Prod build: -tags prod embeds the web app, so the assets must be built first.
+  build-prod:
+    command: "go build -v -trimpath -tags prod -o .bin/pgrokd ./pgrokd/cli"
     options:
       runFromWorkspaceRoot: true
     inputs:
@@ -34,7 +47,7 @@ tasks:
 
   build-release:
     script: |
-      go build -v -trimpath \
+      go build -v -trimpath -tags prod \
         -ldflags "-X 'main.version=${BUILD_VERSION}' -X 'main.commit=$(git rev-parse HEAD)' -X 'main.date=$(date -u '+%Y-%m-%d %I:%M:%S %Z')'" \
         -o .bin/pgrokd ./pgrokd/cli
     env:
@@ -82,6 +95,15 @@ tasks:
       runFromWorkspaceRoot: true
     deps:
       - "build"
+
+  # Build with embedded web assets and run, mirroring a production binary.
+  prod:
+    command: ".bin/pgrokd"
+    preset: "server"
+    options:
+      runFromWorkspaceRoot: true
+    deps:
+      - "build-prod"
 
   oidc-server:
     command: "go run ./integration-tests/oidc-server"

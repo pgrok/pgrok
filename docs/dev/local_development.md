@@ -117,3 +117,11 @@ Few things to note:
 
 > [!NOTE]
 > If you change any Go source or web asset, rerun `moon run pgrokd:dev` to rebuild and restart the servers.
+
+In dev builds the web app is served live from Vite and is _not_ embedded into the
+`pgrokd` binary. To build and run a production-like binary with the web app
+embedded (via the `prod` build tag), use:
+
+```bash
+moon run pgrokd:prod
+```

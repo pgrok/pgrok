@@ -1,13 +1,9 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"embed"
 	"fmt"
-	"io/fs"
 	"net/http"
-	"net/http/httputil"
 	"net/url"
 	"strings"
 
@@ -26,59 +22,15 @@ import (
 	"github.com/pgrok/pgrok/internal/userutil"
 )
 
-//go:embed *
-var webAssets embed.FS
-
 func startWebServer(config *conf.Config, db *database.DB) {
 	f := flamego.New()
 	f.Use(flamego.Logger())
 	f.Use(flamego.Recovery())
 	f.Use(flamego.Renderer())
 
-	if flamego.Env() == flamego.EnvTypeProd {
-		webFS, err := fs.Sub(webAssets, "dist")
-		if err != nil {
-			log.Fatal("Failed to load embedded web assets", "error", err.Error())
-			return
-		}
-		f.Use(flamego.Static(
-			flamego.StaticOptions{
-				FileSystem: http.FS(webFS),
-			},
-		))
-
-		// Make sure the page refresh works
-		indexFile, err := webAssets.Open("dist/index.html")
-		if err != nil {
-			log.Fatal(`Failed to open "dist/index.html"`, "error", err.Error())
-			return
-		}
-		indexFileStat, err := indexFile.Stat()
-		if err != nil {
-			log.Fatal(`Failed to stat "dist/index.html"`, "error", err.Error())
-			return
-		}
-		index, err := webAssets.ReadFile("dist/index.html")
-		if err != nil {
-			log.Fatal(`Failed to read "dist/index.html"`, "error", err.Error())
-			return
-		}
-		indexReader := bytes.NewReader(index)
-		f.Get("/{**}", func(w http.ResponseWriter, r *http.Request) {
-			http.ServeContent(w, r, "index.html", indexFileStat.ModTime(), indexReader)
-		})
-	} else {
-		// Proxy all non-backend URLs to Vite
-		viteURL, err := url.Parse("http://localhost:5173")
-		if err != nil {
-			log.Fatal("Failed to parse vite URL", "error", err.Error())
-			return
-		}
-		viteProxy := httputil.NewSingleHostReverseProxy(viteURL)
-		f.Get("/{**}", func(w http.ResponseWriter, r *http.Request) {
-			viteProxy.ServeHTTP(w, r)
-		})
-	}
+	// Serve the web app. In prod builds (-tags prod) the assets are embedded;
+	// in dev builds requests are proxied to the live Vite server.
+	setupWebAssets(f)
 
 	var postgresDSN string
 	// Check if the host is a UNIX domain socket
