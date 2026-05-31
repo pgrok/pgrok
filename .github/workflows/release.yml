@@ -76,19 +76,19 @@ jobs:
   pgrok:
     name: pgrok ${{ matrix.goos }}/${{ matrix.goarch }}
     needs: prepare-release
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - {goos: linux, goarch: amd64}
-          - {goos: linux, goarch: arm64}
-          - {goos: linux, goarch: "386"}
-          - {goos: darwin, goarch: amd64}
-          - {goos: darwin, goarch: arm64}
-          - {goos: windows, goarch: amd64}
-          - {goos: windows, goarch: arm64}
-          - {goos: windows, goarch: "386"}
+          - {goos: linux, goarch: amd64, runner: ubuntu-latest}
+          - {goos: linux, goarch: arm64, runner: ubuntu-latest}
+          - {goos: linux, goarch: "386", runner: ubuntu-latest}
+          - {goos: darwin, goarch: amd64, runner: macos-latest}
+          - {goos: darwin, goarch: arm64, runner: macos-latest}
+          - {goos: windows, goarch: amd64, runner: ubuntu-latest}
+          - {goos: windows, goarch: arm64, runner: ubuntu-latest}
+          - {goos: windows, goarch: "386", runner: ubuntu-latest}
     steps:
       - name: Check out code
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
@@ -111,6 +111,42 @@ jobs:
           go build -v \
             -ldflags "-X main.version=${{ needs.prepare-release.outputs.version }}" \
             -trimpath -o "dist/$BINARY_NAME" ./pgrok/cli
+      - name: Import Apple signing certificate
+        if: ${{ matrix.goos == 'darwin' }}
+        env:
+          APPLE_DEVELOPER_ID_CERTIFICATE_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_CERTIFICATE_BASE64 }}
+          APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD }}
+          APPLE_KEYCHAIN_PASSWORD: ${{ secrets.APPLE_KEYCHAIN_PASSWORD }}
+        run: |
+          if [ -z "$APPLE_DEVELOPER_ID_CERTIFICATE_BASE64" ] || [ -z "$APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD" ] || [ -z "$APPLE_KEYCHAIN_PASSWORD" ]; then
+            echo "Missing required Apple signing secrets." >&2
+            exit 1
+          fi
+
+          CERTIFICATE_PATH="$RUNNER_TEMP/developer_id_application.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
+
+          printf '%s' "$APPLE_DEVELOPER_ID_CERTIFICATE_BASE64" | base64 -d > "$CERTIFICATE_PATH"
+          security create-keychain -p "$APPLE_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$APPLE_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" -P "$APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH"
+          security default-keychain -s "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$APPLE_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+      - name: Sign macOS binary
+        if: ${{ matrix.goos == 'darwin' }}
+        env:
+          APPLE_DEVELOPER_IDENTITY: ${{ secrets.APPLE_DEVELOPER_IDENTITY }}
+        run: |
+          if [ -z "$APPLE_DEVELOPER_IDENTITY" ]; then
+            echo "Missing required Apple signing identity secret." >&2
+            exit 1
+          fi
+
+          security find-identity -v -p codesigning
+          codesign --force --options runtime --timestamp --sign "$APPLE_DEVELOPER_IDENTITY" "dist/pgrok"
+          codesign --verify --verbose=2 "dist/pgrok"
       - name: Create archives
         working-directory: dist
         run: |
@@ -120,10 +156,34 @@ jobs:
           BINARY_NAME="pgrok"
           if [ "${{ matrix.goos }}" = "windows" ]; then
             BINARY_NAME="pgrok.exe"
-            zip "${ARCHIVE_BASE}.zip" "$BINARY_NAME"
-          else
+          fi
+
+          zip "${ARCHIVE_BASE}.zip" "$BINARY_NAME"
+          if [ "${{ matrix.goos }}" = "linux" ]; then
             tar -czvf "${ARCHIVE_BASE}.tar.gz" "$BINARY_NAME"
           fi
+      - name: Notarize macOS archive
+        if: ${{ matrix.goos == 'darwin' }}
+        env:
+          APPLE_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
+          APPLE_NOTARY_KEY_BASE64: ${{ secrets.APPLE_NOTARY_KEY_BASE64 }}
+          APPLE_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+        run: |
+          if [ -z "$APPLE_NOTARY_ISSUER_ID" ] || [ -z "$APPLE_NOTARY_KEY_BASE64" ] || [ -z "$APPLE_NOTARY_KEY_ID" ]; then
+            echo "Missing required Apple notarization secrets." >&2
+            exit 1
+          fi
+
+          VERSION="${{ needs.prepare-release.outputs.version }}"
+          ARCHIVE_PATH="dist/pgrok_${VERSION}_${{ matrix.goos }}_${{ matrix.goarch }}.zip"
+          NOTARY_KEY_PATH="$RUNNER_TEMP/AuthKey_${APPLE_NOTARY_KEY_ID}.p8"
+
+          printf '%s' "$APPLE_NOTARY_KEY_BASE64" | base64 -d > "$NOTARY_KEY_PATH"
+          xcrun notarytool submit "$ARCHIVE_PATH" \
+            --key "$NOTARY_KEY_PATH" \
+            --key-id "$APPLE_NOTARY_KEY_ID" \
+            --issuer "$APPLE_NOTARY_ISSUER_ID" \
+            --wait
       - name: Upload to release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -134,28 +194,27 @@ jobs:
             gh release delete-asset "$RELEASE_TAG" "$asset" --yes || true
           done
 
-          if [ "${{ matrix.goos }}" = "windows" ]; then
-            gh release upload "$RELEASE_TAG" dist/pgrok_*.zip --clobber
-          else
+          gh release upload "$RELEASE_TAG" dist/pgrok_*.zip --clobber
+          if [ "${{ matrix.goos }}" = "linux" ]; then
             gh release upload "$RELEASE_TAG" dist/pgrok_*.tar.gz --clobber
           fi
 
   pgrokd:
     name: pgrokd ${{ matrix.goos }}/${{ matrix.goarch }}
     needs: prepare-release
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - {goos: linux, goarch: amd64}
-          - {goos: linux, goarch: arm64}
-          - {goos: linux, goarch: "386"}
-          - {goos: darwin, goarch: amd64}
-          - {goos: darwin, goarch: arm64}
-          - {goos: windows, goarch: amd64}
-          - {goos: windows, goarch: arm64}
-          - {goos: windows, goarch: "386"}
+          - {goos: linux, goarch: amd64, runner: ubuntu-latest}
+          - {goos: linux, goarch: arm64, runner: ubuntu-latest}
+          - {goos: linux, goarch: "386", runner: ubuntu-latest}
+          - {goos: darwin, goarch: amd64, runner: macos-latest}
+          - {goos: darwin, goarch: arm64, runner: macos-latest}
+          - {goos: windows, goarch: amd64, runner: ubuntu-latest}
+          - {goos: windows, goarch: arm64, runner: ubuntu-latest}
+          - {goos: windows, goarch: "386", runner: ubuntu-latest}
     steps:
       - name: Check out code
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
@@ -186,6 +245,42 @@ jobs:
           go build -v -tags prod \
             -ldflags "-X main.version=${{ needs.prepare-release.outputs.version }}" \
             -trimpath -o "dist/$BINARY_NAME" ./pgrokd/cli
+      - name: Import Apple signing certificate
+        if: ${{ matrix.goos == 'darwin' }}
+        env:
+          APPLE_DEVELOPER_ID_CERTIFICATE_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_CERTIFICATE_BASE64 }}
+          APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD }}
+          APPLE_KEYCHAIN_PASSWORD: ${{ secrets.APPLE_KEYCHAIN_PASSWORD }}
+        run: |
+          if [ -z "$APPLE_DEVELOPER_ID_CERTIFICATE_BASE64" ] || [ -z "$APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD" ] || [ -z "$APPLE_KEYCHAIN_PASSWORD" ]; then
+            echo "Missing required Apple signing secrets." >&2
+            exit 1
+          fi
+
+          CERTIFICATE_PATH="$RUNNER_TEMP/developer_id_application.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
+
+          printf '%s' "$APPLE_DEVELOPER_ID_CERTIFICATE_BASE64" | base64 -d > "$CERTIFICATE_PATH"
+          security create-keychain -p "$APPLE_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$APPLE_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" -P "$APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH"
+          security default-keychain -s "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$APPLE_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+      - name: Sign macOS binary
+        if: ${{ matrix.goos == 'darwin' }}
+        env:
+          APPLE_DEVELOPER_IDENTITY: ${{ secrets.APPLE_DEVELOPER_IDENTITY }}
+        run: |
+          if [ -z "$APPLE_DEVELOPER_IDENTITY" ]; then
+            echo "Missing required Apple signing identity secret." >&2
+            exit 1
+          fi
+
+          security find-identity -v -p codesigning
+          codesign --force --options runtime --timestamp --sign "$APPLE_DEVELOPER_IDENTITY" "dist/pgrokd"
+          codesign --verify --verbose=2 "dist/pgrokd"
       - name: Create archives
         working-directory: dist
         run: |
@@ -195,10 +290,34 @@ jobs:
           BINARY_NAME="pgrokd"
           if [ "${{ matrix.goos }}" = "windows" ]; then
             BINARY_NAME="pgrokd.exe"
-            zip "${ARCHIVE_BASE}.zip" "$BINARY_NAME"
-          else
+          fi
+
+          zip "${ARCHIVE_BASE}.zip" "$BINARY_NAME"
+          if [ "${{ matrix.goos }}" = "linux" ]; then
             tar -czvf "${ARCHIVE_BASE}.tar.gz" "$BINARY_NAME"
           fi
+      - name: Notarize macOS archive
+        if: ${{ matrix.goos == 'darwin' }}
+        env:
+          APPLE_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
+          APPLE_NOTARY_KEY_BASE64: ${{ secrets.APPLE_NOTARY_KEY_BASE64 }}
+          APPLE_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+        run: |
+          if [ -z "$APPLE_NOTARY_ISSUER_ID" ] || [ -z "$APPLE_NOTARY_KEY_BASE64" ] || [ -z "$APPLE_NOTARY_KEY_ID" ]; then
+            echo "Missing required Apple notarization secrets." >&2
+            exit 1
+          fi
+
+          VERSION="${{ needs.prepare-release.outputs.version }}"
+          ARCHIVE_PATH="dist/pgrokd_${VERSION}_${{ matrix.goos }}_${{ matrix.goarch }}.zip"
+          NOTARY_KEY_PATH="$RUNNER_TEMP/AuthKey_${APPLE_NOTARY_KEY_ID}.p8"
+
+          printf '%s' "$APPLE_NOTARY_KEY_BASE64" | base64 -d > "$NOTARY_KEY_PATH"
+          xcrun notarytool submit "$ARCHIVE_PATH" \
+            --key "$NOTARY_KEY_PATH" \
+            --key-id "$APPLE_NOTARY_KEY_ID" \
+            --issuer "$APPLE_NOTARY_ISSUER_ID" \
+            --wait
       - name: Upload to release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -209,9 +328,8 @@ jobs:
             gh release delete-asset "$RELEASE_TAG" "$asset" --yes || true
           done
 
-          if [ "${{ matrix.goos }}" = "windows" ]; then
-            gh release upload "$RELEASE_TAG" dist/pgrokd_*.zip --clobber
-          else
+          gh release upload "$RELEASE_TAG" dist/pgrokd_*.zip --clobber
+          if [ "${{ matrix.goos }}" = "linux" ]; then
             gh release upload "$RELEASE_TAG" dist/pgrokd_*.tar.gz --clobber
           fi
 
@@ -234,13 +352,14 @@ jobs:
         run: |
           mkdir -p assets
           cd assets
-          gh release download "${{ github.event.release.tag_name }}" --pattern "pgrok_*.tar.gz"
+          gh release download "${{ github.event.release.tag_name }}" --pattern "pgrok_*_darwin_*.zip"
+          gh release download "${{ github.event.release.tag_name }}" --pattern "pgrok_*_linux_*.tar.gz"
       - name: Calculate SHA256 checksums
         id: sha256
         run: |
           cd assets
-          echo "darwin_amd64=$(sha256sum pgrok_${{ steps.release.outputs.version }}_darwin_amd64.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
-          echo "darwin_arm64=$(sha256sum pgrok_${{ steps.release.outputs.version }}_darwin_arm64.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "darwin_amd64=$(sha256sum pgrok_${{ steps.release.outputs.version }}_darwin_amd64.zip | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "darwin_arm64=$(sha256sum pgrok_${{ steps.release.outputs.version }}_darwin_arm64.zip | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
           echo "linux_amd64=$(sha256sum pgrok_${{ steps.release.outputs.version }}_linux_amd64.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
           echo "linux_arm64=$(sha256sum pgrok_${{ steps.release.outputs.version }}_linux_arm64.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
       - name: Checkout homebrew-tap
@@ -267,11 +386,11 @@ jobs:
 
             on_macos do
               on_arm do
-                url "https://github.com/pgrok/pgrok/releases/download/${TAG}/pgrok_${VERSION}_darwin_arm64.tar.gz"
+                url "https://github.com/pgrok/pgrok/releases/download/${TAG}/pgrok_${VERSION}_darwin_arm64.zip"
                 sha256 "${SHA_DARWIN_ARM64}"
               end
               on_intel do
-                url "https://github.com/pgrok/pgrok/releases/download/${TAG}/pgrok_${VERSION}_darwin_amd64.tar.gz"
+                url "https://github.com/pgrok/pgrok/releases/download/${TAG}/pgrok_${VERSION}_darwin_amd64.zip"
                 sha256 "${SHA_DARWIN_AMD64}"
               end
             end
