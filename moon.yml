@@ -1,0 +1,100 @@
+$schema: "https://moonrepo.dev/schemas/project.json"
+
+language: "go"
+stack: "backend"
+id: "pgrok"
+
+fileGroups:
+  sources:
+    - "pgrok/**/*.go"
+    - "pgrokd/**/*.go"
+    - "internal/**/*.go"
+  tests:
+    - "**/*_test.go"
+  configs:
+    - "go.mod"
+    - "go.sum"
+    - ".golangci.yml"
+  assets:
+    - "pgrokd/cli/dist/**/*"
+
+tasks:
+  format:
+    command: "golangci-lint fmt"
+    inputs:
+      - "@group(sources)"
+      - "@group(configs)"
+
+  lint:
+    command: "golangci-lint run"
+    inputs:
+      - "@group(sources)"
+      - "@group(configs)"
+    deps:
+      - "format"
+
+  test:
+    command: "go test -cover -race ./..."
+    inputs:
+      - "@group(sources)"
+      - "@group(tests)"
+      - "@group(configs)"
+
+  build-pgrok:
+    command: "go build -v -trimpath -o .bin/pgrok ./pgrok/cli"
+    inputs:
+      - "pgrok/**/*.go"
+      - "internal/**/*.go"
+      - "@group(configs)"
+    outputs:
+      - ".bin/pgrok"
+
+  build-pgrokd:
+    command: "go build -v -trimpath -o .bin/pgrokd ./pgrokd/cli"
+    inputs:
+      - "pgrokd/**/*.go"
+      - "internal/**/*.go"
+      - "@group(configs)"
+      - "@group(assets)"
+    outputs:
+      - ".bin/pgrokd"
+    deps:
+      - "web:build"
+
+  build:
+    deps:
+      - "build-pgrok"
+      - "build-pgrokd"
+
+  build-pgrokd-release:
+    script: |
+      go build -v -trimpath \
+        -ldflags "-X 'main.version=${BUILD_VERSION}' -X 'main.commit=$(git rev-parse HEAD)' -X 'main.date=$(date -u '+%Y-%m-%d %I:%M:%S %Z')'" \
+        -o .bin/pgrokd ./pgrokd/cli
+    env:
+      BUILD_VERSION: "unknown"
+    inputs:
+      - "pgrokd/**/*.go"
+      - "internal/**/*.go"
+      - "@group(configs)"
+      - "@group(assets)"
+    outputs:
+      - ".bin/pgrokd"
+
+  pgrokd:
+    command: ".bin/pgrokd"
+    preset: "server"
+    deps:
+      - "build-pgrokd"
+
+  oidc-server:
+    command: "go run ./integration-tests/oidc-server"
+    preset: "server"
+
+  dev:
+    command: ".bin/pgrokd"
+    preset: "server"
+    deps:
+      - "build-pgrokd"
+      - "web:dev"
+      - "oidc-server"

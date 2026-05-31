@@ -15,30 +15,14 @@ RUN apk --no-cache --no-progress add --virtual \
     build-base \
     git
 
-# Install Task
-RUN export url="https://github.com/go-task/task/releases/download/v3.40.1/task_linux_"; \
-  if [ `uname -m` == "aarch64" ]; then \
-       export arch='arm64' \
-    && wget --quiet ${url}${arch}.tar.gz -O task_linux_${arch}.tar.gz \
-    && sh -c 'echo "17f325293d08f6f964e0530842e9ef1410dd5f83ee6475b493087391032b0cfd  task_linux_${arch}.tar.gz" | sha256sum -c'; \
-  elif [ `uname -m` == "armv7l" ]; then \
-       export arch='arm' \
-    && wget --quiet ${url}${arch}.tar.gz -O task_linux_${arch}.tar.gz \
-    && sh -c 'echo "e5b0261e9f6563ce3ace9e038520eb59d2c77c8d85f2b47ab41e1fe7cf321528  task_linux_${arch}.tar.gz" | sha256sum -c'; \
-  else \
-       export arch='amd64' \
-    && wget --quiet ${url}${arch}.tar.gz -O task_linux_${arch}.tar.gz \
-    && sh -c 'echo "a35462ec71410cccfc428072de830e4478bc57a919d0131ef7897759270dff8f  task_linux_${arch}.tar.gz" | sha256sum -c'; \
-  fi \
-  && tar -xzf task_linux_${arch}.tar.gz \
-  && mv task /usr/local/bin/task
-
 ARG BUILD_VERSION="unknown"
 
 WORKDIR /dist
 COPY . .
 COPY --from=webbuilder /build/pgrokd/cli/dist /dist/pgrokd/cli/dist
-RUN BUILD_VERSION=${BUILD_VERSION} task build-pgrokd-release
+RUN go build -v -trimpath \
+      -ldflags "-X 'main.version=${BUILD_VERSION}' -X 'main.commit=$(git rev-parse HEAD)' -X 'main.date=$(date -u '+%Y-%m-%d %I:%M:%S %Z')'" \
+      -o .bin/pgrokd ./pgrokd/cli
 
 FROM alpine:3.23@sha256:5b10f432ef3da1b8d4c7eb6c487f2f5a8f096bc91145e68878dd4a5019afde11
 

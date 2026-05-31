@@ -1,5 +1,5 @@
 .bin/
-.task/
+.moon/
 .github/
 dist/
 node_modules/
