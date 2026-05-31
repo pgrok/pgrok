@@ -7,8 +7,8 @@ The pgrok is built and runs as a single binary and meant to be cross platform. T
 The development of pgrok has the following dependencies:
 
 - [Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git) (v2 or higher)
-- [Go](https://go.dev/doc/install) (v1.20 or higher)
-- [pnpm](https://pnpm.io/installation) (v8 or higher)
+- [Go](https://go.dev/doc/install) (v1.26 or higher)
+- [pnpm](https://pnpm.io/installation) (v11 or higher)
 - [Moon](https://moonrepo.dev/docs/install)
 - [PostgreSQL](https://wiki.postgresql.org/wiki/Detailed_installation_guides) (v10 or higher)
 
@@ -16,13 +16,13 @@ The development of pgrok has the following dependencies:
 1. Install dependencies:
 
     ```bash
-    brew install git go pnpm moon postgresql@15
+    brew install git go pnpm moon postgresql@18
     ```
 
 1. Configure PostgreSQL to start automatically:
 
     ```bash
-    brew services start postgresql@15
+    brew services start postgresql@18
     ```
 
 1.  Ensure `psql`, the PostgreSQL command line client, is on your `$PATH`.
