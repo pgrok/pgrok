@@ -45,24 +45,6 @@ tasks:
     deps:
       - "pgrokd-web:build"
 
-  build-release:
-    script: |
-      go build -v -trimpath -tags prod \
-        -ldflags "-X 'main.version=${BUILD_VERSION}' -X 'main.commit=$(git rev-parse HEAD)' -X 'main.date=$(date -u '+%Y-%m-%d %I:%M:%S %Z')'" \
-        -o .bin/pgrokd ./pgrokd/cli
-    env:
-      BUILD_VERSION: "unknown"
-    options:
-      runFromWorkspaceRoot: true
-    inputs:
-      - "@group(sources)"
-      - "@group(configs)"
-      - "@group(assets)"
-    outputs:
-      - "/.bin/pgrokd"
-    deps:
-      - "pgrokd-web:build"
-
   test:
     command: "go test -cover -race ./..."
     options:

@@ -27,21 +27,6 @@ tasks:
     outputs:
       - "/.bin/pgrok"
 
-  build-release:
-    script: |
-      go build -v -trimpath \
-        -ldflags "-X 'main.version=${BUILD_VERSION}' -X 'main.commit=$(git rev-parse HEAD)' -X 'main.date=$(date -u '+%Y-%m-%d %I:%M:%S %Z')'" \
-        -o .bin/pgrok ./pgrok/cli
-    env:
-      BUILD_VERSION: "unknown"
-    options:
-      runFromWorkspaceRoot: true
-    inputs:
-      - "@group(sources)"
-      - "@group(configs)"
-    outputs:
-      - "/.bin/pgrok"
-
   test:
     command: "go test -cover -race ./pgrok/..."
     options:
