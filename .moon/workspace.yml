@@ -8,6 +8,3 @@ projects:
 vcs:
   client: "git"
   defaultBranch: "main"
-
-pipeline:
-  outputStyle: "stream"

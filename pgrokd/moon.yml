@@ -21,8 +21,6 @@ fileGroups:
 tasks:
   build:
     command: "go build -v -trimpath -o .bin/pgrokd ./pgrokd/cli"
-    options:
-      runFromWorkspaceRoot: true
     inputs:
       - "@group(sources)"
       - "@group(configs)"
@@ -31,8 +29,6 @@ tasks:
 
   build-prod:
     command: "go build -v -trimpath -tags prod -o .bin/pgrokd ./pgrokd/cli"
-    options:
-      runFromWorkspaceRoot: true
     inputs:
       - "@group(sources)"
       - "@group(configs)"
@@ -44,8 +40,6 @@ tasks:
 
   test:
     command: "go test -cover -race ./..."
-    options:
-      runFromWorkspaceRoot: true
     inputs:
       - "@group(sources)"
       - "@group(tests)"
@@ -53,48 +47,41 @@ tasks:
 
   lint:
     command: "golangci-lint run"
-    options:
-      runFromWorkspaceRoot: true
     inputs:
       - "@group(sources)"
       - "@group(configs)"
 
   format:
     command: "golangci-lint fmt"
-    options:
-      runFromWorkspaceRoot: true
     inputs:
       - "@group(sources)"
       - "@group(configs)"
 
-  run:
+  server:
     command: ".bin/pgrokd"
     preset: "server"
-    options:
-      runFromWorkspaceRoot: true
-    deps:
-      - "build"
-
-  prod:
-    command: ".bin/pgrokd"
-    preset: "server"
-    options:
-      runFromWorkspaceRoot: true
-    deps:
-      - "build-prod"
 
   oidc-server:
     command: "go run ./integration-tests/oidc-server"
     preset: "server"
-    options:
-      runFromWorkspaceRoot: true
 
   dev:
-    command: ".bin/pgrokd"
-    preset: "server"
+    command: "noop"
     options:
-      runFromWorkspaceRoot: true
+      runInCI: false
+      persistent: true
     deps:
       - "build"
+      - "server"
       - "pgrokd-web:dev"
+      - "oidc-server"
+
+  prod:
+    command: "noop"
+    options:
+      runInCI: false
+      persistent: true
+    deps:
+      - "build-prod"
+      - "server"
       - "oidc-server"
