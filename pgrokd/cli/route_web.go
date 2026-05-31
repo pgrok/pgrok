@@ -55,57 +55,61 @@ func webOIDCAuth(c *Context, r flamego.Render) {
 }
 
 // webOIDCCallback completes the OIDC flow: verifies the callback, upserts the
-// principal, and establishes the session.
-func webOIDCCallback(c *Context, r flamego.Render, db *database.DB) {
-	if c.Config.IdentityProvider == nil {
-		r.PlainText(http.StatusBadRequest, "Sorry but ask your admin to configure an identity provider first")
-		return
+// principal, and establishes the session. The database handle is a
+// process-wide singleton, so it is closed over at registration time rather than
+// injected per request.
+func webOIDCCallback(db *database.DB) flamego.Handler {
+	return func(c *Context, r flamego.Render) {
+		if c.Config.IdentityProvider == nil {
+			r.PlainText(http.StatusBadRequest, "Sorry but ask your admin to configure an identity provider first")
+			return
+		}
+
+		defer func() {
+			c.Session.Delete("oidc::nonce")
+		}()
+
+		nonce, _ := c.Session.Get("oidc::nonce").(string)
+		if got := c.Query("state"); nonce != got {
+			r.PlainText(http.StatusBadRequest, fmt.Sprintf("mismatched state, want %q but got %q", nonce, got))
+			return
+		}
+
+		userInfo, err := handleOIDCCallback(
+			c.Request().Context(),
+			c.Config.IdentityProvider,
+			c.Config.ExternalURL+"/-/oidc/callback",
+			c.Query("code"),
+			nonce,
+		)
+		if err != nil {
+			r.PlainText(http.StatusInternalServerError, fmt.Sprintf("Failed to handle callback: %v", err))
+			return
+		}
+
+		subdomain, err := userutil.NormalizeIdentifier(userInfo.Identifier)
+		if err != nil {
+			r.PlainText(http.StatusBadRequest, fmt.Sprintf("Failed to normalize identifier: %v", err))
+			return
+		}
+
+		principal, err := db.UpsertPrincipal(
+			c.Request().Context(),
+			database.UpsertPrincipalOptions{
+				Identifier:  userInfo.Identifier,
+				DisplayName: userInfo.DisplayName,
+				Token:       cryptoutil.SHA1(strutil.MustRandomChars(10)),
+				Subdomain:   subdomain,
+			},
+		)
+		if err != nil {
+			r.PlainText(http.StatusInternalServerError, fmt.Sprintf("Failed to upsert principal: %v", err))
+			return
+		}
+
+		c.Session.Set("userID", principal.ID)
+		c.Redirect("/")
 	}
-
-	defer func() {
-		c.Session.Delete("oidc::nonce")
-	}()
-
-	nonce, _ := c.Session.Get("oidc::nonce").(string)
-	if got := c.Query("state"); nonce != got {
-		r.PlainText(http.StatusBadRequest, fmt.Sprintf("mismatched state, want %q but got %q", nonce, got))
-		return
-	}
-
-	userInfo, err := handleOIDCCallback(
-		c.Request().Context(),
-		c.Config.IdentityProvider,
-		c.Config.ExternalURL+"/-/oidc/callback",
-		c.Query("code"),
-		nonce,
-	)
-	if err != nil {
-		r.PlainText(http.StatusInternalServerError, fmt.Sprintf("Failed to handle callback: %v", err))
-		return
-	}
-
-	subdomain, err := userutil.NormalizeIdentifier(userInfo.Identifier)
-	if err != nil {
-		r.PlainText(http.StatusBadRequest, fmt.Sprintf("Failed to normalize identifier: %v", err))
-		return
-	}
-
-	principal, err := db.UpsertPrincipal(
-		c.Request().Context(),
-		database.UpsertPrincipalOptions{
-			Identifier:  userInfo.Identifier,
-			DisplayName: userInfo.DisplayName,
-			Token:       cryptoutil.SHA1(strutil.MustRandomChars(10)),
-			Subdomain:   subdomain,
-		},
-	)
-	if err != nil {
-		r.PlainText(http.StatusInternalServerError, fmt.Sprintf("Failed to upsert principal: %v", err))
-		return
-	}
-
-	c.Session.Set("userID", principal.ID)
-	c.Redirect("/")
 }
 
 // webSignOut clears the session and returns to the home page.

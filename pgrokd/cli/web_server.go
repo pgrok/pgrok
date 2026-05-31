@@ -59,7 +59,7 @@ func newWebServer(config *conf.Config, db *database.DB) (*http.Server, error) {
 	f.Group("/-", func() {
 		f.Get("/healthcheck", webHealthcheck)
 		f.Get("/oidc/auth", webOIDCAuth)
-		f.Get("/oidc/callback", webOIDCCallback)
+		f.Get("/oidc/callback", webOIDCCallback(db))
 		f.Get("/sign-out", webSignOut)
 	})
 
