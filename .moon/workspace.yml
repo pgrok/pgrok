@@ -1,8 +1,9 @@
 $schema: "https://moonrepo.dev/schemas/workspace.json"
 
 projects:
-  pgrok: "."
-  web: "pgrokd/web"
+  pgrok: "pgrok"
+  pgrokd: "pgrokd"
+  pgrokd-web: "pgrokd/web"
 
 vcs:
   client: "git"

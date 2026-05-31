@@ -104,7 +104,7 @@ identity_provider:
 The following command will build and start the pgrokd web, proxy and SSHD servers, along with the web app's Vite dev server and a mock OIDC server:
 
 ```bash
-moon run pgrok:dev
+moon run pgrokd:dev
 ```
 
 Then, visit http://localhost:3320!
@@ -116,4 +116,4 @@ Few things to note:
 - A [mock OIDC server](../../integration-tests/oidc-server/) is started for your convenience
 
 > [!NOTE]
-> If you change any Go source or web asset, rerun `moon run pgrok:dev` to rebuild and restart the servers.
+> If you change any Go source or web asset, rerun `moon run pgrokd:dev` to rebuild and restart the servers.

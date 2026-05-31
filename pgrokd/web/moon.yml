@@ -2,7 +2,7 @@ $schema: "https://moonrepo.dev/schemas/project.json"
 
 language: "typescript"
 stack: "frontend"
-id: "web"
+id: "pgrokd-web"
 
 fileGroups:
   sources:
