@@ -1,42 +1,57 @@
 @import "tailwindcss";
 
-/* RetroUI-style design tokens (Tailwind v4 CSS-first config).
-   Neobrutalist palette with hard, offset shadows and a bold display face. */
+@custom-variant dark (&:is(.dark *));
+
+/* RetroUI theme (https://retroui.dev) — neobrutalist tokens, hard offset
+   shadows. Installed via the RetroUI shadcn registry; see components.json. */
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-head: "Archivo Black", ui-sans-serif, system-ui, sans-serif;
+}
 
-  --color-background: #fffdf5;
-  --color-foreground: #000000;
-  --color-primary: #ffdb33;
-  --color-primary-hover: #ffcc00;
-  --color-muted: #6b7280;
-  --color-card: #ffffff;
-  --color-border: #000000;
+@theme inline {
+  --shadow-xs: 1px 1px 0 0 var(--border);
+  --shadow-sm: 2px 2px 0 0 var(--border);
+  --shadow: 3px 3px 0 0 var(--border);
+  --shadow-md: 4px 4px 0 0 var(--border);
+  --shadow-lg: 6px 6px 0 0 var(--border);
+  --shadow-xl: 10px 10px 0 1px var(--border);
+  --shadow-2xl: 16px 16px 0 1px var(--border);
+  --color-border: var(--border);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+}
 
-  --radius-retro: 0.5rem;
+:root {
+  --background: hsl(48 100% 98%);
+  --foreground: hsl(0 0% 0%);
+  --card: hsl(0 0% 100%);
+  --card-foreground: hsl(0 0% 0%);
+  --primary: hsl(50 100% 60%);
+  --primary-foreground: hsl(0 0% 0%);
+  --muted: hsl(0 0% 68%);
+  --muted-foreground: hsl(0 0% 35%);
+  --accent: hsl(50 89% 74%);
+  --accent-foreground: hsl(0 0% 0%);
+  --destructive: hsl(355 78% 56%);
+  --destructive-foreground: hsl(0 0% 100%);
+  --border: hsl(0 0% 0%);
 }
 
 @layer base {
   body {
-    background-color: var(--color-background);
-    color: var(--color-foreground);
+    background-color: var(--background);
+    color: var(--foreground);
     font-family: var(--font-sans);
   }
-
-  h1,
-  h2,
-  h3,
-  h4 {
-    font-family: var(--font-head);
-  }
-}
-
-/* Hard offset shadow shared by RetroUI surfaces and controls. */
-@utility shadow-retro {
-  box-shadow: 4px 4px 0 0 var(--color-border);
-}
-
-@utility shadow-retro-sm {
-  box-shadow: 2px 2px 0 0 var(--color-border);
 }

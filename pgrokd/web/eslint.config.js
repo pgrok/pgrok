@@ -13,6 +13,10 @@ export default [
       "postcss.config.cjs",
       "tailwind.config.cjs",
       "vite.config.ts",
+      // Vendored RetroUI component source (added via the shadcn registry); kept
+      // verbatim so future `shadcn add` updates apply cleanly.
+      "src/components/retroui/**",
+      "src/lib/utils.ts",
     ],
   },
   js.configs.recommended,
@@ -40,6 +44,10 @@ export default [
     rules: {
       "react/react-in-jsx-scope": "off",
       "unicorn/filename-case": "off",
+      // The "@/*" path alias is resolved by Vite and type-checked by tsc; the
+      // import plugin's default resolver doesn't read tsconfig paths, so this
+      // rule produces false positives for those imports.
+      "import/no-unresolved": ["error", { ignore: ["^@/"] }],
     },
   },
 ];
