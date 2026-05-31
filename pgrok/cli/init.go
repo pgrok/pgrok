@@ -14,10 +14,9 @@ import (
 
 func commandInit(homeDir string) *cli.Command {
 	return &cli.Command{
-		Name:        "init",
-		Usage:       "Initialize a config file",
-		Description: "Initialize a config file",
-		Action:      actionInit,
+		Name:   "init",
+		Usage:  "Initialize a config file",
+		Action: actionInit,
 		Flags: append(
 			commonFlags(homeDir),
 			&cli.StringFlag{

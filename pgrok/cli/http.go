@@ -24,10 +24,9 @@ import (
 
 func commandHTTP(homeDir string) *cli.Command {
 	return &cli.Command{
-		Name:        "http",
-		Usage:       "Start a HTTP proxy to local endpoints",
-		Description: "Start a HTTP proxy to local endpoints",
-		Action:      actionHTTP,
+		Name:   "http",
+		Usage:  "Start a HTTP proxy to local endpoints",
+		Action: actionHTTP,
 		Flags: append(
 			commonFlags(homeDir),
 			&cli.StringFlag{

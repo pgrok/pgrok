@@ -15,10 +15,9 @@ import (
 
 func commandTCP(homeDir string) *cli.Command {
 	return &cli.Command{
-		Name:        "tcp",
-		Usage:       "Start a TCP proxy to a local address",
-		Description: "Start a TCP proxy to a local address",
-		Action:      actionTCP,
+		Name:   "tcp",
+		Usage:  "Start a TCP proxy to a local address",
+		Action: actionTCP,
 		Flags: append(
 			commonFlags(homeDir),
 			&cli.StringFlag{
