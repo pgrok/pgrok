@@ -130,7 +130,9 @@ func setupPgrokd(ctx context.Context) (shutdown func() error, _ error) {
 		return nil, errors.Wrap(err, "pnpm run build")
 	}
 
-	err = run.Cmd(ctx, "go", "build", "-o", "../.bin/pgrokd", "../pgrokd/cli").Run().Wait()
+	// Build with the prod tag so the freshly built web app is embedded and
+	// served by pgrokd itself instead of being proxied to a Vite dev server.
+	err = run.Cmd(ctx, "go", "build", "-tags", "prod", "-o", "../.bin/pgrokd", "../pgrokd/cli").Run().Wait()
 	if err != nil {
 		return nil, errors.Wrap(err, "go build")
 	}
