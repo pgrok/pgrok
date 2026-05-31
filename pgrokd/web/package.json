@@ -9,16 +9,17 @@
   },
   "dependencies": {
     "axios": "^1.4.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-router-dom": "^6.15.0"
+    "react-router-dom": "^6.15.0",
+    "tailwind-merge": "^2.6.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
     "@eslint/js": "^9.38.0",
-    "@headlessui/react": "^1.7.17",
-    "@heroicons/react": "^2.0.18",
-    "@tailwindcss/forms": "^0.5.4",
+    "@tailwindcss/vite": "^4.1.11",
     "@trivago/prettier-plugin-sort-imports": "^4.2.0",
     "@types/node": "^24.9.2",
     "@types/react": "^18.2.15",
@@ -26,7 +27,6 @@
     "@typescript-eslint/eslint-plugin": "^8.46.2",
     "@typescript-eslint/parser": "^8.46.2",
     "@vitejs/plugin-react": "^5.1.0",
-    "autoprefixer": "^10.4.15",
     "code-inspector-plugin": "v0.1.9",
     "eslint": "^9.38.0",
     "eslint-plugin-import": "^2.32.0",
@@ -34,9 +34,8 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.3",
     "eslint-plugin-unicorn": "^62.0.0",
-    "postcss": "^8.4.28",
     "prettier": "^3.0.2",
-    "tailwindcss": "^3.3.3",
+    "tailwindcss": "^4.1.11",
     "typescript": "^5.0.2",
     "typescript-eslint": "^8.46.2",
     "vite": "^7.1.12"

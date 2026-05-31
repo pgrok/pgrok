@@ -1,3 +1,4 @@
+import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { CodeInspectorPlugin } from "code-inspector-plugin";
 import { PluginOption, defineConfig } from "vite";
@@ -9,6 +10,7 @@ export default defineConfig({
   },
   plugins: [
     react(),
+    tailwindcss(),
     CodeInspectorPlugin({
       bundler: "vite",
     }) as PluginOption[],

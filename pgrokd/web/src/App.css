@@ -1,3 +1,42 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+/* RetroUI-style design tokens (Tailwind v4 CSS-first config).
+   Neobrutalist palette with hard, offset shadows and a bold display face. */
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-head: "Archivo Black", ui-sans-serif, system-ui, sans-serif;
+
+  --color-background: #fffdf5;
+  --color-foreground: #000000;
+  --color-primary: #ffdb33;
+  --color-primary-hover: #ffcc00;
+  --color-muted: #6b7280;
+  --color-card: #ffffff;
+  --color-border: #000000;
+
+  --radius-retro: 0.5rem;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-head);
+  }
+}
+
+/* Hard offset shadow shared by RetroUI surfaces and controls. */
+@utility shadow-retro {
+  box-shadow: 4px 4px 0 0 var(--color-border);
+}
+
+@utility shadow-retro-sm {
+  box-shadow: 2px 2px 0 0 var(--color-border);
+}
