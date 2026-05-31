@@ -22,7 +22,7 @@ import (
 	"github.com/pgrok/pgrok/internal/userutil"
 )
 
-func startWebServer(config *conf.Config, db *database.DB) {
+func newWebServer(config *conf.Config, db *database.DB) (*http.Server, error) {
 	f := flamego.New()
 	f.Use(flamego.Logger())
 	f.Use(flamego.Recovery())
@@ -31,7 +31,7 @@ func startWebServer(config *conf.Config, db *database.DB) {
 	// Serve the web app. In prod builds (-tags prod) the assets are embedded;
 	// in dev builds requests are proxied to the live Vite server.
 	if err := setupWebAssets(f); err != nil {
-		log.Fatal("Failed to set up web assets", "error", err)
+		return nil, errors.Wrap(err, "set up web assets")
 	}
 
 	var postgresDSN string
@@ -205,10 +205,10 @@ func startWebServer(config *conf.Config, db *database.DB) {
 		"address", address,
 		"env", flamego.Env(),
 	)
-	err := http.ListenAndServe(address, f)
-	if err != nil {
-		log.Fatal("Failed to start web server", "error", err)
-	}
+	return &http.Server{
+		Addr:    address,
+		Handler: f,
+	}, nil
 }
 
 type idpUserInfo struct {

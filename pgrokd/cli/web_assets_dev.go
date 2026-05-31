@@ -11,7 +11,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-// setupWebAssets proxies all non-backend URLs to the live Vite dev server.
 func setupWebAssets(f *flamego.Flame) error {
 	viteURL, err := url.Parse("http://localhost:5173")
 	if err != nil {

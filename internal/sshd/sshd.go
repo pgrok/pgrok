@@ -17,8 +17,10 @@ import (
 	"github.com/pgrok/pgrok/internal/reverseproxy"
 )
 
-// Start starts a SSH server listening on the given port.
+// Start starts a SSH server listening on the given port. It returns when ctx is
+// canceled or the listener is closed.
 func Start(
+	ctx context.Context,
 	logger *log.Logger,
 	port int,
 	proxy conf.Proxy,
@@ -52,12 +54,18 @@ func Start(
 	if err != nil {
 		return errors.Wrap(err, "listen")
 	}
-	defer func() { _ = listener.Close() }()
+	go func() {
+		<-ctx.Done()
+		_ = listener.Close()
+	}()
 	logger.Info("Server started", "address", address)
 
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
+			if ctx.Err() != nil || errors.Is(err, net.ErrClosed) {
+				return nil
+			}
 			logger.Error("Failed to accept incoming connection", "error", err)
 			continue
 		}

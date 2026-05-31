@@ -10,7 +10,7 @@ import (
 	"github.com/pgrok/pgrok/internal/reverseproxy"
 )
 
-func startProxyServer(logger *log.Logger, port int, proxies *reverseproxy.Cluster) {
+func newProxyServer(logger *log.Logger, port int, proxies *reverseproxy.Cluster) *http.Server {
 	logger = logger.WithPrefix("proxy")
 
 	f := flamego.New()
@@ -27,8 +27,8 @@ func startProxyServer(logger *log.Logger, port int, proxies *reverseproxy.Cluste
 
 	address := fmt.Sprintf("0.0.0.0:%d", port)
 	logger.Info("Server listening on", "address", address)
-	err := http.ListenAndServe(address, f)
-	if err != nil {
-		logger.Fatal("Failed to start server", "error", err)
+	return &http.Server{
+		Addr:    address,
+		Handler: f,
 	}
 }
