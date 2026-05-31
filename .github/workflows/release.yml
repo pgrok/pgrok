@@ -23,6 +23,7 @@ permissions:
 jobs:
   prepare-release:
     name: Prepare release
+    if: ${{ github.repository == 'pgrok/pgrok' }}
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
@@ -76,6 +77,7 @@ jobs:
   pgrok:
     name: pgrok ${{ matrix.goos }}/${{ matrix.goarch }}
     needs: prepare-release
+    if: ${{ github.repository == 'pgrok/pgrok' }}
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -202,6 +204,7 @@ jobs:
   pgrokd:
     name: pgrokd ${{ matrix.goos }}/${{ matrix.goarch }}
     needs: prepare-release
+    if: ${{ github.repository == 'pgrok/pgrok' }}
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -336,7 +339,7 @@ jobs:
   homebrew-tap:
     name: Update Homebrew tap
     needs: [pgrok]
-    if: github.event_name == 'release'
+    if: ${{ github.repository == 'pgrok/pgrok' && github.event_name == 'release' }}
     runs-on: ubuntu-latest
     steps:
       - name: Get release info
@@ -428,7 +431,7 @@ jobs:
     name: Notify on failure
     runs-on: ubuntu-latest
     needs: [pgrok, pgrokd]
-    if: ${{ failure() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    if: ${{ failure() && github.repository == 'pgrok/pgrok' && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     steps:
       - name: Send email on failure
         uses: unknwon/send-email-on-failure@89339a1bc93f4ad1d30f3b7e4911fcba985c9adb # v1
