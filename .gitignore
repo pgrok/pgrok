@@ -8,7 +8,6 @@ dist
 .idea
 .envrc
 .moon/cache
-.moon/docker
 .vite
 
 # System junk

@@ -9,7 +9,7 @@ The development of pgrok has the following dependencies:
 - [Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git) (v2 or higher)
 - [Go](https://go.dev/doc/install) (v1.26 or higher)
 - [pnpm](https://pnpm.io/installation) (v11 or higher)
-- [Moon](https://moonrepo.dev/docs/install)
+- [Moon](https://moonrepo.dev/docs/install) (v2 or higher)
 - [PostgreSQL](https://wiki.postgresql.org/wiki/Detailed_installation_guides) (v10 or higher)
 
 1. Install [Homebrew](https://brew.sh/).

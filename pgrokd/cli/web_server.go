@@ -30,7 +30,9 @@ func startWebServer(config *conf.Config, db *database.DB) {
 
 	// Serve the web app. In prod builds (-tags prod) the assets are embedded;
 	// in dev builds requests are proxied to the live Vite server.
-	setupWebAssets(f)
+	if err := setupWebAssets(f); err != nil {
+		log.Fatal("Failed to set up web assets", "error", err)
+	}
 
 	var postgresDSN string
 	// Check if the host is a UNIX domain socket
