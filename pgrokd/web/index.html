@@ -1,8 +1,23 @@
 <!doctype html>
-<html lang="en" class="h-full bg-white">
+<html lang="en" class="h-full">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/pgrok.png" />
+    <script>
+      // Apply the saved theme before first paint to avoid a flash. Must mirror
+      // the resolution logic in src/hooks/useTheme.tsx.
+      (function () {
+        try {
+          var choice = localStorage.getItem("pgrok-theme") || "system";
+          var isDark =
+            choice === "dark" ||
+            (choice === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          document.documentElement.classList.toggle("dark", isDark);
+        } catch (e) {
+          /* localStorage/matchMedia unavailable; default to light. */
+        }
+      })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

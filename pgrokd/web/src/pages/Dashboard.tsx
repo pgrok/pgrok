@@ -2,6 +2,7 @@ import { Button } from "@/components/retroui/Button";
 import { Card } from "@/components/retroui/Card";
 import { Text } from "@/components/retroui/Text";
 import { useState } from "react";
+import ThemeToggle from "../components/ThemeToggle";
 import useUser from "../hooks/useUser";
 
 export default function DashboardPage() {
@@ -15,9 +16,12 @@ export default function DashboardPage() {
             <img className="h-8 w-auto" src="/pgrok.png" alt="pgrok" />
             <Text as="h4">pgrok</Text>
           </div>
-          <Button size="sm" variant="outline" render={<a href="/-/sign-out" />}>
-            Sign out
-          </Button>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <Button size="sm" variant="outline" render={<a href="/-/sign-out" />}>
+              Sign out
+            </Button>
+          </div>
         </div>
       </nav>
 
