@@ -31,10 +31,11 @@ LABEL org.opencontainers.image.source="https://github.com/pgrok/pgrok"
 RUN addgroup --gid 10001 --system nonroot \
   && adduser  --uid 10000 --system --ingroup nonroot --home /home/nonroot nonroot
 
-RUN echo https://dl-cdn.alpinelinux.org/alpine/edge/community/ >> /etc/apk/repositories \
+RUN echo https://dl-cdn.alpinelinux.org/alpine/edge/main/ >> /etc/apk/repositories \
+  && echo https://dl-cdn.alpinelinux.org/alpine/edge/community/ >> /etc/apk/repositories \
   && apk --no-cache --no-progress add \
   ca-certificates \
-  curl \
+  "curl>8.20.0-r0" \
   tini \
   "zlib>1.3.2"
 
