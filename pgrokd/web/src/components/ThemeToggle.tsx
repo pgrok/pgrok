@@ -23,7 +23,7 @@ export default function ThemeToggle() {
     <Button
       size="icon"
       variant="outline"
-      className="h-7 w-7 p-0"
+      className="h-[29px] w-[29px] p-0"
       onClick={cycle}
       aria-label={`${LABELS[choice]} (click to change)`}
       title={LABELS[choice]}
