@@ -14,7 +14,7 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/pkg/errors"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 	"golang.org/x/crypto/ssh"
 	"gopkg.in/yaml.v3"
 
@@ -25,6 +25,7 @@ import (
 func commandHTTP(homeDir string) *cli.Command {
 	return &cli.Command{
 		Name:        "http",
+		Usage:       "Start a HTTP proxy to local endpoints",
 		Description: "Start a HTTP proxy to local endpoints",
 		Action:      actionHTTP,
 		Flags: append(
@@ -38,8 +39,8 @@ func commandHTTP(homeDir string) *cli.Command {
 				Name:    "forward-addr",
 				Usage:   "The address to forward requests to",
 				Aliases: []string{"f"},
-				Action: func(c *cli.Context, s string) error {
-					return c.Set("forward-addr", deriveHTTPForwardAddress(s))
+				Action: func(_ context.Context, cmd *cli.Command, s string) error {
+					return cmd.Set("forward-addr", deriveHTTPForwardAddress(s))
 				},
 			},
 			&cli.StringFlag{
@@ -51,8 +52,8 @@ func commandHTTP(homeDir string) *cli.Command {
 	}
 }
 
-func actionHTTP(c *cli.Context) error {
-	configPath := c.String("config")
+func actionHTTP(_ context.Context, cmd *cli.Command) error {
+	configPath := cmd.String("config")
 	config, err := loadConfig(configPath)
 	if err != nil {
 		log.Fatal("Failed to load config",
@@ -63,8 +64,8 @@ func actionHTTP(c *cli.Context) error {
 	log.Debug("Loaded config", "file", configPath)
 
 	defaultForwardAddr := strutil.Coalesce(
-		deriveHTTPForwardAddress(c.Args().First()),
-		c.String("forward-addr"),
+		deriveHTTPForwardAddress(cmd.Args().First()),
+		cmd.String("forward-addr"),
 		config.ForwardAddr,
 	)
 	log.Info("Default forward", "address", defaultForwardAddr)
@@ -103,9 +104,9 @@ func actionHTTP(c *cli.Context) error {
 	for failed := 0; ; failed++ {
 		err := tryConnect(
 			protocolHTTP,
-			strutil.Coalesce(c.String("remote-addr"), config.RemoteAddr),
+			strutil.Coalesce(cmd.String("remote-addr"), config.RemoteAddr),
 			surl.Host,
-			strutil.Coalesce(c.String("token"), config.Token),
+			strutil.Coalesce(cmd.String("token"), config.Token),
 		)
 		if err != nil {
 			if time.Now().After(cooldownAfter) {

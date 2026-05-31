@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -8,12 +9,13 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/log"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 )
 
 func commandInit(homeDir string) *cli.Command {
 	return &cli.Command{
 		Name:        "init",
+		Usage:       "Initialize a config file",
 		Description: "Initialize a config file",
 		Action:      actionInit,
 		Flags: append(
@@ -29,8 +31,8 @@ func commandInit(homeDir string) *cli.Command {
 				Usage:    "The address to forward requests to",
 				Required: true,
 				Aliases:  []string{"f"},
-				Action: func(c *cli.Context, s string) error {
-					return c.Set("forward-addr", deriveHTTPForwardAddress(s))
+				Action: func(_ context.Context, cmd *cli.Command, s string) error {
+					return cmd.Set("forward-addr", deriveHTTPForwardAddress(s))
 				},
 			},
 			&cli.StringFlag{
@@ -69,7 +71,7 @@ func deriveHTTPForwardAddress(addr string) string {
 	return addr
 }
 
-func actionInit(c *cli.Context) error {
+func actionInit(_ context.Context, cmd *cli.Command) error {
 	const configTemplate = `# The address of the remote SSH server.
 remote_addr: "%s"
 # The address to forward requests to.
@@ -83,11 +85,11 @@ token: "%s"
 #  /api http://localhost:8080`
 	config := fmt.Sprintf(
 		configTemplate,
-		c.String("remote-addr"),
-		c.String("forward-addr"),
-		c.String("token"),
+		cmd.String("remote-addr"),
+		cmd.String("forward-addr"),
+		cmd.String("token"),
 	)
-	configPath := c.String("config")
+	configPath := cmd.String("config")
 	configDir := filepath.Dir(configPath)
 	err := os.MkdirAll(configDir, os.ModePerm)
 	if err != nil {

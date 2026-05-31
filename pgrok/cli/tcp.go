@@ -1,13 +1,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/charmbracelet/log"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 
 	"github.com/pgrok/pgrok/internal/strutil"
 )
@@ -15,6 +16,7 @@ import (
 func commandTCP(homeDir string) *cli.Command {
 	return &cli.Command{
 		Name:        "tcp",
+		Usage:       "Start a TCP proxy to a local address",
 		Description: "Start a TCP proxy to a local address",
 		Action:      actionTCP,
 		Flags: append(
@@ -28,8 +30,8 @@ func commandTCP(homeDir string) *cli.Command {
 				Name:    "forward-addr",
 				Usage:   "The address to forward requests to",
 				Aliases: []string{"f"},
-				Action: func(c *cli.Context, s string) error {
-					return c.Set("forward-addr", deriveTCPForwardAddress(s))
+				Action: func(_ context.Context, cmd *cli.Command, s string) error {
+					return cmd.Set("forward-addr", deriveTCPForwardAddress(s))
 				},
 			},
 			&cli.StringFlag{
@@ -62,8 +64,8 @@ func deriveTCPForwardAddress(addr string) string {
 	return addr
 }
 
-func actionTCP(c *cli.Context) error {
-	configPath := c.String("config")
+func actionTCP(_ context.Context, cmd *cli.Command) error {
+	configPath := cmd.String("config")
 	config, err := loadConfig(configPath)
 	if err != nil {
 		log.Fatal("Failed to load config",
@@ -74,8 +76,8 @@ func actionTCP(c *cli.Context) error {
 	log.Debug("Loaded config", "file", configPath)
 
 	forwardAddr := strutil.Coalesce(
-		deriveTCPForwardAddress(c.Args().First()),
-		c.String("forward-addr"),
+		deriveTCPForwardAddress(cmd.Args().First()),
+		cmd.String("forward-addr"),
 		config.ForwardAddr,
 	)
 	log.Info("Forward", "address", forwardAddr)
@@ -84,9 +86,9 @@ func actionTCP(c *cli.Context) error {
 	for failed := 0; ; failed++ {
 		err := tryConnect(
 			protocolTCP,
-			strutil.Coalesce(c.String("remote-addr"), config.RemoteAddr),
+			strutil.Coalesce(cmd.String("remote-addr"), config.RemoteAddr),
 			forwardAddr,
-			strutil.Coalesce(c.String("token"), config.Token),
+			strutil.Coalesce(cmd.String("token"), config.Token),
 		)
 		if err != nil {
 			if time.Now().After(cooldownAfter) {

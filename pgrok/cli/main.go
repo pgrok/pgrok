@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"time"
@@ -8,7 +9,7 @@ import (
 	"github.com/adrg/xdg"
 
 	"github.com/charmbracelet/log"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 
 	"github.com/pgrok/pgrok/internal/osutil"
 )
@@ -35,7 +36,7 @@ func commonFlags(homeDir string) []cli.Flag {
 			Name:    "debug",
 			Usage:   "Whether to enable debug mode",
 			Aliases: []string{"d"},
-			Action: func(c *cli.Context, b bool) error {
+			Action: func(_ context.Context, _ *cli.Command, b bool) error {
 				if b {
 					log.SetLevel(log.DebugLevel)
 				}
@@ -53,18 +54,19 @@ func main() {
 		log.Fatal("Failed to home directory", "error", err.Error())
 	}
 
-	app := cli.NewApp()
-	app.Name = "pgrok"
-	app.Usage = "Poor man's ngrok"
-	app.Version = version
-	app.DefaultCommand = "http"
-	app.Commands = []*cli.Command{
-		commandInit(homeDir),
-		commandHTTP(homeDir),
-		commandTCP(homeDir),
+	app := &cli.Command{
+		Name:           "pgrok",
+		Usage:          "Poor man's ngrok",
+		Version:        version,
+		DefaultCommand: "http",
+		Commands: []*cli.Command{
+			commandInit(homeDir),
+			commandHTTP(homeDir),
+			commandTCP(homeDir),
+		},
+		Flags: commonFlags(homeDir),
 	}
-	app.Flags = commonFlags(homeDir)
-	if err := app.Run(os.Args); err != nil {
+	if err := app.Run(context.Background(), os.Args); err != nil {
 		log.Fatal(err)
 	}
 }
