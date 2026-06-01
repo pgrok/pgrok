@@ -87,7 +87,7 @@ function CopyButton({ value }: { value: string }) {
     <Button
       size="icon"
       variant="outline"
-      className="h-[31px] w-[31px] p-0 shadow hover:shadow-sm"
+      className="size-[31px] p-0 shadow hover:shadow-sm"
       onClick={() => void copy()}
       aria-label={copied ? "Copied" : "Copy token"}
       title={copied ? "Copied" : "Copy token"}
