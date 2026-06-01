@@ -47,8 +47,8 @@ func contexter(config *conf.Config, db *database.DB) flamego.Handler {
 	}
 }
 
-// requireSignIn aborts unauthenticated requests with 401.
-func requireSignIn(c *Context) {
+// authenticate aborts unauthenticated requests with 401.
+func authenticate(c *Context) {
 	if !c.IsSignedIn() {
 		c.ResponseWriter().WriteHeader(http.StatusUnauthorized)
 	}

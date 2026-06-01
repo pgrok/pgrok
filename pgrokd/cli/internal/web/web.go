@@ -58,16 +58,16 @@ func NewServer(config *conf.Config, db *database.DB) (*http.Server, error) {
 	// JSON API routes, kept separate from the human-facing web routes the way
 	// Gogs splits its api and web handlers.
 	f.Group("/api", func() {
-		f.Get("/user-info", requireSignIn, getUserInfo)
+		f.Get("/user-info", authenticate, getUserInfo)
 		f.Get("/identity-provider", getIdentityProvider)
 	})
 
 	// Human-facing web routes, namespaced under "/-".
 	f.Group("/-", func() {
-		f.Get("/healthcheck", healthcheck)
-		f.Get("/oidc/auth", oidcAuth)
-		f.Get("/oidc/callback", oidcCallback(db))
-		f.Get("/sign-out", signOut)
+		f.Get("/healthcheck", getHealthcheck)
+		f.Get("/oidc/auth", getOIDCAuth)
+		f.Get("/oidc/callback", getOIDCCallback(db))
+		f.Get("/sign-out", getSignOut)
 	})
 
 	address := fmt.Sprintf("0.0.0.0:%d", config.Web.Port)
@@ -103,14 +103,14 @@ func postgresDSN(config *conf.Database) string {
 	)
 }
 
-// healthcheck reports server liveness.
-func healthcheck(w http.ResponseWriter) {
+// getHealthcheck reports server liveness.
+func getHealthcheck(w http.ResponseWriter) {
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(http.StatusText(http.StatusOK)))
 }
 
-// oidcAuth kicks off the OIDC authorization code flow.
-func oidcAuth(c *Context, r flamego.Render) {
+// getOIDCAuth kicks off the OIDC authorization code flow.
+func getOIDCAuth(c *Context, r flamego.Render) {
 	if c.Config.IdentityProvider == nil {
 		r.PlainText(http.StatusBadRequest, "Sorry but ask your admin to configure an identity provider first")
 		return
@@ -137,11 +137,11 @@ func oidcAuth(c *Context, r flamego.Render) {
 	)
 }
 
-// oidcCallback completes the OIDC flow: verifies the callback, upserts the
+// getOIDCCallback completes the OIDC flow: verifies the callback, upserts the
 // principal, and establishes the session. The database handle is a
 // process-wide singleton, so it is closed over at registration time rather than
 // injected per request.
-func oidcCallback(db *database.DB) flamego.Handler {
+func getOIDCCallback(db *database.DB) flamego.Handler {
 	return func(c *Context, r flamego.Render) {
 		if c.Config.IdentityProvider == nil {
 			r.PlainText(http.StatusBadRequest, "Sorry but ask your admin to configure an identity provider first")
@@ -195,8 +195,8 @@ func oidcCallback(db *database.DB) flamego.Handler {
 	}
 }
 
-// signOut clears the session and returns to the home page.
-func signOut(c *Context) {
+// getSignOut clears the session and returns to the home page.
+func getSignOut(c *Context) {
 	c.Session.Delete("userID")
 	c.Redirect("/")
 }
