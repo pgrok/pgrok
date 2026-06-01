@@ -27,12 +27,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.bobheadxi.dev/streamline/streamexec"
 	"golang.org/x/net/publicsuffix"
-
 	"unknwon.dev/x/logx"
 )
 
-// logger is the test harness logger, backed by charm.land/log/v2 as an
-// slog.Handler.
 var logger = logx.New(charmlog.NewWithOptions(os.Stderr, charmlog.Options{ReportTimestamp: true}))
 
 var (

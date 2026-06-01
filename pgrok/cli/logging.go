@@ -6,7 +6,6 @@ import (
 	"time"
 
 	charmlog "charm.land/log/v2"
-
 	"unknwon.dev/x/logx"
 )
 
@@ -20,8 +19,6 @@ var handler = charmlog.NewWithOptions(
 	},
 )
 
-// logger is the process-wide logger for the pgrok client, backed by
-// charm.land/log/v2 as an slog.Handler.
 var logger = logx.New(handler)
 
 // setDebug raises the log level to debug.

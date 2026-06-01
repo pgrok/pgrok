@@ -15,12 +15,9 @@ import (
 	"github.com/flamego/flamego"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/lestrrat-go/jwx/v2/jwk"
-
 	"unknwon.dev/x/logx"
 )
 
-// logger is the OIDC test server logger, backed by charm.land/log/v2 as an
-// slog.Handler.
 var logger = logx.New(charmlog.NewWithOptions(os.Stderr, charmlog.Options{ReportTimestamp: true}))
 
 func main() {
