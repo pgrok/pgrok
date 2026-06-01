@@ -21,8 +21,8 @@ type Context struct {
 	Principal *database.Principal // The authenticated principal, or nil when signed out.
 }
 
-// IsSignedIn reports whether the request has an authenticated principal.
-func (c *Context) IsSignedIn() bool {
+// Authenticated reports whether the request has an authenticated principal.
+func (c *Context) Authenticated() bool {
 	return c.Principal != nil
 }
 
@@ -49,7 +49,7 @@ func contexter(config *conf.Config, db *database.DB) flamego.Handler {
 
 // authenticate aborts unauthenticated requests with 401.
 func authenticate(c *Context) {
-	if !c.IsSignedIn() {
+	if !c.Authenticated() {
 		c.ResponseWriter().WriteHeader(http.StatusUnauthorized)
 	}
 }
