@@ -3,6 +3,7 @@ module github.com/pgrok/pgrok
 go 1.26.0
 
 require (
+	charm.land/lipgloss/v2 v2.0.1
 	charm.land/log/v2 v2.0.0
 	github.com/adrg/xdg v0.5.3
 	github.com/coreos/go-oidc v2.5.0+incompatible
@@ -28,7 +29,6 @@ require (
 
 require (
 	bitbucket.org/creachadair/shell v0.0.7 // indirect
-	charm.land/lipgloss/v2 v2.0.1 // indirect
 	github.com/alecthomas/participle/v2 v2.1.4 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/charmbracelet/colorprofile v0.4.2 // indirect

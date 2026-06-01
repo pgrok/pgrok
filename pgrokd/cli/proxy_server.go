@@ -4,15 +4,13 @@ import (
 	"fmt"
 	"net/http"
 
-	"charm.land/log/v2"
 	"github.com/flamego/flamego"
 
+	"github.com/pgrok/pgrok/internal/logx"
 	"github.com/pgrok/pgrok/internal/reverseproxy"
 )
 
-func newProxyServer(logger *log.Logger, port int, proxies *reverseproxy.Cluster) *http.Server {
-	logger = logger.WithPrefix("proxy")
-
+func newProxyServer(logger *logx.Logger, port int, proxies *reverseproxy.Cluster) *http.Server {
 	f := flamego.New()
 	f.Use(flamego.Recovery())
 	f.Any("/{**}", func(w http.ResponseWriter, r *http.Request) {

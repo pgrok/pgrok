@@ -7,13 +7,13 @@ import (
 	"strconv"
 	"syscall"
 
-	"charm.land/log/v2"
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/pgrok/pgrok/internal/conf"
 	"github.com/pgrok/pgrok/internal/cryptoutil"
 	"github.com/pgrok/pgrok/internal/database"
+	"github.com/pgrok/pgrok/internal/logx"
 	"github.com/pgrok/pgrok/internal/reverseproxy"
 )
 
@@ -21,7 +21,7 @@ import (
 // canceled or the listener is closed.
 func Start(
 	ctx context.Context,
-	logger *log.Logger,
+	logger *logx.Logger,
 	port int,
 	proxy conf.Proxy,
 	db *database.DB,

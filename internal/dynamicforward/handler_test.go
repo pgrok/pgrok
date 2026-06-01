@@ -5,8 +5,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"charm.land/log/v2"
 	"github.com/stretchr/testify/require"
+
+	"github.com/pgrok/pgrok/internal/logx"
 )
 
 func TestNew(t *testing.T) {
@@ -30,7 +31,7 @@ func TestNew(t *testing.T) {
 	)
 
 	h, err := New(
-		log.Default(),
+		logx.NewNoopLogger(),
 		defaultServer.URL,
 		Forward{
 			Prefix:  "/api",

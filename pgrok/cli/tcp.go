@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"charm.land/log/v2"
 	"github.com/urfave/cli/v3"
 
 	"github.com/pgrok/pgrok/internal/strutil"
@@ -67,19 +66,19 @@ func actionTCP(_ context.Context, cmd *cli.Command) error {
 	configPath := cmd.String("config")
 	config, err := loadConfig(configPath)
 	if err != nil {
-		log.Fatal("Failed to load config",
+		fatal("Failed to load config",
 			"config", configPath,
 			"error", err.Error(),
 		)
 	}
-	log.Debug("Loaded config", "file", configPath)
+	logger.Debug("Loaded config", "file", configPath)
 
 	forwardAddr := strutil.Coalesce(
 		deriveTCPForwardAddress(cmd.Args().First()),
 		cmd.String("forward-addr"),
 		config.ForwardAddr,
 	)
-	log.Info("Forward", "address", forwardAddr)
+	logger.Info("Forward", "address", forwardAddr)
 
 	cooldownAfter := time.Now().Add(time.Minute)
 	for failed := 0; ; failed++ {
@@ -94,12 +93,12 @@ func actionTCP(_ context.Context, cmd *cli.Command) error {
 				failed = 0
 			}
 			backoff := time.Duration(2<<(failed/3+1)) * time.Second
-			log.Error(
+			logger.Error(
 				fmt.Sprintf("Failed to connect to server, will reconnect in %s", backoff.String()),
 				"error", err.Error(),
 			)
 			if strings.Contains(err.Error(), "no supported methods remain") {
-				log.Fatal("Please double check your token and try again")
+				fatal("Please double check your token and try again")
 			}
 			time.Sleep(backoff)
 			cooldownAfter = time.Now().Add(time.Minute)

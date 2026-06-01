@@ -7,7 +7,6 @@ import (
 	"net/url"
 	"strings"
 
-	"charm.land/log/v2"
 	"github.com/coreos/go-oidc"
 	"github.com/flamego/flamego"
 	"github.com/flamego/session"
@@ -18,12 +17,13 @@ import (
 	"github.com/pgrok/pgrok/internal/conf"
 	"github.com/pgrok/pgrok/internal/cryptoutil"
 	"github.com/pgrok/pgrok/internal/database"
+	"github.com/pgrok/pgrok/internal/logx"
 	"github.com/pgrok/pgrok/internal/strutil"
 	"github.com/pgrok/pgrok/internal/userutil"
 )
 
 // NewServer constructs the HTTP server that serves the web UI and the JSON API.
-func NewServer(config *conf.Config, db *database.DB) (*http.Server, error) {
+func NewServer(logger *logx.Logger, config *conf.Config, db *database.DB) (*http.Server, error) {
 	f := flamego.New()
 	f.Use(flamego.Logger())
 	f.Use(flamego.Recovery())
@@ -46,7 +46,7 @@ func NewServer(config *conf.Config, db *database.DB) (*http.Server, error) {
 				Name: "pgrokd_session",
 			},
 			ErrorFunc: func(err error) {
-				log.Error("session", "error", err)
+				logger.Error("session", "error", err)
 			},
 		},
 	))
@@ -66,12 +66,12 @@ func NewServer(config *conf.Config, db *database.DB) (*http.Server, error) {
 	f.Group("/-", func() {
 		f.Get("/healthcheck", getHealthcheck)
 		f.Get("/oidc/auth", getOIDCAuth)
-		f.Get("/oidc/callback", getOIDCCallback(db))
+		f.Get("/oidc/callback", getOIDCCallback(logger, db))
 		f.Get("/sign-out", getSignOut)
 	})
 
 	address := fmt.Sprintf("0.0.0.0:%d", config.Web.Port)
-	log.Info("Web server listening on",
+	logger.Info("Web server listening on",
 		"address", address,
 		"env", flamego.Env(),
 	)
@@ -141,7 +141,7 @@ func getOIDCAuth(c *Context, r flamego.Render) {
 // principal, and establishes the session. The database handle is a
 // process-wide singleton, so it is closed over at registration time rather than
 // injected per request.
-func getOIDCCallback(db *database.DB) flamego.Handler {
+func getOIDCCallback(logger *logx.Logger, db *database.DB) flamego.Handler {
 	return func(c *Context, r flamego.Render) {
 		if c.Config.IdentityProvider == nil {
 			r.PlainText(http.StatusBadRequest, "Sorry but ask your admin to configure an identity provider first")
@@ -160,6 +160,7 @@ func getOIDCCallback(db *database.DB) flamego.Handler {
 
 		userInfo, err := handleOIDCCallback(
 			c.Request().Context(),
+			logger,
 			c.Config.IdentityProvider,
 			c.Config.ExternalURL+"/-/oidc/callback",
 			c.Query("code"),
@@ -206,7 +207,7 @@ type idpUserInfo struct {
 	DisplayName string
 }
 
-func handleOIDCCallback(ctx context.Context, idp *conf.IdentityProvider, redirectURL, code, nonce string) (*idpUserInfo, error) {
+func handleOIDCCallback(ctx context.Context, logger *logx.Logger, idp *conf.IdentityProvider, redirectURL, code, nonce string) (*idpUserInfo, error) {
 	p, err := oidc.NewProvider(ctx, idp.Issuer)
 	if err != nil {
 		return nil, errors.Wrap(err, "create new provider")
@@ -252,7 +253,7 @@ func handleOIDCCallback(ctx context.Context, idp *conf.IdentityProvider, redirec
 	if err != nil {
 		return nil, errors.Wrap(err, "unmarshal claims")
 	}
-	log.Debug("User info", "claims", claims)
+	logger.DebugContext(ctx, "User info", "claims", claims)
 
 	userInfo := &idpUserInfo{}
 	if v, ok := claims[idp.FieldMapping.Identifier].(string); ok {

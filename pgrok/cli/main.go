@@ -4,11 +4,8 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/adrg/xdg"
-
-	"charm.land/log/v2"
 	"github.com/urfave/cli/v3"
 
 	"github.com/pgrok/pgrok/internal/osutil"
@@ -38,7 +35,7 @@ func commonFlags(homeDir string) []cli.Flag {
 			Aliases: []string{"d"},
 			Action: func(_ context.Context, _ *cli.Command, b bool) error {
 				if b {
-					log.SetLevel(log.DebugLevel)
+					setDebug()
 				}
 				return nil
 			},
@@ -47,11 +44,9 @@ func commonFlags(homeDir string) []cli.Flag {
 }
 
 func main() {
-	log.SetTimeFormat(time.DateTime)
-
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		log.Fatal("Failed to home directory", "error", err.Error())
+		fatal("Failed to home directory", "error", err.Error())
 	}
 
 	app := &cli.Command{
@@ -67,6 +62,6 @@ func main() {
 		Flags: commonFlags(homeDir),
 	}
 	if err := app.Run(context.Background(), os.Args); err != nil {
-		log.Fatal(err)
+		fatal(err.Error())
 	}
 }

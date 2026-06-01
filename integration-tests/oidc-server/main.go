@@ -1,19 +1,27 @@
 package main
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
-	"charm.land/log/v2"
+	charmlog "charm.land/log/v2"
 	"github.com/flamego/flamego"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/lestrrat-go/jwx/v2/jwk"
+
+	"github.com/pgrok/pgrok/internal/logx"
 )
+
+// logger is the OIDC test server logger, backed by charm.land/log/v2 as an
+// slog.Handler.
+var logger = logx.New(charmlog.NewWithOptions(os.Stderr, charmlog.Options{ReportTimestamp: true}))
 
 func main() {
 	externalURL := flag.String("external-url", "http://localhost:9833", "The external URL of the server")
@@ -62,7 +70,7 @@ func main() {
 
 	rs256, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		log.Fatal("Failed to generate RSA key", "error", err)
+		logger.FatalContext(context.Background(), "Failed to generate RSA key", "error", err)
 	}
 	f.Post("/oauth2/token", func(w http.ResponseWriter) error {
 		token := jwt.NewWithClaims(

@@ -4,15 +4,14 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"log/slog"
 	"net"
 	"net/http"
-	"os"
 	"os/signal"
 	"strings"
 	"syscall"
 	"time"
 
-	"charm.land/log/v2"
 	"github.com/flamego/flamego"
 	"github.com/sourcegraph/conc"
 
@@ -25,76 +24,79 @@ import (
 var version = "0.0.0+dev"
 
 func main() {
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	level := slog.LevelInfo
+	prod := true
 	if strings.Contains(version, "+dev") {
-		log.SetLevel(log.DebugLevel)
+		level = slog.LevelDebug
+		prod = false
 	} else {
 		flamego.SetEnv(flamego.EnvTypeProd)
 	}
-	log.SetTimeFormat(time.DateTime)
+	logger := setupLogging(level, prod)
 
 	configPath := flag.String("config", "pgrokd.yml", "the path to the config file")
 	flag.Parse()
 
 	config, err := conf.Load(*configPath)
 	if err != nil {
-		log.Fatal("Failed to load config",
+		logger.FatalContext(ctx, "Failed to load config",
 			"config", *configPath,
-			"error", err.Error(),
+			"error", err,
 		)
 	}
 
-	db, err := database.New(os.Stdout, config.Database)
+	db, err := database.New(logger.Scoped("database"), config.Database)
 	if err != nil {
-		log.Fatal("Failed to connect to database", "error", err.Error())
+		logger.FatalContext(ctx, "Failed to connect to database", "error", err)
 	}
 
-	webServer, err := web.NewServer(config, db)
+	webServer, err := web.NewServer(logger.Scoped("web"), config, db)
 	if err != nil {
-		log.Fatal("Failed to set up web server", "error", err.Error())
+		logger.FatalContext(ctx, "Failed to set up web server", "error", err)
 	}
 
 	proxies := reverseproxy.NewCluster()
-	proxyServer := newProxyServer(log.Default(), config.Proxy.Port, proxies)
-
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
+	proxyServer := newProxyServer(logger.Scoped("proxy"), config.Proxy.Port, proxies)
 
 	var routines conc.WaitGroup
 	routines.Go(func() {
-		if err := runSSHServer(ctx, log.Default(), config.SSHD.Port, config.Proxy, db, proxies); err != nil && !isBenignShutdown(err, ctx) {
-			log.Error("SSH server exited unexpectedly", "error", err)
+		if err := runSSHServer(ctx, logger.Scoped("sshd"), config.SSHD.Port, config.Proxy, db, proxies); err != nil && !isBenignShutdown(err, ctx) {
+			logger.ErrorContext(ctx, "SSH server exited unexpectedly", "error", err)
 			stop()
 		}
 	})
 	routines.Go(func() {
 		if err := proxyServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Error("Proxy server exited unexpectedly", "error", err)
+			logger.ErrorContext(ctx, "Proxy server exited unexpectedly", "error", err)
 			stop()
 		}
 	})
 	routines.Go(func() {
 		if err := webServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Error("Web server exited unexpectedly", "error", err)
+			logger.ErrorContext(ctx, "Web server exited unexpectedly", "error", err)
 			stop()
 		}
 	})
 	routines.Go(func() {
 		<-ctx.Done()
-		log.Warn("Shutdown requested")
+		logger.WarnContext(ctx, "Shutdown requested")
 
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
 		if err := webServer.Shutdown(shutdownCtx); err != nil {
-			log.Error("Failed to shut down web server gracefully", "error", err)
+			logger.ErrorContext(shutdownCtx, "Failed to shut down web server gracefully", "error", err)
 		}
 		if err := proxyServer.Shutdown(shutdownCtx); err != nil {
-			log.Error("Failed to shut down proxy server gracefully", "error", err)
+			logger.ErrorContext(shutdownCtx, "Failed to shut down proxy server gracefully", "error", err)
 		}
 	})
 
 	if r := routines.WaitAndRecover(); r != nil {
-		log.Fatal("Server panicked",
+		logger.FatalContext(ctx, "Server panicked",
 			"panic", r.Value,
 			"stack", string(r.Stack),
 		)

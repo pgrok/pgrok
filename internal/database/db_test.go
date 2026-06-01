@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"testing"
 
-	"charm.land/log/v2"
+	charmlog "charm.land/log/v2"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/pgrok/pgrok/internal/logx"
 )
 
 func TestGORMLogger(t *testing.T) {
@@ -30,7 +32,7 @@ func TestGORMLogger(t *testing.T) {
 			var buf bytes.Buffer
 
 			logger := &gormLogger{
-				Logger: log.NewWithOptions(&buf, log.Options{Level: log.DebugLevel}),
+				Logger: logx.New(charmlog.NewWithOptions(&buf, charmlog.Options{Level: charmlog.DebugLevel})),
 			}
 			logger.Printf("%s", test.format)
 			assert.Equal(t, test.want, buf.String())

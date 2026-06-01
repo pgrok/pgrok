@@ -12,20 +12,20 @@ import (
 	"strings"
 	"time"
 
-	"charm.land/log/v2"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/pgrok/pgrok/internal/conf"
 	"github.com/pgrok/pgrok/internal/database"
+	"github.com/pgrok/pgrok/internal/logx"
 	"github.com/pgrok/pgrok/internal/reverseproxy"
 	"github.com/pgrok/pgrok/internal/strutil"
 )
 
 // Client is a SSH client that has established a connection.
 type Client struct {
-	logger      *log.Logger
+	logger      *logx.Logger
 	db          *database.DB
 	serverConn  *ssh.ServerConn
 	principal   *database.Principal

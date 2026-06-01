@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"strings"
 
-	"charm.land/log/v2"
 	"github.com/urfave/cli/v3"
 )
 
@@ -92,12 +91,12 @@ token: "%s"
 	configDir := filepath.Dir(configPath)
 	err := os.MkdirAll(configDir, os.ModePerm)
 	if err != nil {
-		log.Fatal("Failed to create config directory", "path", configDir, "error", err.Error())
+		fatal("Failed to create config directory", "path", configDir, "error", err.Error())
 	}
 	err = os.WriteFile(configPath, []byte(config), 0644)
 	if err != nil {
-		log.Fatal("Failed to save config file", "path", configPath, "error", err.Error())
+		fatal("Failed to save config file", "path", configPath, "error", err.Error())
 	}
-	log.Info("Config file saved", "path", configPath)
+	logger.Info("Config file saved", "path", configPath)
 	return nil
 }

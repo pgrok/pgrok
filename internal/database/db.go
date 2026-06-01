@@ -2,18 +2,17 @@ package database
 
 import (
 	"fmt"
-	"io"
 	"strings"
 	"time"
 
-	"charm.land/log/v2"
 	"github.com/flamego/flamego"
 	"github.com/pkg/errors"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
+	gormlogger "gorm.io/gorm/logger"
 
 	"github.com/pgrok/pgrok/internal/conf"
+	"github.com/pgrok/pgrok/internal/logx"
 )
 
 // DB is the database handle.
@@ -22,30 +21,20 @@ type DB struct {
 }
 
 // New returns a new database handle with given configuration.
-func New(logWriter io.Writer, config *conf.Database) (*DB, error) {
+func New(logger *logx.Logger, config *conf.Database) (*DB, error) {
 	if config == nil {
 		return nil, errors.New("no database config provided")
 	}
 
-	level := logger.Info
+	level := gormlogger.Info
 	if flamego.Env() == flamego.EnvTypeProd {
-		level = logger.Warn
+		level = gormlogger.Warn
 	}
 
 	// NOTE: AutoMigrate does not respect logger passed in gorm.Config.
-	logger.Default = logger.New(
-		&gormLogger{
-			Logger: log.NewWithOptions(
-				logWriter,
-				log.Options{
-					TimeFormat:      time.DateTime,
-					Level:           log.DebugLevel,
-					Prefix:          "gorm",
-					ReportTimestamp: true,
-				},
-			),
-		},
-		logger.Config{
+	gormlogger.Default = gormlogger.New(
+		&gormLogger{Logger: logger.Scoped("gorm")},
+		gormlogger.Config{
 			SlowThreshold: 1000 * time.Millisecond,
 			LogLevel:      level,
 		},
@@ -83,9 +72,11 @@ func New(logWriter io.Writer, config *conf.Database) (*DB, error) {
 	return &DB{db}, nil
 }
 
-// gormLogger is a wrapper of io.Writer for the GORM's logger.Writer.
+// gormLogger adapts *logx.Logger to GORM's logger.Writer interface so that
+// database log output flows through the application's structured logging
+// pipeline.
 type gormLogger struct {
-	*log.Logger
+	*logx.Logger
 }
 
 func (l *gormLogger) Printf(format string, args ...any) {
