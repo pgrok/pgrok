@@ -4,16 +4,19 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"time"
 
+	charmlog "charm.land/log/v2"
 	"github.com/adrg/xdg"
 	"github.com/urfave/cli/v3"
+	"unknwon.dev/x/logx"
 
 	"github.com/pgrok/pgrok/internal/osutil"
 )
 
 var version = "0.0.0+dev"
 
-func commonFlags(homeDir string) []cli.Flag {
+func commonFlags(homeDir string, handler *charmlog.Logger) []cli.Flag {
 	configPath := filepath.Join(homeDir, ".pgrok", "pgrok.yml")
 	if !osutil.IsExist(configPath) {
 		xdgConfigPath, err := xdg.ConfigFile(filepath.Join("pgrok", "pgrok.yml"))
@@ -35,7 +38,7 @@ func commonFlags(homeDir string) []cli.Flag {
 			Aliases: []string{"d"},
 			Action: func(_ context.Context, _ *cli.Command, b bool) error {
 				if b {
-					setDebug()
+					handler.SetLevel(charmlog.DebugLevel)
 				}
 				return nil
 			},
@@ -44,9 +47,18 @@ func commonFlags(homeDir string) []cli.Flag {
 }
 
 func main() {
+	handler := charmlog.NewWithOptions(
+		os.Stderr,
+		charmlog.Options{
+			TimeFormat:      time.DateTime,
+			ReportTimestamp: true,
+		},
+	)
+	logger := logx.New(handler)
+
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		fatal("Failed to home directory", "error", err.Error())
+		logger.FatalContext(context.Background(), "Failed to home directory", "error", err)
 	}
 
 	app := &cli.Command{
@@ -55,13 +67,13 @@ func main() {
 		Version:        version,
 		DefaultCommand: "http",
 		Commands: []*cli.Command{
-			commandInit(homeDir),
-			commandHTTP(homeDir),
-			commandTCP(homeDir),
+			commandInit(homeDir, handler, logger),
+			commandHTTP(homeDir, handler, logger),
+			commandTCP(homeDir, handler, logger),
 		},
-		Flags: commonFlags(homeDir),
+		Flags: commonFlags(homeDir, handler),
 	}
 	if err := app.Run(context.Background(), os.Args); err != nil {
-		fatal(err.Error())
+		logger.FatalContext(context.Background(), err.Error())
 	}
 }

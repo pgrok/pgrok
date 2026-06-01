@@ -12,22 +12,26 @@ import (
 	"strings"
 	"time"
 
+	charmlog "charm.land/log/v2"
 	"github.com/pkg/errors"
 	"github.com/urfave/cli/v3"
 	"golang.org/x/crypto/ssh"
 	"gopkg.in/yaml.v3"
 	"unknwon.dev/x/anyx"
+	"unknwon.dev/x/logx"
 
 	"github.com/pgrok/pgrok/internal/dynamicforward"
 )
 
-func commandHTTP(homeDir string) *cli.Command {
+func commandHTTP(homeDir string, handler *charmlog.Logger, logger *logx.Logger) *cli.Command {
 	return &cli.Command{
-		Name:   "http",
-		Usage:  "Start a HTTP proxy to local endpoints",
-		Action: actionHTTP,
+		Name:  "http",
+		Usage: "Start a HTTP proxy to local endpoints",
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			return actionHTTP(ctx, cmd, logger)
+		},
 		Flags: append(
-			commonFlags(homeDir),
+			commonFlags(homeDir, handler),
 			&cli.StringFlag{
 				Name:    "remote-addr",
 				Usage:   "The address of the remote SSH server",
@@ -50,13 +54,13 @@ func commandHTTP(homeDir string) *cli.Command {
 	}
 }
 
-func actionHTTP(_ context.Context, cmd *cli.Command) error {
+func actionHTTP(ctx context.Context, cmd *cli.Command, logger *logx.Logger) error {
 	configPath := cmd.String("config")
 	config, err := loadConfig(configPath)
 	if err != nil {
-		fatal("Failed to load config",
+		logger.FatalContext(ctx, "Failed to load config",
 			"config", configPath,
-			"error", err.Error(),
+			"error", err,
 		)
 	}
 	logger.Debug("Loaded config", "file", configPath)
@@ -91,7 +95,7 @@ func actionHTTP(_ context.Context, cmd *cli.Command) error {
 	}
 	forwardHandler, err := dynamicforward.New(logger, defaultForwardAddr, dynamicForwards...)
 	if err != nil {
-		fatal("Failed to create forward handler", "error", err.Error())
+		logger.FatalContext(ctx, "Failed to create forward handler", "error", err)
 	}
 
 	s := httptest.NewServer(forwardHandler)
@@ -101,6 +105,7 @@ func actionHTTP(_ context.Context, cmd *cli.Command) error {
 	cooldownAfter := time.Now().Add(time.Minute)
 	for failed := 0; ; failed++ {
 		err := tryConnect(
+			logger,
 			protocolHTTP,
 			anyx.Coalesce(cmd.String("remote-addr"), config.RemoteAddr),
 			surl.Host,
@@ -116,7 +121,7 @@ func actionHTTP(_ context.Context, cmd *cli.Command) error {
 				"error", err.Error(),
 			)
 			if strings.Contains(err.Error(), "no supported methods remain") {
-				fatal("Please double check your token and try again")
+				logger.FatalContext(ctx, "Please double check your token and try again")
 			}
 			time.Sleep(backoff)
 			cooldownAfter = time.Now().Add(time.Minute)
@@ -150,7 +155,7 @@ const (
 	protocolTCP  string = "tcp"
 )
 
-func tryConnect(protocol, remoteAddr, forwardAddr, token string) error {
+func tryConnect(logger *logx.Logger, protocol, remoteAddr, forwardAddr, token string) error {
 	client, err := ssh.Dial(
 		"tcp",
 		remoteAddr,

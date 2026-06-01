@@ -7,17 +7,21 @@ import (
 	"strings"
 	"time"
 
+	charmlog "charm.land/log/v2"
 	"github.com/urfave/cli/v3"
 	"unknwon.dev/x/anyx"
+	"unknwon.dev/x/logx"
 )
 
-func commandTCP(homeDir string) *cli.Command {
+func commandTCP(homeDir string, handler *charmlog.Logger, logger *logx.Logger) *cli.Command {
 	return &cli.Command{
-		Name:   "tcp",
-		Usage:  "Start a TCP proxy to a local address",
-		Action: actionTCP,
+		Name:  "tcp",
+		Usage: "Start a TCP proxy to a local address",
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			return actionTCP(ctx, cmd, logger)
+		},
 		Flags: append(
-			commonFlags(homeDir),
+			commonFlags(homeDir, handler),
 			&cli.StringFlag{
 				Name:    "remote-addr",
 				Usage:   "The address of the remote SSH server",
@@ -61,13 +65,13 @@ func deriveTCPForwardAddress(addr string) string {
 	return addr
 }
 
-func actionTCP(_ context.Context, cmd *cli.Command) error {
+func actionTCP(ctx context.Context, cmd *cli.Command, logger *logx.Logger) error {
 	configPath := cmd.String("config")
 	config, err := loadConfig(configPath)
 	if err != nil {
-		fatal("Failed to load config",
+		logger.FatalContext(ctx, "Failed to load config",
 			"config", configPath,
-			"error", err.Error(),
+			"error", err,
 		)
 	}
 	logger.Debug("Loaded config", "file", configPath)
@@ -82,6 +86,7 @@ func actionTCP(_ context.Context, cmd *cli.Command) error {
 	cooldownAfter := time.Now().Add(time.Minute)
 	for failed := 0; ; failed++ {
 		err := tryConnect(
+			logger,
 			protocolTCP,
 			anyx.Coalesce(cmd.String("remote-addr"), config.RemoteAddr),
 			forwardAddr,
@@ -97,7 +102,7 @@ func actionTCP(_ context.Context, cmd *cli.Command) error {
 				"error", err.Error(),
 			)
 			if strings.Contains(err.Error(), "no supported methods remain") {
-				fatal("Please double check your token and try again")
+				logger.FatalContext(ctx, "Please double check your token and try again")
 			}
 			time.Sleep(backoff)
 			cooldownAfter = time.Now().Add(time.Minute)

@@ -8,16 +8,20 @@ import (
 	"strconv"
 	"strings"
 
+	charmlog "charm.land/log/v2"
 	"github.com/urfave/cli/v3"
+	"unknwon.dev/x/logx"
 )
 
-func commandInit(homeDir string) *cli.Command {
+func commandInit(homeDir string, handler *charmlog.Logger, logger *logx.Logger) *cli.Command {
 	return &cli.Command{
-		Name:   "init",
-		Usage:  "Initialize a config file",
-		Action: actionInit,
+		Name:  "init",
+		Usage: "Initialize a config file",
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			return actionInit(ctx, cmd, logger)
+		},
 		Flags: append(
-			commonFlags(homeDir),
+			commonFlags(homeDir, handler),
 			&cli.StringFlag{
 				Name:     "remote-addr",
 				Usage:    "The address of the remote SSH server",
@@ -69,7 +73,7 @@ func deriveHTTPForwardAddress(addr string) string {
 	return addr
 }
 
-func actionInit(_ context.Context, cmd *cli.Command) error {
+func actionInit(ctx context.Context, cmd *cli.Command, logger *logx.Logger) error {
 	const configTemplate = `# The address of the remote SSH server.
 remote_addr: "%s"
 # The address to forward requests to.
@@ -91,11 +95,11 @@ token: "%s"
 	configDir := filepath.Dir(configPath)
 	err := os.MkdirAll(configDir, os.ModePerm)
 	if err != nil {
-		fatal("Failed to create config directory", "path", configDir, "error", err.Error())
+		logger.FatalContext(ctx, "Failed to create config directory", "path", configDir, "error", err)
 	}
 	err = os.WriteFile(configPath, []byte(config), 0644)
 	if err != nil {
-		fatal("Failed to save config file", "path", configPath, "error", err.Error())
+		logger.FatalContext(ctx, "Failed to save config file", "path", configPath, "error", err)
 	}
 	logger.Info("Config file saved", "path", configPath)
 	return nil
