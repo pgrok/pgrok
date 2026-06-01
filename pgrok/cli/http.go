@@ -16,9 +16,9 @@ import (
 	"github.com/urfave/cli/v3"
 	"golang.org/x/crypto/ssh"
 	"gopkg.in/yaml.v3"
+	"unknwon.dev/x/anyx"
 
 	"github.com/pgrok/pgrok/internal/dynamicforward"
-	"github.com/pgrok/pgrok/internal/strutil"
 )
 
 func commandHTTP(homeDir string) *cli.Command {
@@ -61,7 +61,7 @@ func actionHTTP(_ context.Context, cmd *cli.Command) error {
 	}
 	logger.Debug("Loaded config", "file", configPath)
 
-	defaultForwardAddr := strutil.Coalesce(
+	defaultForwardAddr := anyx.Coalesce(
 		deriveHTTPForwardAddress(cmd.Args().First()),
 		cmd.String("forward-addr"),
 		config.ForwardAddr,
@@ -102,9 +102,9 @@ func actionHTTP(_ context.Context, cmd *cli.Command) error {
 	for failed := 0; ; failed++ {
 		err := tryConnect(
 			protocolHTTP,
-			strutil.Coalesce(cmd.String("remote-addr"), config.RemoteAddr),
+			anyx.Coalesce(cmd.String("remote-addr"), config.RemoteAddr),
 			surl.Host,
-			strutil.Coalesce(cmd.String("token"), config.Token),
+			anyx.Coalesce(cmd.String("token"), config.Token),
 		)
 		if err != nil {
 			if time.Now().After(cooldownAfter) {

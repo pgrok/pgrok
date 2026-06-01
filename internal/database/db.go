@@ -11,8 +11,9 @@ import (
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
 
+	"unknwon.dev/x/logx"
+
 	"github.com/pgrok/pgrok/internal/conf"
-	"github.com/pgrok/pgrok/internal/logx"
 )
 
 // DB is the database handle.

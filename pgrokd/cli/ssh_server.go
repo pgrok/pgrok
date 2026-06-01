@@ -3,9 +3,10 @@ package main
 import (
 	"context"
 
+	"unknwon.dev/x/logx"
+
 	"github.com/pgrok/pgrok/internal/conf"
 	"github.com/pgrok/pgrok/internal/database"
-	"github.com/pgrok/pgrok/internal/logx"
 	"github.com/pgrok/pgrok/internal/reverseproxy"
 	"github.com/pgrok/pgrok/internal/sshd"
 )

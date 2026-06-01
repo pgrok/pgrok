@@ -16,7 +16,7 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 
-	"github.com/pgrok/pgrok/internal/logx"
+	"unknwon.dev/x/logx"
 )
 
 // logger is the OIDC test server logger, backed by charm.land/log/v2 as an

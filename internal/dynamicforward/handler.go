@@ -10,7 +10,7 @@ import (
 	"github.com/flamego/flamego"
 	"github.com/pkg/errors"
 
-	"github.com/pgrok/pgrok/internal/logx"
+	"unknwon.dev/x/logx"
 )
 
 // Forward represents a dynamic forward rule.

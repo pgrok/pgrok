@@ -8,8 +8,7 @@ import (
 	"time"
 
 	"github.com/urfave/cli/v3"
-
-	"github.com/pgrok/pgrok/internal/strutil"
+	"unknwon.dev/x/anyx"
 )
 
 func commandTCP(homeDir string) *cli.Command {
@@ -73,7 +72,7 @@ func actionTCP(_ context.Context, cmd *cli.Command) error {
 	}
 	logger.Debug("Loaded config", "file", configPath)
 
-	forwardAddr := strutil.Coalesce(
+	forwardAddr := anyx.Coalesce(
 		deriveTCPForwardAddress(cmd.Args().First()),
 		cmd.String("forward-addr"),
 		config.ForwardAddr,
@@ -84,9 +83,9 @@ func actionTCP(_ context.Context, cmd *cli.Command) error {
 	for failed := 0; ; failed++ {
 		err := tryConnect(
 			protocolTCP,
-			strutil.Coalesce(cmd.String("remote-addr"), config.RemoteAddr),
+			anyx.Coalesce(cmd.String("remote-addr"), config.RemoteAddr),
 			forwardAddr,
-			strutil.Coalesce(cmd.String("token"), config.Token),
+			anyx.Coalesce(cmd.String("token"), config.Token),
 		)
 		if err != nil {
 			if time.Now().After(cooldownAfter) {

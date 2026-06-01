@@ -14,10 +14,11 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/oauth2"
 
+	"unknwon.dev/x/logx"
+
 	"github.com/pgrok/pgrok/internal/conf"
 	"github.com/pgrok/pgrok/internal/cryptoutil"
 	"github.com/pgrok/pgrok/internal/database"
-	"github.com/pgrok/pgrok/internal/logx"
 	"github.com/pgrok/pgrok/internal/strutil"
 	"github.com/pgrok/pgrok/internal/userutil"
 )

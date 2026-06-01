@@ -6,7 +6,8 @@ import (
 
 	"github.com/flamego/flamego"
 
-	"github.com/pgrok/pgrok/internal/logx"
+	"unknwon.dev/x/logx"
+
 	"github.com/pgrok/pgrok/internal/reverseproxy"
 )
 

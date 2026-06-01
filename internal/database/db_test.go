@@ -7,7 +7,7 @@ import (
 	charmlog "charm.land/log/v2"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/pgrok/pgrok/internal/logx"
+	"unknwon.dev/x/logx"
 )
 
 func TestGORMLogger(t *testing.T) {

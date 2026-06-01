@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/pgrok/pgrok/internal/logx"
+	"unknwon.dev/x/logx"
 )
 
 func TestNew(t *testing.T) {

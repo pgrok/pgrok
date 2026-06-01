@@ -197,3 +197,5 @@ gorm.io/gorm v1.31.1 h1:7CA8FTFz/gRfgqgpeKIBcervUn3xSyPUmr6B2WXJ7kg=
 gorm.io/gorm v1.31.1/go.mod h1:XyQVbO2k6YkOis7C2437jSit3SsDK72s7n7rsSHd+Gs=
 mvdan.cc/gofumpt v0.5.0 h1:0EQ+Z56k8tXjj/6TQD25BFNKQXpCvT0rnansIc7Ug5E=
 mvdan.cc/gofumpt v0.5.0/go.mod h1:HBeVDtMKRZpXyxFciAirzdKklDlGu8aAy1wEbH5Y9js=
+unknwon.dev/x v0.0.0-20260601135813-58f5fd8eb988 h1:Px9LZaAWIj0jCAeeN4YI4M/7b8SdbFAn2NJXp0ZaMHc=
+unknwon.dev/x v0.0.0-20260601135813-58f5fd8eb988/go.mod h1:Ks814GgzihBUdNtUs73mudIRE+tENn+SqjdvJsXLLGA=

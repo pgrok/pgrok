@@ -7,7 +7,7 @@ import (
 
 	charmlog "charm.land/log/v2"
 
-	"github.com/pgrok/pgrok/internal/logx"
+	"unknwon.dev/x/logx"
 )
 
 // handler is the underlying charm.land/log/v2 handler backing the package

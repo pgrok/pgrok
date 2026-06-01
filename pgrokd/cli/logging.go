@@ -8,7 +8,7 @@ import (
 	"charm.land/lipgloss/v2"
 	charmlog "charm.land/log/v2"
 
-	"github.com/pgrok/pgrok/internal/logx"
+	"unknwon.dev/x/logx"
 )
 
 // setupLogging builds the application logger backed by charm.land/log/v2 as an

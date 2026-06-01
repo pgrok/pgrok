@@ -28,7 +28,7 @@ import (
 	"go.bobheadxi.dev/streamline/streamexec"
 	"golang.org/x/net/publicsuffix"
 
-	"github.com/pgrok/pgrok/internal/logx"
+	"unknwon.dev/x/logx"
 )
 
 // logger is the test harness logger, backed by charm.land/log/v2 as an
