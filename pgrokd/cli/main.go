@@ -19,6 +19,7 @@ import (
 	"github.com/pgrok/pgrok/internal/conf"
 	"github.com/pgrok/pgrok/internal/database"
 	"github.com/pgrok/pgrok/internal/reverseproxy"
+	"github.com/pgrok/pgrok/pgrokd/cli/internal/web"
 )
 
 var version = "0.0.0+dev"
@@ -47,7 +48,7 @@ func main() {
 		log.Fatal("Failed to connect to database", "error", err.Error())
 	}
 
-	webServer, err := newWebServer(config, db)
+	webServer, err := web.NewServer(config, db)
 	if err != nil {
 		log.Fatal("Failed to set up web server", "error", err.Error())
 	}

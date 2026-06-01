@@ -37,7 +37,7 @@ tasks:
       - "@group(sources)"
       - "@group(configs)"
     outputs:
-      - "/pgrokd/cli/dist"
+      - "/pgrokd/cli/internal/web/dist"
     options:
       runFromWorkspaceRoot: false
     deps:

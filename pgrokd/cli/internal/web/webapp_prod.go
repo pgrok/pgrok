@@ -1,6 +1,6 @@
 //go:build prod
 
-package main
+package web
 
 import (
 	"bytes"
@@ -13,10 +13,10 @@ import (
 )
 
 //go:embed all:dist
-var webAssets embed.FS
+var assets embed.FS
 
-func setupWebAssets(f *flamego.Flame) error {
-	webFS, err := fs.Sub(webAssets, "dist")
+func mountWebAppRoutes(f *flamego.Flame) error {
+	webFS, err := fs.Sub(assets, "dist")
 	if err != nil {
 		return errors.Wrap(err, "load embedded web assets")
 	}
@@ -27,7 +27,7 @@ func setupWebAssets(f *flamego.Flame) error {
 	))
 
 	// Make sure the page refresh works
-	indexFile, err := webAssets.Open("dist/index.html")
+	indexFile, err := assets.Open("dist/index.html")
 	if err != nil {
 		return errors.Wrap(err, `open "dist/index.html"`)
 	}
@@ -35,7 +35,7 @@ func setupWebAssets(f *flamego.Flame) error {
 	if err != nil {
 		return errors.Wrap(err, `stat "dist/index.html"`)
 	}
-	index, err := webAssets.ReadFile("dist/index.html")
+	index, err := assets.ReadFile("dist/index.html")
 	if err != nil {
 		return errors.Wrap(err, `read "dist/index.html"`)
 	}

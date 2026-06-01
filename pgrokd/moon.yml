@@ -16,7 +16,7 @@ fileGroups:
     - "/go.sum"
     - "/.golangci.yml"
   assets:
-    - "/pgrokd/cli/dist/**/*"
+    - "/pgrokd/cli/internal/web/dist/**/*"
 
 tasks:
   build:

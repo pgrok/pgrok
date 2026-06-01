@@ -1,6 +1,6 @@
 //go:build !prod
 
-package main
+package web
 
 import (
 	"net/http"
@@ -11,7 +11,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-func setupWebAssets(f *flamego.Flame) error {
+func mountWebAppRoutes(f *flamego.Flame) error {
 	viteURL, err := url.Parse("http://localhost:5173")
 	if err != nil {
 		return errors.Wrap(err, "parse vite URL")

@@ -19,7 +19,7 @@ ARG BUILD_VERSION="unknown"
 
 WORKDIR /dist
 COPY . .
-COPY --from=webbuilder /build/pgrokd/cli/dist /dist/pgrokd/cli/dist
+COPY --from=webbuilder /build/pgrokd/cli/internal/web/dist /dist/pgrokd/cli/internal/web/dist
 RUN go build -v -trimpath -tags prod \
       -ldflags "-X 'main.version=${BUILD_VERSION}' -X 'main.commit=$(git rev-parse HEAD)' -X 'main.date=$(date -u '+%Y-%m-%d %I:%M:%S %Z')'" \
       -o .bin/pgrokd ./pgrokd/cli

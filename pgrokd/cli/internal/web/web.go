@@ -1,4 +1,4 @@
-package main
+package web
 
 import (
 	"context"
@@ -10,6 +10,8 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/coreos/go-oidc"
 	"github.com/flamego/flamego"
+	"github.com/flamego/session"
+	"github.com/flamego/session/postgres"
 	"github.com/pkg/errors"
 	"golang.org/x/oauth2"
 
@@ -20,14 +22,95 @@ import (
 	"github.com/pgrok/pgrok/internal/userutil"
 )
 
-// webHealthcheck reports server liveness.
-func webHealthcheck(w http.ResponseWriter) {
+// NewServer constructs the HTTP server that serves the web UI and the JSON API.
+func NewServer(config *conf.Config, db *database.DB) (*http.Server, error) {
+	f := flamego.New()
+	f.Use(flamego.Logger())
+	f.Use(flamego.Recovery())
+	f.Use(flamego.Renderer())
+
+	err := mountWebAppRoutes(f)
+	if err != nil {
+		return nil, errors.Wrap(err, "set up web assets")
+	}
+
+	f.Use(session.Sessioner(
+		session.Options{
+			Initer: postgres.Initer(),
+			Config: postgres.Config{
+				DSN:       postgresDSN(config.Database),
+				Table:     "sessions",
+				InitTable: true,
+			},
+			Cookie: session.CookieOptions{
+				Name: "pgrokd_session",
+			},
+			ErrorFunc: func(err error) {
+				log.Error("session", "error", err)
+			},
+		},
+	))
+
+	// Build the request-scoped context (loads the signed-in principal) before any
+	// route handler runs, mirroring Gogs' top-level context middleware.
+	f.Use(contexter(config, db))
+
+	// JSON API routes, kept separate from the human-facing web routes the way
+	// Gogs splits its api and web handlers.
+	f.Group("/api", func() {
+		f.Get("/user-info", requireSignIn, getUserInfo)
+		f.Get("/identity-provider", getIdentityProvider)
+	})
+
+	// Human-facing web routes, namespaced under "/-".
+	f.Group("/-", func() {
+		f.Get("/healthcheck", healthcheck)
+		f.Get("/oidc/auth", oidcAuth)
+		f.Get("/oidc/callback", oidcCallback(db))
+		f.Get("/sign-out", signOut)
+	})
+
+	address := fmt.Sprintf("0.0.0.0:%d", config.Web.Port)
+	log.Info("Web server listening on",
+		"address", address,
+		"env", flamego.Env(),
+	)
+	return &http.Server{
+		Addr:    address,
+		Handler: f,
+	}, nil
+}
+
+// postgresDSN builds the session store DSN, handling both TCP hosts and UNIX
+// domain sockets.
+func postgresDSN(config *conf.Database) string {
+	// Check if the host is a UNIX domain socket
+	if strings.HasPrefix(config.Host, "/") {
+		return fmt.Sprintf("postgres://%s:%s@localhost:%d/%s?host=%s",
+			config.User,
+			config.Password,
+			config.Port,
+			config.Database,
+			config.Host,
+		)
+	}
+	return fmt.Sprintf("postgres://%s:%s@%s:%d/%s",
+		config.User,
+		config.Password,
+		config.Host,
+		config.Port,
+		config.Database,
+	)
+}
+
+// healthcheck reports server liveness.
+func healthcheck(w http.ResponseWriter) {
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(http.StatusText(http.StatusOK)))
 }
 
-// webOIDCAuth kicks off the OIDC authorization code flow.
-func webOIDCAuth(c *Context, r flamego.Render) {
+// oidcAuth kicks off the OIDC authorization code flow.
+func oidcAuth(c *Context, r flamego.Render) {
 	if c.Config.IdentityProvider == nil {
 		r.PlainText(http.StatusBadRequest, "Sorry but ask your admin to configure an identity provider first")
 		return
@@ -54,11 +137,11 @@ func webOIDCAuth(c *Context, r flamego.Render) {
 	)
 }
 
-// webOIDCCallback completes the OIDC flow: verifies the callback, upserts the
+// oidcCallback completes the OIDC flow: verifies the callback, upserts the
 // principal, and establishes the session. The database handle is a
 // process-wide singleton, so it is closed over at registration time rather than
 // injected per request.
-func webOIDCCallback(db *database.DB) flamego.Handler {
+func oidcCallback(db *database.DB) flamego.Handler {
 	return func(c *Context, r flamego.Render) {
 		if c.Config.IdentityProvider == nil {
 			r.PlainText(http.StatusBadRequest, "Sorry but ask your admin to configure an identity provider first")
@@ -112,8 +195,8 @@ func webOIDCCallback(db *database.DB) flamego.Handler {
 	}
 }
 
-// webSignOut clears the session and returns to the home page.
-func webSignOut(c *Context) {
+// signOut clears the session and returns to the home page.
+func signOut(c *Context) {
 	c.Session.Delete("userID")
 	c.Redirect("/")
 }

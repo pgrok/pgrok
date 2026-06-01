@@ -4,7 +4,7 @@
   "packageManager": "pnpm@11.4.0",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build --outDir=../cli/dist --emptyOutDir",
+    "build": "tsc && vite build --outDir=../cli/internal/web/dist --emptyOutDir",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
   },
   "dependencies": {

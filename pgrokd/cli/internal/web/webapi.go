@@ -1,4 +1,4 @@
-package main
+package web
 
 import (
 	"net/http"
@@ -6,8 +6,7 @@ import (
 	"github.com/flamego/flamego"
 )
 
-// apiUserInfo returns the authenticated principal's profile and public URL.
-func apiUserInfo(c *Context, r flamego.Render) {
+func getUserInfo(c *Context, r flamego.Render) {
 	r.JSON(http.StatusOK, map[string]string{
 		"displayName": c.Principal.DisplayName,
 		"token":       c.Principal.Token,
@@ -15,9 +14,9 @@ func apiUserInfo(c *Context, r flamego.Render) {
 	})
 }
 
-// apiIdentityProvider reports the configured identity provider so the sign-in
+// getIdentityProvider reports the configured identity provider so the sign-in
 // page can render the correct "Continue with ..." action.
-func apiIdentityProvider(c *Context, r flamego.Render) {
+func getIdentityProvider(c *Context, r flamego.Render) {
 	if c.Config.IdentityProvider == nil {
 		r.JSON(http.StatusInternalServerError, map[string]string{
 			"error": "No identity provider is configured, please ask your admin to configure an identity provider.",
