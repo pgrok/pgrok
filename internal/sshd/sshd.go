@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"syscall"
 
-	"github.com/charmbracelet/log"
+	"charm.land/log/v2"
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/ssh"
 

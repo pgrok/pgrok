@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 
-	"github.com/charmbracelet/log"
+	"charm.land/log/v2"
 
 	"github.com/pgrok/pgrok/internal/conf"
 	"github.com/pgrok/pgrok/internal/database"

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/charmbracelet/log"
+	"charm.land/log/v2"
 	"github.com/flamego/flamego"
 
 	"github.com/pgrok/pgrok/internal/reverseproxy"

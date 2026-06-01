@@ -7,7 +7,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/charmbracelet/log"
+	"charm.land/log/v2"
 	"github.com/coreos/go-oidc"
 	"github.com/flamego/flamego"
 	"github.com/flamego/session"
