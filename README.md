@@ -131,6 +131,23 @@ dynamic_forwards: |
 
 Then all requests prefixed with the path `/api` and `/hook` will be forwarded to `http://localhost:8080` and all the rest are forwarded to the `forward_addr` (`http://localhost:3000`).
 
+#### Custom subdomain prefix
+
+By default, each user gets a single stable subdomain (e.g. `unknwon.example.com`). Use the `--uuid, -u` flag of the `http` subcommand to prepend a custom prefix to your subdomain, so you can run multiple tunnels under predictable URLs:
+
+```
+pgrok http --uuid staging 3000
+```
+
+This goes live at `http://staging-unknwon.example.com`, forwarding to `http://localhost:3000`.
+
+- The prefix must be a valid DNS label: lowercase letters, digits, and hyphens, 1-63 characters, and no leading or trailing hyphen. Invalid values are rejected by the server.
+- The resulting URL is deterministic: if the prefixed subdomain is already in use, the client fails with an error instead of falling back to a randomized one.
+- This flag only applies to HTTP tunnels; it has no effect on `pgrok tcp`.
+
+> [!NOTE]
+> The prefix becomes part of the same subdomain label (it is joined with a hyphen, not a dot), so it is still covered by the `*.example.com` wildcard DNS record and TLS certificate set up for the server.
+
 ### Vanilla SSH
 
 Because the standard SSH protocol is used for tunneling, you may well just use the vanilla SSH client.

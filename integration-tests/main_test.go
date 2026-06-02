@@ -404,8 +404,7 @@ func TestCustomUuid(t *testing.T) {
 
 	// A request routed via the custom-prefixed host should be forwarded.
 	body, err := run.Cmd(ctx,
-		"curl", "--silent", "--header", "Host: "+endpoint1,
-		"http://localhost:3000/echo?q=chickendinner",
+		"curl", "--silent", fmt.Sprintf("http://%s/echo?q=chickendinner", endpoint1),
 	).Run().String()
 	require.NoError(t, err)
 	require.Contains(t, body, "chickendinner")
