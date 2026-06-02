@@ -90,6 +90,7 @@ func actionTCP(ctx context.Context, cmd *cli.Command, logger *logx.Logger) error
 			anyx.Coalesce(cmd.String("remote-addr"), config.RemoteAddr),
 			forwardAddr,
 			anyx.Coalesce(cmd.String("token"), config.Token),
+			"", // No subdomain as TCP doesn't use it
 		)
 		if err != nil {
 			if time.Now().After(cooldownAfter) {

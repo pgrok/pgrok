@@ -241,6 +241,10 @@ func kill(pid int) error {
 }
 
 func setupPgrok(ctx context.Context, protocol string, port int) (endpoint string, shutdown func() error, _ error) {
+	return setupPgrokWithSubdomain(ctx, protocol, port, "")
+}
+
+func setupPgrokWithSubdomain(ctx context.Context, protocol string, port int, subdomain string) (endpoint string, shutdown func() error, _ error) {
 	err := run.Cmd(ctx, "go", "build", "-o", "../.bin/pgrok", "../pgrok/cli").Run().Wait()
 	if err != nil {
 		return "", nil, errors.Wrap(err, "go build")
@@ -253,6 +257,9 @@ func setupPgrok(ctx context.Context, protocol string, port int) (endpoint string
 	}
 	if protocol == "tcp" {
 		args = append(args, "--forward-addr", "localhost:9833")
+	}
+	if subdomain != "" {
+		args = append(args, "--subdomain", subdomain)
 	}
 	if port > 0 {
 		args = append(args, strconv.Itoa(port))
@@ -381,6 +388,26 @@ func TestMultipleHTTP(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, shutdownPgrok3()) })
 	require.Equal(t, "unknwon.localhost:3000", endpoint3)
+}
+
+func TestCustomSubdomain(t *testing.T) {
+	ctx := context.Background()
+
+	shutdownEchoServer, err := setupEchoServer(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, shutdownEchoServer()) })
+
+	endpoint1, shutdownPgrok1, err := setupPgrokWithSubdomain(ctx, "http", 8001, "test")
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, shutdownPgrok1()) })
+	require.Equal(t, "test-unknwon.localhost:3000", endpoint1)
+
+	// A request routed via the custom-prefixed host should be forwarded.
+	body, err := run.Cmd(ctx,
+		"curl", "--silent", fmt.Sprintf("http://%s/echo?q=chickendinner", endpoint1),
+	).Run().String()
+	require.NoError(t, err)
+	require.Contains(t, body, "chickendinner")
 }
 
 func TestTCP(t *testing.T) {

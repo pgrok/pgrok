@@ -8,6 +8,7 @@ import (
 	"io"
 	mathrand "math/rand"
 	"net"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -31,13 +32,24 @@ type Client struct {
 	principal   *database.Principal
 	protocol    string
 	host        string
+	customHost  bool // whether host carries a client-requested subdomain prefix
 	ready       context.Context
 	signalReady context.CancelCauseFunc
 }
 
+// subdomainPrefixCharsRe matches the allowed characters for a custom subdomain
+// prefix: lowercase letters, digits, and hyphens, not starting or ending with a
+// hyphen. The overall length is bounded separately because the prefix shares the
+// leftmost DNS label with the principal's existing subdomain.
+var subdomainPrefixCharsRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
+
+// dnsLabelMaxLen is the maximum length of a single DNS label (RFC 1035).
+const dnsLabelMaxLen = 63
+
 func (c *Client) handleHint(req *ssh.Request) {
 	var payload struct {
-		Protocol string `json:"protocol"`
+		Protocol  string `json:"protocol"`
+		Subdomain string `json:"subdomain,omitempty"`
 	}
 	err := json.Unmarshal(req.Payload, &payload)
 	if err != nil {
@@ -47,6 +59,30 @@ func (c *Client) handleHint(req *ssh.Request) {
 	if payload.Protocol != "tcp" && payload.Protocol != "http" {
 		_ = req.Reply(false, []byte("unsupported protocol: "+payload.Protocol))
 		return
+	}
+	// The client may request a custom subdomain prefix to get a deterministic
+	// host. It is only meaningful for HTTP tunnels, and it is prepended to the
+	// principal's subdomain within the same leftmost DNS label, so the combined
+	// label must be a valid DNS label to avoid producing malformed hostnames.
+	if payload.Subdomain != "" {
+		if payload.Protocol != "http" {
+			_ = req.Reply(false, []byte("custom subdomain is only supported for http"))
+			return
+		}
+		if !subdomainPrefixCharsRe.MatchString(payload.Subdomain) {
+			_ = req.Reply(false, []byte("invalid subdomain: must contain only lowercase letters, digits, and hyphens, with no leading or trailing hyphen"))
+			return
+		}
+		// The prefix and the existing subdomain together form the leftmost label
+		// (e.g., "staging-unknwon" in "staging-unknwon.example.com"), which must
+		// not exceed the DNS label length limit.
+		existingLabel, _, _ := strings.Cut(c.host, ".")
+		if len(payload.Subdomain)+1+len(existingLabel) > dnsLabelMaxLen {
+			_ = req.Reply(false, []byte(fmt.Sprintf("subdomain prefix is too long: at most %d characters allowed for this account", dnsLabelMaxLen-1-len(existingLabel))))
+			return
+		}
+		c.host = payload.Subdomain + "-" + c.host
+		c.customHost = true
 	}
 	c.protocol = payload.Protocol
 	_ = req.Reply(true, nil)
@@ -208,10 +244,19 @@ func (c *Client) handleTCPIPForward(
 	}
 
 	if c.protocol == "http" {
-		id := uuid.New()
-		alternative := hex.EncodeToString(id[:]) + "-" + c.host
+		// For a client-requested subdomain prefix the URL must be deterministic,
+		// so a collision is a hard error instead of silently falling back to a
+		// random alternative host.
+		alternative := c.host
+		if !c.customHost {
+			id := uuid.New()
+			alternative = hex.EncodeToString(id[:]) + "-" + c.host
+		}
 		host, err := proxies.Set(c.host, alternative, listener.Addr().String())
 		if err != nil {
+			if c.customHost {
+				err = errors.Errorf("requested subdomain %q is already in use", c.host)
+			}
 			_ = req.Reply(false, []byte(err.Error()))
 			c.logger.Error("Failed to acquire available host",
 				"remote", c.serverConn.RemoteAddr(),
