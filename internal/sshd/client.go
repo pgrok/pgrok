@@ -74,7 +74,7 @@ func (c *Client) handleHint(req *ssh.Request) {
 			return
 		}
 		// The prefix and the existing subdomain together form the leftmost label
-		// (e.g. "staging-unknwon" in "staging-unknwon.example.com"), which must
+		// (e.g., "staging-unknwon" in "staging-unknwon.example.com"), which must
 		// not exceed the DNS label length limit.
 		existingLabel, _, _ := strings.Cut(c.host, ".")
 		if len(payload.Subdomain)+1+len(existingLabel) > dnsLabelMaxLen {
