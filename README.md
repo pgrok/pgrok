@@ -143,7 +143,7 @@ This goes live at `http://staging-unknwon.example.com`, forwarding to `http://lo
 
 - The value may contain lowercase letters, digits, and hyphens, with no leading or trailing hyphen. It shares the leftmost DNS label with your subdomain (`<prefix>-<subdomain>`), so the combined length must stay within 63 characters. Invalid values are rejected by the server.
 - The resulting URL is deterministic: if the prefixed host is already in use, the client fails with an error instead of falling back to a randomized one.
-- This flag only applies to HTTP tunnels; it has no effect on `pgrok tcp`.
+- This flag only applies to HTTP tunnels. It has no effect on `pgrok tcp`.
 
 > [!NOTE]
 > The prefix becomes part of the same subdomain label (it is joined with a hyphen, not a dot), so it is still covered by the `*.example.com` wildcard DNS record and TLS certificate set up for the server.
