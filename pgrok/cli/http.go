@@ -181,9 +181,12 @@ func tryConnect(logger *logx.Logger, protocol, remoteAddr, forwardAddr, token, u
 	if err != nil {
 		return errors.Wrap(err, "marshal payload")
 	}
-	_, _, err = client.SendRequest("hint", true, payload)
+	ok, reply, err := client.SendRequest("hint", true, payload)
 	if err != nil {
 		return errors.Wrap(err, "hint server")
+	}
+	if !ok {
+		return errors.Errorf("server rejected hint: %s", reply)
 	}
 
 	remoteListener, err := client.Listen("tcp", "127.0.0.1:0")
@@ -196,7 +199,7 @@ func tryConnect(logger *logx.Logger, protocol, remoteAddr, forwardAddr, token, u
 	var serverInfo struct {
 		HostURL string `json:"host_url"`
 	}
-	ok, reply, err := client.SendRequest("server-info", true, payload)
+	ok, reply, err = client.SendRequest("server-info", true, payload)
 	if err != nil {
 		return errors.Wrap(err, "query server info")
 	} else if !ok {
