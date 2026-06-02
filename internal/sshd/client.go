@@ -43,7 +43,7 @@ type Client struct {
 // leftmost DNS label with the principal's existing subdomain.
 var subdomainPrefixCharsRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
 
-// dnsLabelMaxLen is the maximum length of a single DNS label (RFC 1123).
+// dnsLabelMaxLen is the maximum length of a single DNS label (RFC 1035).
 const dnsLabelMaxLen = 63
 
 func (c *Client) handleHint(req *ssh.Request) {
