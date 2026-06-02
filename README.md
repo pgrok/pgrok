@@ -133,7 +133,7 @@ Then all requests prefixed with the path `/api` and `/hook` will be forwarded to
 
 #### Custom subdomain prefix
 
-By default, each user gets a single stable subdomain (e.g. `unknwon.example.com`), and when it is already taken `pgrok` falls back to a host prefixed with a server-generated UUID (e.g. `7fa4f0d0...-unknwon.example.com`). Use the `--subdomain, -s` flag of the `http` subcommand to choose that prefix yourself, so you get a deterministic URL and can run multiple tunnels under predictable hosts:
+By default, each user gets a single stable subdomain (e.g., `unknwon.example.com`), and when it is already taken `pgrok` falls back to a host prefixed with a server-generated UUID (e.g., `7fa4f0d0...-unknwon.example.com`). Use the `--subdomain, -s` flag of the `http` subcommand to choose that prefix yourself, so you get a deterministic URL and can run multiple tunnels under predictable hosts:
 
 ```
 pgrok http --subdomain staging 3000
@@ -144,9 +144,6 @@ This goes live at `http://staging-unknwon.example.com`, forwarding to `http://lo
 - The value may contain lowercase letters, digits, and hyphens, with no leading or trailing hyphen. It shares the leftmost DNS label with your subdomain (`<prefix>-<subdomain>`), so the combined length must stay within 63 characters. Invalid values are rejected by the server.
 - The resulting URL is deterministic: if the prefixed host is already in use, the client fails with an error instead of falling back to a randomized one.
 - This flag only applies to HTTP tunnels. It has no effect on `pgrok tcp`.
-
-> [!NOTE]
-> The prefix becomes part of the same subdomain label (it is joined with a hyphen, not a dot), so it is still covered by the `*.example.com` wildcard DNS record and TLS certificate set up for the server.
 
 ### Vanilla SSH
 
