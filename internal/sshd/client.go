@@ -8,6 +8,7 @@ import (
 	"io"
 	mathrand "math/rand"
 	"net"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -36,10 +37,15 @@ type Client struct {
 	signalReady context.CancelCauseFunc
 }
 
+// subdomainLabelRe matches a single valid DNS label as defined by RFC 1123:
+// 1 to 63 characters of lowercase letters, digits, or hyphens, not starting or
+// ending with a hyphen.
+var subdomainLabelRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
+
 func (c *Client) handleHint(req *ssh.Request) {
 	var payload struct {
-		Protocol string `json:"protocol"`
-		UUID     string `json:"uuid,omitempty"`
+		Protocol  string `json:"protocol"`
+		Subdomain string `json:"subdomain,omitempty"`
 	}
 	err := json.Unmarshal(req.Payload, &payload)
 	if err != nil {
@@ -50,21 +56,20 @@ func (c *Client) handleHint(req *ssh.Request) {
 		_ = req.Reply(false, []byte("unsupported protocol: "+payload.Protocol))
 		return
 	}
-	// The client may request a specific UUID prefix to get a deterministic host.
-	// It is only meaningful for HTTP tunnels, and it must be a valid UUID so the
-	// prefix matches the format of the server-generated one (hex-encoded, no
-	// hyphens) and cannot collide with another principal's subdomain.
-	if payload.UUID != "" {
+	// The client may request a custom subdomain prefix to get a deterministic
+	// host. It is only meaningful for HTTP tunnels, and it is prepended directly
+	// to the routing host, so it must be a valid DNS label to avoid producing
+	// malformed hostnames.
+	if payload.Subdomain != "" {
 		if payload.Protocol != "http" {
-			_ = req.Reply(false, []byte("custom UUID is only supported for http"))
+			_ = req.Reply(false, []byte("custom subdomain is only supported for http"))
 			return
 		}
-		id, err := uuid.Parse(payload.UUID)
-		if err != nil {
-			_ = req.Reply(false, []byte("invalid UUID: "+err.Error()))
+		if !subdomainLabelRe.MatchString(payload.Subdomain) {
+			_ = req.Reply(false, []byte("invalid subdomain: must be a valid DNS label (lowercase letters, digits, and hyphens; 1-63 chars; no leading or trailing hyphen)"))
 			return
 		}
-		c.host = hex.EncodeToString(id[:]) + "-" + c.host
+		c.host = payload.Subdomain + "-" + c.host
 		c.customHost = true
 	}
 	c.protocol = payload.Protocol

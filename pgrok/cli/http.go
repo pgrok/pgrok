@@ -50,9 +50,9 @@ func commandHTTP(homeDir string, logger *logx.Logger) *cli.Command {
 				Aliases: []string{"t"},
 			},
 			&cli.StringFlag{
-				Name:    "uuid",
-				Usage:   "specify a UUID to use as the subdomain prefix for a deterministic tunnel URL",
-				Aliases: []string{"u"},
+				Name:    "subdomain",
+				Usage:   "specify a custom subdomain prefix for a deterministic tunnel URL",
+				Aliases: []string{"s"},
 			},
 		),
 	}
@@ -114,7 +114,7 @@ func actionHTTP(ctx context.Context, cmd *cli.Command, logger *logx.Logger) erro
 			anyx.Coalesce(cmd.String("remote-addr"), config.RemoteAddr),
 			surl.Host,
 			anyx.Coalesce(cmd.String("token"), config.Token),
-			cmd.String("uuid"),
+			cmd.String("subdomain"),
 		)
 		if err != nil {
 			if time.Now().After(cooldownAfter) {
@@ -160,7 +160,7 @@ const (
 	protocolTCP  string = "tcp"
 )
 
-func tryConnect(logger *logx.Logger, protocol, remoteAddr, forwardAddr, token, uuid string) error {
+func tryConnect(logger *logx.Logger, protocol, remoteAddr, forwardAddr, token, subdomain string) error {
 	client, err := ssh.Dial(
 		"tcp",
 		remoteAddr,
@@ -177,7 +177,7 @@ func tryConnect(logger *logx.Logger, protocol, remoteAddr, forwardAddr, token, u
 	}
 
 	// Hint the server before establishing the reverse tunnel
-	payload, err := json.Marshal(map[string]string{"protocol": protocol, "uuid": uuid})
+	payload, err := json.Marshal(map[string]string{"protocol": protocol, "subdomain": subdomain})
 	if err != nil {
 		return errors.Wrap(err, "marshal payload")
 	}
