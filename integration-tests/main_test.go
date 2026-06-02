@@ -399,8 +399,16 @@ func TestCustomUuid(t *testing.T) {
 
 	endpoint1, shutdownPgrok1, err := setupPgrokWithSubdomain(ctx, "http", 8001, "test")
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, shutdownPgrok1()) })
 	require.Equal(t, "test-unknwon.localhost:3000", endpoint1)
-	require.NoError(t, shutdownPgrok1())
+
+	// A request routed via the custom-prefixed host should be forwarded.
+	body, err := run.Cmd(ctx,
+		"curl", "--silent", "--header", "Host: "+endpoint1,
+		"http://localhost:3000/echo?q=chickendinner",
+	).Run().String()
+	require.NoError(t, err)
+	require.Contains(t, body, "chickendinner")
 }
 
 func TestTCP(t *testing.T) {

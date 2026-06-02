@@ -8,6 +8,7 @@ import (
 	"io"
 	mathrand "math/rand"
 	"net"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -31,14 +32,20 @@ type Client struct {
 	principal   *database.Principal
 	protocol    string
 	host        string
+	customHost  bool // whether host carries a client-requested subdomain prefix
 	ready       context.Context
 	signalReady context.CancelCauseFunc
 }
 
+// subdomainLabelRe matches a single valid DNS label as defined by RFC 1123:
+// 1 to 63 characters of lowercase letters, digits, or hyphens, not starting or
+// ending with a hyphen.
+var subdomainLabelRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
+
 func (c *Client) handleHint(req *ssh.Request) {
 	var payload struct {
 		Protocol string `json:"protocol"`
-		Uuid     string `json:"uuid,omitempty"`
+		UUID     string `json:"uuid,omitempty"`
 	}
 	err := json.Unmarshal(req.Payload, &payload)
 	if err != nil {
@@ -49,8 +56,20 @@ func (c *Client) handleHint(req *ssh.Request) {
 		_ = req.Reply(false, []byte("unsupported protocol: "+payload.Protocol))
 		return
 	}
-	if payload.Uuid != "" {
-		c.host = payload.Uuid + "-" + c.host
+	// The custom subdomain prefix is only meaningful for HTTP tunnels, and it is
+	// prepended directly to the routing host, so it must be a valid DNS label to
+	// avoid producing malformed or unsafe hostnames.
+	if payload.UUID != "" {
+		if payload.Protocol != "http" {
+			_ = req.Reply(false, []byte("custom subdomain prefix is only supported for http"))
+			return
+		}
+		if !subdomainLabelRe.MatchString(payload.UUID) {
+			_ = req.Reply(false, []byte("invalid subdomain prefix: must be a valid DNS label (lowercase letters, digits, and hyphens; 1-63 chars; no leading or trailing hyphen)"))
+			return
+		}
+		c.host = payload.UUID + "-" + c.host
+		c.customHost = true
 	}
 	c.protocol = payload.Protocol
 	_ = req.Reply(true, nil)
@@ -212,10 +231,19 @@ func (c *Client) handleTCPIPForward(
 	}
 
 	if c.protocol == "http" {
-		id := uuid.New()
-		alternative := hex.EncodeToString(id[:]) + "-" + c.host
+		// For a client-requested subdomain prefix the URL must be deterministic,
+		// so a collision is a hard error instead of silently falling back to a
+		// random alternative host.
+		alternative := c.host
+		if !c.customHost {
+			id := uuid.New()
+			alternative = hex.EncodeToString(id[:]) + "-" + c.host
+		}
 		host, err := proxies.Set(c.host, alternative, listener.Addr().String())
 		if err != nil {
+			if c.customHost {
+				err = errors.Errorf("requested subdomain %q is already in use", c.host)
+			}
 			_ = req.Reply(false, []byte(err.Error()))
 			c.logger.Error("Failed to acquire available host",
 				"remote", c.serverConn.RemoteAddr(),
