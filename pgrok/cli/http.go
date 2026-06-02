@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	charmlog "charm.land/log/v2"
 	"github.com/pkg/errors"
 	"github.com/urfave/cli/v3"
 	"golang.org/x/crypto/ssh"
@@ -23,7 +22,7 @@ import (
 	"github.com/pgrok/pgrok/internal/dynamicforward"
 )
 
-func commandHTTP(homeDir string, handler *charmlog.Logger, logger *logx.Logger) *cli.Command {
+func commandHTTP(homeDir string, logger *logx.Logger) *cli.Command {
 	return &cli.Command{
 		Name:  "http",
 		Usage: "Start a HTTP proxy to local endpoints",
@@ -31,7 +30,7 @@ func commandHTTP(homeDir string, handler *charmlog.Logger, logger *logx.Logger) 
 			return actionHTTP(ctx, cmd, logger)
 		},
 		Flags: append(
-			commonFlags(homeDir, handler),
+			commonFlags(homeDir, logger),
 			&cli.StringFlag{
 				Name:    "remote-addr",
 				Usage:   "The address of the remote SSH server",

@@ -7,13 +7,12 @@ import (
 	"strings"
 	"time"
 
-	charmlog "charm.land/log/v2"
 	"github.com/urfave/cli/v3"
 	"unknwon.dev/x/anyx"
 	"unknwon.dev/x/logx"
 )
 
-func commandTCP(homeDir string, handler *charmlog.Logger, logger *logx.Logger) *cli.Command {
+func commandTCP(homeDir string, logger *logx.Logger) *cli.Command {
 	return &cli.Command{
 		Name:  "tcp",
 		Usage: "Start a TCP proxy to a local address",
@@ -21,7 +20,7 @@ func commandTCP(homeDir string, handler *charmlog.Logger, logger *logx.Logger) *
 			return actionTCP(ctx, cmd, logger)
 		},
 		Flags: append(
-			commonFlags(homeDir, handler),
+			commonFlags(homeDir, logger),
 			&cli.StringFlag{
 				Name:    "remote-addr",
 				Usage:   "The address of the remote SSH server",

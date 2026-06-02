@@ -281,7 +281,7 @@ func setupPgrok(ctx context.Context, protocol string, port int) (endpoint string
 			logger.Error("Failed to stream pgrok output", "error", err)
 			return
 		}
-		logger.Info(fmt.Sprintf("pgrok %s exited", protocol))
+		logger.Info("pgrok exited", "protocol", protocol)
 	}()
 
 	// Make sure the pgrok is ready

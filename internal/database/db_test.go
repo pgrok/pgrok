@@ -6,7 +6,6 @@ import (
 
 	charmlog "charm.land/log/v2"
 	"github.com/stretchr/testify/assert"
-
 	"unknwon.dev/x/logx"
 )
 

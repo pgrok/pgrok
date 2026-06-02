@@ -8,12 +8,11 @@ import (
 	"strconv"
 	"strings"
 
-	charmlog "charm.land/log/v2"
 	"github.com/urfave/cli/v3"
 	"unknwon.dev/x/logx"
 )
 
-func commandInit(homeDir string, handler *charmlog.Logger, logger *logx.Logger) *cli.Command {
+func commandInit(homeDir string, logger *logx.Logger) *cli.Command {
 	return &cli.Command{
 		Name:  "init",
 		Usage: "Initialize a config file",
@@ -21,7 +20,7 @@ func commandInit(homeDir string, handler *charmlog.Logger, logger *logx.Logger) 
 			return actionInit(ctx, cmd, logger)
 		},
 		Flags: append(
-			commonFlags(homeDir, handler),
+			commonFlags(homeDir, logger),
 			&cli.StringFlag{
 				Name:     "remote-addr",
 				Usage:    "The address of the remote SSH server",

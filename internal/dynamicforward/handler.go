@@ -9,7 +9,6 @@ import (
 
 	"github.com/flamego/flamego"
 	"github.com/pkg/errors"
-
 	"unknwon.dev/x/logx"
 )
 

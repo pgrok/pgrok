@@ -16,7 +16,7 @@ import (
 
 var version = "0.0.0+dev"
 
-func commonFlags(homeDir string, handler *charmlog.Logger) []cli.Flag {
+func commonFlags(homeDir string, logger *logx.Logger) []cli.Flag {
 	configPath := filepath.Join(homeDir, ".pgrok", "pgrok.yml")
 	if !osutil.IsExist(configPath) {
 		xdgConfigPath, err := xdg.ConfigFile(filepath.Join("pgrok", "pgrok.yml"))
@@ -38,7 +38,9 @@ func commonFlags(homeDir string, handler *charmlog.Logger) []cli.Flag {
 			Aliases: []string{"d"},
 			Action: func(_ context.Context, _ *cli.Command, b bool) error {
 				if b {
-					handler.SetLevel(charmlog.DebugLevel)
+					if h, ok := logger.Handler().(*charmlog.Logger); ok {
+						h.SetLevel(charmlog.DebugLevel)
+					}
 				}
 				return nil
 			},
@@ -47,14 +49,15 @@ func commonFlags(homeDir string, handler *charmlog.Logger) []cli.Flag {
 }
 
 func main() {
-	handler := charmlog.NewWithOptions(
-		os.Stderr,
-		charmlog.Options{
-			TimeFormat:      time.DateTime,
-			ReportTimestamp: true,
-		},
+	logger := logx.New(
+		charmlog.NewWithOptions(
+			os.Stderr,
+			charmlog.Options{
+				TimeFormat:      time.DateTime,
+				ReportTimestamp: true,
+			},
+		),
 	)
-	logger := logx.New(handler)
 
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -67,11 +70,11 @@ func main() {
 		Version:        version,
 		DefaultCommand: "http",
 		Commands: []*cli.Command{
-			commandInit(homeDir, handler, logger),
-			commandHTTP(homeDir, handler, logger),
-			commandTCP(homeDir, handler, logger),
+			commandInit(homeDir, logger),
+			commandHTTP(homeDir, logger),
+			commandTCP(homeDir, logger),
 		},
-		Flags: commonFlags(homeDir, handler),
+		Flags: commonFlags(homeDir, logger),
 	}
 	if err := app.Run(context.Background(), os.Args); err != nil {
 		logger.FatalContext(context.Background(), err.Error())
