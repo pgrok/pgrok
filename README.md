@@ -29,9 +29,9 @@ Copy, paste, and run is the best UX for everyone.
 
 Before you get started, make sure you have the following:
 
-1. A domain name (e.g. `example.com`, this will be used as the example throughout this section).
-1. A server (dedicated server, VPS) with a public IP address (e.g. `111.33.5.14`).
-1. An SSO provider (e.g. Google, JumpCloud, Okta, GitLab, Keycloak) that allows you to create OIDC clients.
+1. A domain name (e.g., `example.com`, this will be used as the example throughout this section).
+1. A server (dedicated server, VPS) with a public IP address (e.g., `111.33.5.14`).
+1. An SSO provider (e.g., Google, JumpCloud, Okta, GitLab, Keycloak) that allows you to create OIDC clients.
 1. A PostgreSQL server (Render, Vercel, Cloud SQL, self-host).
 
 > [!NOTE]
@@ -59,7 +59,7 @@ Before you get started, make sure you have the following:
 
 ### Set up the client (`pgrok`)
 
-1. Go to http://example.com, authenticate with your SSO to obtain the token and URL (e.g. `http://unknwon.example.com`).
+1. Go to http://example.com, authenticate with your SSO to obtain the token and URL (e.g., `http://unknwon.example.com`).
 1. Download the latest version of the `pgrok`:
     - For Homebrew:
         ```sh
@@ -84,7 +84,7 @@ Before you get started, make sure you have the following:
         ```
 1. Now visit the URL.
 
-As a special case, the first argument of the `pgrok http` can be used to specify forward address, e.g.
+As a special case, the first argument of the `pgrok http` can be used to specify forward address, e.g.,
 
 ```
 pgrok http 8080
@@ -149,7 +149,7 @@ This goes live at `http://staging-unknwon.example.com`, forwarding to `http://lo
 
 Because the standard SSH protocol is used for tunneling, you may well just use the vanilla SSH client.
 
-1. Go to http://example.com, authenticate with your SSO to obtain the token and URL (e.g. `http://unknwon.example.com`).
+1. Go to http://example.com, authenticate with your SSO to obtain the token and URL (e.g., `http://unknwon.example.com`).
 1. Launch the client by executing the `ssh -N -R 0::3000 example.com -p 2222` command:
     1. Enter the token as your password.
     1. Use the `-v` flag to turn on debug logging.
