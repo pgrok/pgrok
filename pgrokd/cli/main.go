@@ -28,14 +28,12 @@ func main() {
 	defer stop()
 
 	level := slog.LevelInfo
-	prod := true
 	if strings.Contains(version, "+dev") {
 		level = slog.LevelDebug
-		prod = false
 	} else {
 		flamego.SetEnv(flamego.EnvTypeProd)
 	}
-	logger := setupLogging(level, prod)
+	logger := setupLogging(level)
 
 	configPath := flag.String("config", "pgrokd.yml", "the path to the config file")
 	flag.Parse()

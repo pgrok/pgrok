@@ -61,7 +61,7 @@ func main() {
 
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		logger.FatalContext(context.Background(), "Failed to home directory", "error", err)
+		logger.FatalContext(context.Background(), "Failed to get home directory", "error", err)
 	}
 
 	app := &cli.Command{

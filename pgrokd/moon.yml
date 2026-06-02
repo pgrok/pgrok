@@ -60,6 +60,8 @@ tasks:
   server:
     command: ".bin/pgrokd"
     preset: "server"
+    env:
+      TTY_FORCE: "1"
 
   oidc-server:
     command: "go run ./integration-tests/oidc-server"

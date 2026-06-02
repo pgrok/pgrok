@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/flamego/flamego"
-
 	"unknwon.dev/x/logx"
 
 	"github.com/pgrok/pgrok/internal/reverseproxy"
