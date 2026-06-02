@@ -18,9 +18,9 @@ import (
 	"unknwon.dev/x/logx"
 )
 
-var logger = logx.New(charmlog.NewWithOptions(os.Stderr, charmlog.Options{ReportTimestamp: true}))
-
 func main() {
+	logger := logx.New(charmlog.NewWithOptions(os.Stderr, charmlog.Options{ReportTimestamp: true}))
+
 	externalURL := flag.String("external-url", "http://localhost:9833", "The external URL of the server")
 	port := flag.Int("port", 9833, "The port to listen on")
 	flag.Parse()

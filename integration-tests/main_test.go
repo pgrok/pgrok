@@ -42,7 +42,7 @@ func TestMain(m *testing.M) {
 	flag.Parse()
 
 	if !*long {
-		logger.Info("Skipping integration tests since -long is not specified.")
+		logger.Warn("Skipping integration tests since -long is not specified.")
 		return
 	}
 
@@ -58,32 +58,32 @@ func TestMain(m *testing.M) {
 	shutdownOIDCServer, err := setupOIDCServer(ctx)
 	if err != nil {
 		code = 1
-		logger.Info("Failed to setup OIDC server", "error", err)
+		logger.Error("Failed to setup OIDC server", "error", err)
 		return
 	}
 	defer func() {
 		err = shutdownOIDCServer()
 		if err != nil {
-			logger.Info("Failed to shutdown OIDC server", "error", err)
+			logger.Error("Failed to shutdown OIDC server", "error", err)
 		}
 	}()
 	shutdownPgrokd, err := setupPgrokd(ctx)
 	if err != nil {
 		code = 1
-		logger.Info("Failed to setup pgrokd", "error", err)
+		logger.Error("Failed to setup pgrokd", "error", err)
 		return
 	}
 	defer func() {
 		err = shutdownPgrokd()
 		if err != nil {
-			logger.Info("Failed to shutdown pgrokd", "error", err)
+			logger.Error("Failed to shutdown pgrokd", "error", err)
 		}
 	}()
 
 	token, url, err = authenticateUser()
 	if err != nil {
 		code = 1
-		logger.Info("Failed to authenticate user", "error", err)
+		logger.Error("Failed to authenticate user", "error", err)
 		return
 	}
 	logger.Info("Authenticated user", "token", token, "url", url)
@@ -103,14 +103,14 @@ func setupOIDCServer(ctx context.Context) (shutdown func() error, _ error) {
 	go func() {
 		stream, err := streamexec.Start(cmd)
 		if err != nil {
-			logger.Info("Failed to start OIDC server", "error", err)
+			logger.Error("Failed to start OIDC server", "error", err)
 			return
 		}
 		err = stream.Stream(func(line string) {
 			fmt.Println("[oidc-server]", line)
 		})
 		if err != nil && !strings.Contains(err.Error(), "signal: killed") {
-			logger.Info("Failed to stream OIDC server output", "error", err)
+			logger.Error("Failed to stream OIDC server output", "error", err)
 			return
 		}
 		logger.Info("OIDC server exited")
@@ -146,14 +146,14 @@ func setupPgrokd(ctx context.Context) (shutdown func() error, _ error) {
 	go func() {
 		stream, err := streamexec.Start(cmd)
 		if err != nil {
-			logger.Info("Failed to start pgrokd", "error", err)
+			logger.Error("Failed to start pgrokd", "error", err)
 			return
 		}
 		err = stream.Stream(func(line string) {
 			fmt.Println("[pgrokd]", line)
 		})
 		if err != nil && !strings.Contains(err.Error(), "signal: killed") {
-			logger.Info("Failed to stream pgrokd output", "error", err)
+			logger.Error("Failed to stream pgrokd output", "error", err)
 			return
 		}
 		logger.Info("pgrokd exited")
@@ -266,7 +266,7 @@ func setupPgrok(ctx context.Context, protocol string, port int) (endpoint string
 	go func() {
 		stream, err := streamexec.Start(cmd)
 		if err != nil {
-			logger.Info("Failed to start pgrok", "error", err)
+			logger.Error("Failed to start pgrok", "error", err)
 			return
 		}
 		err = stream.Stream(func(line string) {
@@ -278,7 +278,7 @@ func setupPgrok(ctx context.Context, protocol string, port int) (endpoint string
 			}
 		})
 		if err != nil && !strings.Contains(err.Error(), "signal: killed") {
-			logger.Info("Failed to stream pgrok output", "error", err)
+			logger.Error("Failed to stream pgrok output", "error", err)
 			return
 		}
 		logger.Info(fmt.Sprintf("pgrok %s exited", protocol))
@@ -307,14 +307,14 @@ func setupEchoServer(ctx context.Context) (shutdown func() error, _ error) {
 	go func() {
 		stream, err := streamexec.Start(cmd)
 		if err != nil {
-			logger.Info("Failed to start echo server", "error", err)
+			logger.Error("Failed to start echo server", "error", err)
 			return
 		}
 		err = stream.Stream(func(line string) {
 			fmt.Println("[echo-server]", line)
 		})
 		if err != nil && !strings.Contains(err.Error(), "signal: killed") {
-			logger.Info("Failed to stream echo server output", "error", err)
+			logger.Error("Failed to stream echo server output", "error", err)
 			return
 		}
 		logger.Info("echo server exited")
