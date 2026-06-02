@@ -37,10 +37,14 @@ type Client struct {
 	signalReady context.CancelCauseFunc
 }
 
-// subdomainLabelRe matches a single valid DNS label as defined by RFC 1123:
-// 1 to 63 characters of lowercase letters, digits, or hyphens, not starting or
-// ending with a hyphen.
-var subdomainLabelRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
+// subdomainPrefixCharsRe matches the allowed characters for a custom subdomain
+// prefix: lowercase letters, digits, and hyphens, not starting or ending with a
+// hyphen. The overall length is bounded separately because the prefix shares the
+// leftmost DNS label with the principal's existing subdomain.
+var subdomainPrefixCharsRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
+
+// dnsLabelMaxLen is the maximum length of a single DNS label (RFC 1123).
+const dnsLabelMaxLen = 63
 
 func (c *Client) handleHint(req *ssh.Request) {
 	var payload struct {
@@ -57,16 +61,24 @@ func (c *Client) handleHint(req *ssh.Request) {
 		return
 	}
 	// The client may request a custom subdomain prefix to get a deterministic
-	// host. It is only meaningful for HTTP tunnels, and it is prepended directly
-	// to the routing host, so it must be a valid DNS label to avoid producing
-	// malformed hostnames.
+	// host. It is only meaningful for HTTP tunnels, and it is prepended to the
+	// principal's subdomain within the same leftmost DNS label, so the combined
+	// label must be a valid DNS label to avoid producing malformed hostnames.
 	if payload.Subdomain != "" {
 		if payload.Protocol != "http" {
 			_ = req.Reply(false, []byte("custom subdomain is only supported for http"))
 			return
 		}
-		if !subdomainLabelRe.MatchString(payload.Subdomain) {
-			_ = req.Reply(false, []byte("invalid subdomain: must be a valid DNS label (lowercase letters, digits, and hyphens; 1-63 chars; no leading or trailing hyphen)"))
+		if !subdomainPrefixCharsRe.MatchString(payload.Subdomain) {
+			_ = req.Reply(false, []byte("invalid subdomain: must contain only lowercase letters, digits, and hyphens, with no leading or trailing hyphen"))
+			return
+		}
+		// The prefix and the existing subdomain together form the leftmost label
+		// (e.g. "staging-unknwon" in "staging-unknwon.example.com"), which must
+		// not exceed the DNS label length limit.
+		existingLabel, _, _ := strings.Cut(c.host, ".")
+		if len(payload.Subdomain)+1+len(existingLabel) > dnsLabelMaxLen {
+			_ = req.Reply(false, []byte(fmt.Sprintf("subdomain prefix is too long: at most %d characters allowed for this account", dnsLabelMaxLen-1-len(existingLabel))))
 			return
 		}
 		c.host = payload.Subdomain + "-" + c.host

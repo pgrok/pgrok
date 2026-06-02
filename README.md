@@ -141,7 +141,7 @@ pgrok http --subdomain staging 3000
 
 This goes live at `http://staging-unknwon.example.com`, forwarding to `http://localhost:3000`.
 
-- The value must be a valid DNS label: lowercase letters, digits, and hyphens, 1-63 characters, and no leading or trailing hyphen. Invalid values are rejected by the server.
+- The value may contain lowercase letters, digits, and hyphens, with no leading or trailing hyphen. It shares the leftmost DNS label with your subdomain (`<prefix>-<subdomain>`), so the combined length must stay within 63 characters. Invalid values are rejected by the server.
 - The resulting URL is deterministic: if the prefixed host is already in use, the client fails with an error instead of falling back to a randomized one.
 - This flag only applies to HTTP tunnels; it has no effect on `pgrok tcp`.
 
