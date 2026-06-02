@@ -77,6 +77,6 @@ func main() {
 		Flags: commonFlags(homeDir, logger),
 	}
 	if err := app.Run(context.Background(), os.Args); err != nil {
-		logger.FatalContext(context.Background(), err.Error())
+		logger.FatalContext(context.Background(), "Failed to run pgrok", "error", err)
 	}
 }
