@@ -51,7 +51,7 @@ func commandHTTP(homeDir string, logger *logx.Logger) *cli.Command {
 			},
 			&cli.StringFlag{
 				Name:    "uuid",
-				Usage:   "specify a custom subdomain prefix to be used in the tunnel URL",
+				Usage:   "specify a UUID to use as the subdomain prefix for a deterministic tunnel URL",
 				Aliases: []string{"u"},
 			},
 		),

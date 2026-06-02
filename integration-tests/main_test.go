@@ -397,10 +397,12 @@ func TestCustomUuid(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, shutdownEchoServer()) })
 
-	endpoint1, shutdownPgrok1, err := setupPgrokWithSubdomain(ctx, "http", 8001, "test")
+	// The server normalizes the requested UUID to its hex-encoded form (no
+	// hyphens), matching the format of the server-generated collision prefix.
+	endpoint1, shutdownPgrok1, err := setupPgrokWithSubdomain(ctx, "http", 8001, "11111111-1111-1111-1111-111111111111")
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, shutdownPgrok1()) })
-	require.Equal(t, "test-unknwon.localhost:3000", endpoint1)
+	require.Equal(t, "11111111111111111111111111111111-unknwon.localhost:3000", endpoint1)
 
 	// A request routed via the custom-prefixed host should be forwarded.
 	body, err := run.Cmd(ctx,

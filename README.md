@@ -131,22 +131,22 @@ dynamic_forwards: |
 
 Then all requests prefixed with the path `/api` and `/hook` will be forwarded to `http://localhost:8080` and all the rest are forwarded to the `forward_addr` (`http://localhost:3000`).
 
-#### Custom subdomain prefix
+#### Custom UUID subdomain
 
-By default, each user gets a single stable subdomain (e.g. `unknwon.example.com`). Use the `--uuid, -u` flag of the `http` subcommand to prepend a custom prefix to your subdomain, so you can run multiple tunnels under predictable URLs:
+By default, each user gets a single stable subdomain (e.g. `unknwon.example.com`), and when it is already taken `pgrok` falls back to a host prefixed with a server-generated UUID (e.g. `7fa4f0d0...-unknwon.example.com`). Use the `--uuid, -u` flag of the `http` subcommand to choose that UUID yourself, so you get a deterministic URL and can run multiple tunnels under predictable hosts:
 
 ```
-pgrok http --uuid staging 3000
+pgrok http --uuid 11111111-1111-1111-1111-111111111111 3000
 ```
 
-This goes live at `http://staging-unknwon.example.com`, forwarding to `http://localhost:3000`.
+This goes live at `http://11111111111111111111111111111111-unknwon.example.com`, forwarding to `http://localhost:3000`.
 
-- The prefix must be a valid DNS label: lowercase letters, digits, and hyphens, 1-63 characters, and no leading or trailing hyphen. Invalid values are rejected by the server.
-- The resulting URL is deterministic: if the prefixed subdomain is already in use, the client fails with an error instead of falling back to a randomized one.
+- The value must be a valid UUID; invalid values are rejected by the server. It is stored in its hex-encoded form (no hyphens), matching the server-generated prefix.
+- The resulting URL is deterministic: if the prefixed host is already in use, the client fails with an error instead of falling back to a randomized one.
 - This flag only applies to HTTP tunnels; it has no effect on `pgrok tcp`.
 
 > [!NOTE]
-> The prefix becomes part of the same subdomain label (it is joined with a hyphen, not a dot), so it is still covered by the `*.example.com` wildcard DNS record and TLS certificate set up for the server.
+> The UUID becomes part of the same subdomain label (it is joined with a hyphen, not a dot), so it is still covered by the `*.example.com` wildcard DNS record and TLS certificate set up for the server.
 
 ### Vanilla SSH
 
