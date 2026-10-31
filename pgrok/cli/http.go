@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -16,7 +17,6 @@ import (
 	"github.com/urfave/cli/v3"
 	"golang.org/x/crypto/ssh"
 	"gopkg.in/yaml.v3"
-	"unknwon.dev/x/anyx"
 	"unknwon.dev/x/logx"
 
 	"github.com/pgrok/pgrok/internal/dynamicforward"
@@ -69,7 +69,7 @@ func actionHTTP(ctx context.Context, cmd *cli.Command, logger *logx.Logger) erro
 	}
 	logger.Debug("Loaded config", "file", configPath)
 
-	defaultForwardAddr := anyx.Coalesce(
+	defaultForwardAddr := cmp.Or(
 		deriveHTTPForwardAddress(cmd.Args().First()),
 		cmd.String("forward-addr"),
 		config.ForwardAddr,
@@ -111,9 +111,9 @@ func actionHTTP(ctx context.Context, cmd *cli.Command, logger *logx.Logger) erro
 		err := tryConnect(
 			logger,
 			protocolHTTP,
-			anyx.Coalesce(cmd.String("remote-addr"), config.RemoteAddr),
+			cmp.Or(cmd.String("remote-addr"), config.RemoteAddr),
 			surl.Host,
-			anyx.Coalesce(cmd.String("token"), config.Token),
+			cmp.Or(cmd.String("token"), config.Token),
 			cmd.String("subdomain"),
 		)
 		if err != nil {

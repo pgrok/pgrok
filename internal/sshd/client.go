@@ -1,6 +1,7 @@
 package sshd
 
 import (
+	"cmp"
 	"context"
 	"encoding/hex"
 	"encoding/json"
@@ -16,7 +17,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/ssh"
-	"unknwon.dev/x/anyx"
 	"unknwon.dev/x/logx"
 
 	"github.com/pgrok/pgrok/internal/conf"
@@ -307,7 +307,7 @@ func (c *Client) handleServerInfo(proxy conf.Proxy, req *ssh.Request) {
 	var hostURL string
 	switch c.protocol {
 	case "tcp":
-		host := anyx.Coalesce(proxy.TCP.Domain, proxy.Domain)
+		host := cmp.Or(proxy.TCP.Domain, proxy.Domain)
 		if i := strings.Index(host, ":"); i > 0 {
 			host = host[:i]
 		}
