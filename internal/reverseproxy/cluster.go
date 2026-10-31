@@ -49,9 +49,10 @@ func (c *Cluster) Set(host, alternative, forward string) (string, error) {
 
 func newProxy(forward string) *httputil.ReverseProxy {
 	return &httputil.ReverseProxy{
-		Director: func(r *http.Request) {
-			r.URL.Scheme = "http"
-			r.URL.Host = forward
+		Rewrite: func(r *httputil.ProxyRequest) {
+			r.Out.URL.Scheme = "http"
+			r.Out.URL.Host = forward
+			r.SetXForwarded()
 		},
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
 			w.WriteHeader(http.StatusBadGateway)
