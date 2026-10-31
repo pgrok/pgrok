@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"strconv"
@@ -8,7 +9,6 @@ import (
 	"time"
 
 	"github.com/urfave/cli/v3"
-	"unknwon.dev/x/anyx"
 	"unknwon.dev/x/logx"
 )
 
@@ -75,7 +75,7 @@ func actionTCP(ctx context.Context, cmd *cli.Command, logger *logx.Logger) error
 	}
 	logger.Debug("Loaded config", "file", configPath)
 
-	forwardAddr := anyx.Coalesce(
+	forwardAddr := cmp.Or(
 		deriveTCPForwardAddress(cmd.Args().First()),
 		cmd.String("forward-addr"),
 		config.ForwardAddr,
@@ -87,9 +87,9 @@ func actionTCP(ctx context.Context, cmd *cli.Command, logger *logx.Logger) error
 		err := tryConnect(
 			logger,
 			protocolTCP,
-			anyx.Coalesce(cmd.String("remote-addr"), config.RemoteAddr),
+			cmp.Or(cmd.String("remote-addr"), config.RemoteAddr),
 			forwardAddr,
-			anyx.Coalesce(cmd.String("token"), config.Token),
+			cmp.Or(cmd.String("token"), config.Token),
 			"", // No subdomain as TCP doesn't use it
 		)
 		if err != nil {
