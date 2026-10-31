@@ -9,7 +9,7 @@ RUN pnpm install --frozen-lockfile --prefer-frozen-lockfile \
     && pnpm run build
 WORKDIR /build
 
-FROM golang:1.26-alpine3.23@sha256:91eda9776261207ea25fd06b5b7fed8d397dd2c0a283e77f2ab6e91bfa71079d AS binarybuilder
+FROM golang:1.27-alpine3.23@sha256:8a5046497cda39860b832ffdbe8dd66018a0f05bb01352f533a36e7e2ced66a0 AS binarybuilder
 RUN apk --no-cache --no-progress add --virtual \
     build-deps \
     build-base \
@@ -36,6 +36,8 @@ RUN echo https://dl-cdn.alpinelinux.org/alpine/edge/main/ >> /etc/apk/repositori
   && apk --no-cache --no-progress add \
   ca-certificates \
   "curl>8.20.0-r0" \
+  "libcrypto3>=3.5.8-r0" \
+  "libssl3>=3.5.8-r0" \
   tini \
   "zlib>1.3.2"
 
