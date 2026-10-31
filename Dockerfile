@@ -36,6 +36,8 @@ RUN echo https://dl-cdn.alpinelinux.org/alpine/edge/main/ >> /etc/apk/repositori
   && apk --no-cache --no-progress add \
   ca-certificates \
   "curl>8.20.0-r0" \
+  "libcrypto3>=3.5.8-r0" \
+  "libssl3>=3.5.8-r0" \
   tini \
   "zlib>1.3.2"
 
