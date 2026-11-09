@@ -94,7 +94,7 @@ func newHostKeyCallback(logger *logx.Logger, configPath, fingerprint string) (ss
 				want:       ssh.FingerprintSHA256(want.Key),
 				got:        got,
 				fix: fmt.Sprintf(
-					`remove line %d from %q, or pin the new key with the "--host-key-fingerprint" flag`,
+					`remove line %d from "%s", or pin the new key with the "--host-key-fingerprint" flag`,
 					want.Line, want.Filename,
 				),
 			}
