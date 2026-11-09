@@ -92,6 +92,13 @@ func actionTCP(ctx context.Context, cmd *cli.Command, logger *logx.Logger) error
 			forwardAddr,
 			cmp.Or(cmd.String("token"), config.Token),
 			"", // No subdomain as TCP doesn't use it
+			// Sent so that the server rejects access control for TCP tunnels
+			// instead of silently opening an unprotected tunnel.
+			accessOptions{
+				BasicAuth: config.BasicAuth,
+				AllowIPs:  config.AllowIPs,
+				Auth:      config.Auth,
+			},
 			onReady,
 		)
 		if err != nil {

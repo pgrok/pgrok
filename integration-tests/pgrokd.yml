@@ -5,6 +5,8 @@ proxy:
   port: 3000
   scheme: "http"
   domain: "localhost:3000"
+  # Trust X-Forwarded-For from local reverse proxies as in the documented Caddy setup.
+  trusted_proxies: ["127.0.0.1/32", "::1/128"]
 sshd:
   port: 2222
 database:

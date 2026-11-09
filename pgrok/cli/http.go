@@ -68,6 +68,18 @@ func commandHTTP(homeDir string, logger *logx.Logger) *cli.Command {
 				Name:  "remove-request-header",
 				Usage: "The name of a header to remove from forwarded requests, can be repeated",
 			},
+			&cli.StringFlag{
+				Name:  "basic-auth",
+				Usage: `require visitors to provide HTTP basic auth credentials in the form of "user:password"`,
+			},
+			&cli.StringSliceFlag{
+				Name:  "allow-ip",
+				Usage: "only allow visitors from the IP address or CIDR, can be repeated",
+			},
+			&cli.StringFlag{
+				Name:  "auth",
+				Usage: `require visitors to sign in, only "sso" is supported to require signing in with the identity provider of the server`,
+			},
 		),
 	}
 }
@@ -129,6 +141,10 @@ func actionHTTP(ctx context.Context, cmd *cli.Command, logger *logx.Logger) erro
 	logger.Debug("Capture server is running on", "url", s.URL)
 
 	surl, _ := url.Parse(s.URL)
+	allowIPs := cmd.StringSlice("allow-ip")
+	if len(allowIPs) == 0 {
+		allowIPs = config.AllowIPs
+	}
 	onReady := newReadyHook(logger)
 	cooldownAfter := time.Now().Add(time.Minute)
 	for failed := 0; ; failed++ {
@@ -139,6 +155,11 @@ func actionHTTP(ctx context.Context, cmd *cli.Command, logger *logx.Logger) erro
 			surl.Host,
 			cmp.Or(cmd.String("token"), config.Token),
 			cmd.String("subdomain"),
+			accessOptions{
+				BasicAuth: cmp.Or(cmd.String("basic-auth"), config.BasicAuth),
+				AllowIPs:  allowIPs,
+				Auth:      cmp.Or(cmd.String("auth"), config.Auth),
+			},
 			onReady,
 		)
 		if err != nil {
@@ -168,6 +189,19 @@ type Config struct {
 	HostHeader           string   `yaml:"host_header"`
 	RequestHeaders       []string `yaml:"request_headers"`
 	RemoveRequestHeaders []string `yaml:"remove_request_headers"`
+
+	// Optional access control of HTTP tunnels.
+	BasicAuth string   `yaml:"basic_auth"`
+	AllowIPs  []string `yaml:"allow_ips"`
+	Auth      string   `yaml:"auth"`
+}
+
+// accessOptions are the access control options of a tunnel sent to the server.
+// Only HTTP tunnels support them, the server rejects them for TCP tunnels.
+type accessOptions struct {
+	BasicAuth string   `json:"basic_auth,omitempty"`
+	AllowIPs  []string `json:"allow_ips,omitempty"`
+	Auth      string   `json:"auth,omitempty"`
 }
 
 func loadConfig(configPath string) (*Config, error) {
@@ -192,7 +226,7 @@ const (
 // tryConnect establishes the tunnel and blocks until it fails. The onReady
 // callback is invoked with the public URL reported by the server (which may be
 // empty) every time the tunnel is up.
-func tryConnect(logger *logx.Logger, protocol, remoteAddr, forwardAddr, token, subdomain string, onReady func(hostURL string)) error {
+func tryConnect(logger *logx.Logger, protocol, remoteAddr, forwardAddr, token, subdomain string, access accessOptions, onReady func(hostURL string)) error {
 	client, err := ssh.Dial(
 		"tcp",
 		remoteAddr,
@@ -209,7 +243,11 @@ func tryConnect(logger *logx.Logger, protocol, remoteAddr, forwardAddr, token, s
 	}
 
 	// Hint the server before establishing the reverse tunnel
-	payload, err := json.Marshal(map[string]string{"protocol": protocol, "subdomain": subdomain})
+	payload, err := json.Marshal(struct {
+		Protocol  string `json:"protocol"`
+		Subdomain string `json:"subdomain"`
+		accessOptions
+	}{protocol, subdomain, access})
 	if err != nil {
 		return errors.Wrap(err, "marshal payload")
 	}
@@ -219,6 +257,17 @@ func tryConnect(logger *logx.Logger, protocol, remoteAddr, forwardAddr, token, s
 	}
 	if !ok {
 		return errors.Errorf("server rejected hint: %s", reply)
+	}
+	if access.BasicAuth != "" || len(access.AllowIPs) > 0 || access.Auth != "" {
+		// Servers without the support of access control silently ignore the
+		// options, which would expose the tunnel to everyone.
+		var hintReply struct {
+			AccessControl bool `json:"access_control"`
+		}
+		_ = json.Unmarshal(reply, &hintReply)
+		if !hintReply.AccessControl {
+			return errors.New("server does not support access control, refusing to open an unprotected tunnel")
+		}
 	}
 
 	remoteListener, err := client.Listen("tcp", "127.0.0.1:0")

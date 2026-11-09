@@ -13,3 +13,11 @@ token: "REDACTED"
 # Rewrite the Host header to the host of the forward address for local apps that
 # reject unknown hosts. The public host is kept in X-Forwarded-Host.
 #host_header: rewrite
+
+# Optional access control of HTTP tunnels.
+# Require visitors to provide HTTP basic auth credentials.
+#basic_auth: "user:password"
+# Only allow visitors from the IP addresses or CIDRs.
+#allow_ips: ["203.0.113.0/24"]
+# Require visitors to sign in with the SSO of the server.
+#auth: "sso"

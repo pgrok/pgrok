@@ -25,7 +25,11 @@ type Proxy struct {
 	Port   int    `yaml:"port"`
 	Scheme string `yaml:"scheme"`
 	Domain string `yaml:"domain"`
-	TCP    struct {
+	// TrustedProxies is the list of CIDRs or IP addresses of reverse proxies
+	// (e.g., Caddy) whose X-Forwarded-For header is trusted to determine the
+	// visitor IP for IP allowlists.
+	TrustedProxies []string `yaml:"trusted_proxies"`
+	TCP            struct {
 		Domain    string `yaml:"domain"`
 		PortStart int    `yaml:"port_start"`
 		PortEnd   int    `yaml:"port_end"`
