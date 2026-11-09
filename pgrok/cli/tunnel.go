@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"net"
+	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
@@ -12,6 +14,7 @@ import (
 	"unknwon.dev/x/logx"
 
 	"github.com/pgrok/pgrok/internal/dynamicforward"
+	"github.com/pgrok/pgrok/internal/inspector"
 )
 
 // tunnel contains everything needed to run a single tunnel.
@@ -23,6 +26,9 @@ type tunnel struct {
 	subdomain       string                 // HTTP only
 	dynamicForwards string                 // HTTP only
 	headers         dynamicforward.Options // HTTP only
+	// inspectAddr is the local address to serve the request inspector on, HTTP
+	// only. Empty or "false" disables it.
+	inspectAddr string
 }
 
 // errTokenRejected is returned by runTunnel when the server rejects the token,
@@ -34,11 +40,28 @@ var errTokenRejected = errors.New("token rejected by the server")
 // errors, e.g. errTokenRejected.
 func runTunnel(logger *logx.Logger, t tunnel) error {
 	localAddr := t.forwardAddr
+	var inspectURL string
 	if t.protocol == protocolHTTP {
 		logger.Info("Default forward", "address", t.forwardAddr)
 		forwardHandler, err := dynamicforward.New(logger, t.forwardAddr, t.headers, parseDynamicForwards(logger, t.dynamicForwards)...)
 		if err != nil {
 			return errors.Wrap(err, "create forward handler")
+		}
+
+		if t.inspectAddr != "" && t.inspectAddr != "false" {
+			ln, err := net.Listen("tcp", t.inspectAddr)
+			if err != nil {
+				logger.Warn("Failed to start request inspector, continuing without it", "address", t.inspectAddr, "error", err)
+			} else {
+				defer func() { _ = ln.Close() }()
+				ins := inspector.New(forwardHandler)
+				forwardHandler = ins
+				inspectURL = "http://" + ln.Addr().String()
+				go func() {
+					err := http.Serve(ln, ins.Handler())
+					logger.Error("Request inspector stopped", "error", err)
+				}()
+			}
 		}
 
 		s := httptest.NewServer(forwardHandler)
@@ -55,7 +78,7 @@ func runTunnel(logger *logx.Logger, t tunnel) error {
 	onReady := newReadyHook(logger)
 	cooldownAfter := time.Now().Add(time.Minute)
 	for failed := 0; ; failed++ {
-		err := tryConnect(logger, t.protocol, t.remoteAddr, localAddr, t.token, t.subdomain, onReady)
+		err := tryConnect(logger, t.protocol, t.remoteAddr, localAddr, t.token, t.subdomain, inspectURL, onReady)
 		if err != nil {
 			if time.Now().After(cooldownAfter) {
 				failed = 0

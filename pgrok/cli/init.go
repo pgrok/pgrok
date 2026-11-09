@@ -87,7 +87,10 @@ token: "%s"
 
 # Rewrite the Host header to the host of the forward address for local apps that
 # reject unknown hosts. The public host is kept in X-Forwarded-Host.
-#host_header: rewrite`
+#host_header: rewrite
+
+# The local address of the request inspector web UI for HTTP tunnels, "false" to disable.
+#inspect_addr: "127.0.0.1:4040"`
 	config := fmt.Sprintf(
 		configTemplate,
 		cmd.String("remote-addr"),

@@ -14,6 +14,9 @@ token: "REDACTED"
 # reject unknown hosts. The public host is kept in X-Forwarded-Host.
 #host_header: rewrite
 
+# The local address of the request inspector web UI for HTTP tunnels, "false" to disable.
+#inspect_addr: "127.0.0.1:4040"
+
 # Named tunnels to be started with "pgrok start <name>..." or "pgrok start --all",
 # sharing the "remote_addr" and "token" above.
 #tunnels:

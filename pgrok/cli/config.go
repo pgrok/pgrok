@@ -13,12 +13,15 @@ type Config struct {
 	ForwardAddr     string                  `yaml:"forward_addr"`
 	Token           string                  `yaml:"token"`
 	DynamicForwards string                  `yaml:"dynamic_forwards"`
+	InspectAddr     *string                 `yaml:"inspect_addr"` // Nil means default
 	Tunnels         map[string]TunnelConfig `yaml:"tunnels"`
 
 	HostHeader           string   `yaml:"host_header"`
 	RequestHeaders       []string `yaml:"request_headers"`
 	RemoveRequestHeaders []string `yaml:"remove_request_headers"`
 }
+
+const defaultInspectAddr = "127.0.0.1:4040"
 
 // TunnelConfig is a named tunnel to be run by the "start" subcommand, sharing
 // the "remote_addr" and "token" of the top-level config.
