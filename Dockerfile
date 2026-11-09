@@ -38,8 +38,10 @@ RUN echo https://dl-cdn.alpinelinux.org/alpine/edge/main/ >> /etc/apk/repositori
   "curl>8.20.0-r0" \
   "libcrypto3>=3.5.8-r0" \
   "libssl3>=3.5.8-r0" \
+  "musl>=1.2.6-r6" \
+  "musl-utils>=1.2.6-r6" \
   tini \
-  "zlib>1.3.2"
+  "zlib>=1.3.2-r1"
 
 WORKDIR /app/pgrokd/
 COPY --from=binarybuilder /dist/.bin/pgrokd .
