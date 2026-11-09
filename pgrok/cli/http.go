@@ -29,6 +29,8 @@ func commandHTTP(homeDir string, logger *logx.Logger) *cli.Command {
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			return actionHTTP(ctx, cmd, logger)
 		},
+		// Header values may contain commas, e.g. "Accept: text/html, */*".
+		DisableSliceFlagSeparator: true,
 		Flags: append(
 			commonFlags(homeDir, logger),
 			&cli.StringFlag{
@@ -53,6 +55,18 @@ func commandHTTP(homeDir string, logger *logx.Logger) *cli.Command {
 				Name:    "subdomain",
 				Usage:   "specify a custom subdomain prefix for a deterministic tunnel URL",
 				Aliases: []string{"s"},
+			},
+			&cli.StringFlag{
+				Name:  "host-header",
+				Usage: `The Host header to forward requests with, "rewrite" to use the host of the forward address`,
+			},
+			&cli.StringSliceFlag{
+				Name:  "request-header",
+				Usage: `A header in the form of "Name: value" to set on forwarded requests, can be repeated`,
+			},
+			&cli.StringSliceFlag{
+				Name:  "remove-request-header",
+				Usage: "The name of a header to remove from forwarded requests, can be repeated",
 			},
 		),
 	}
@@ -97,7 +111,16 @@ func actionHTTP(ctx context.Context, cmd *cli.Command, logger *logx.Logger) erro
 		)
 		logger.Debug("Added dynamic forward rule", "pathPrefix", fields[0], "forwardTo", fields[1])
 	}
-	forwardHandler, err := dynamicforward.New(logger, defaultForwardAddr, dynamicForwards...)
+	forwardHandler, err := dynamicforward.New(
+		logger,
+		defaultForwardAddr,
+		dynamicforward.Options{
+			HostHeader:           cmp.Or(cmd.String("host-header"), config.HostHeader),
+			RequestHeaders:       append(config.RequestHeaders, cmd.StringSlice("request-header")...),
+			RemoveRequestHeaders: append(config.RemoveRequestHeaders, cmd.StringSlice("remove-request-header")...),
+		},
+		dynamicForwards...,
+	)
 	if err != nil {
 		logger.FatalContext(ctx, "Failed to create forward handler", "error", err)
 	}
@@ -139,6 +162,10 @@ type Config struct {
 	ForwardAddr     string `yaml:"forward_addr"`
 	Token           string `yaml:"token"`
 	DynamicForwards string `yaml:"dynamic_forwards"`
+
+	HostHeader           string   `yaml:"host_header"`
+	RequestHeaders       []string `yaml:"request_headers"`
+	RemoveRequestHeaders []string `yaml:"remove_request_headers"`
 }
 
 func loadConfig(configPath string) (*Config, error) {

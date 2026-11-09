@@ -133,6 +133,30 @@ Then all requests prefixed with the path `/api` and `/hook` will be forwarded to
 
 When prefixes overlap (e.g., `/api` and `/api/v2`), the longest matching prefix wins.
 
+#### HTTP request headers
+
+By default, requests are forwarded with the public `Host` header (e.g., `unknwon.example.com`), which local dev servers that check it (e.g., Vite's `server.allowedHosts`, Rails' `config.hosts`, Django's `ALLOWED_HOSTS`, webpack-dev-server) reject. Use `--host-header rewrite` to send the host of the forward address instead (e.g., `localhost:5173`), so no app config changes are needed:
+
+```
+pgrok http --host-header rewrite 5173
+```
+
+- With dynamic forwards, each request gets the host of the address it is forwarded to.
+- Any other value is used literally, e.g., `--host-header app.test`.
+- The public host is kept in the `X-Forwarded-Host` header so the app can still build absolute URLs.
+
+Use `--request-header "Name: value"` to add or overwrite a request header and `--remove-request-header Name` to remove one; both can be repeated. The equivalent options in `pgrok.yml`:
+
+```yaml
+host_header: rewrite
+request_headers:
+  - "X-Tunnel: pgrok"
+remove_request_headers:
+  - Cookie
+```
+
+The `--host-header` flag overrides `host_header`, and headers from the CLI flags are applied after those in the config file.
+
 #### Custom subdomain prefix
 
 By default, each user gets a single stable subdomain (e.g., `unknwon.example.com`), and when it is already taken `pgrok` falls back to a host prefixed with a server-generated UUID (e.g., `7fa4f0d0...-unknwon.example.com`). Use the `--subdomain, -s` flag of the `http` subcommand to choose that prefix yourself, so you get a deterministic URL and can run multiple tunnels under predictable hosts:

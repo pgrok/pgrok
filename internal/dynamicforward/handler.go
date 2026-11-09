@@ -11,6 +11,7 @@ import (
 
 	"github.com/flamego/flamego"
 	"github.com/pkg/errors"
+	"golang.org/x/net/http/httpguts"
 	"unknwon.dev/x/logx"
 )
 
@@ -20,8 +21,60 @@ type Forward struct {
 	Address string
 }
 
+// HostHeaderRewrite is the special value of Options.HostHeader that sets the
+// Host header to the host of the address a request is forwarded to.
+const HostHeaderRewrite = "rewrite"
+
+// Options contains options for rewriting forwarded requests.
+type Options struct {
+	// HostHeader overrides the Host header of forwarded requests and moves the
+	// original one to the X-Forwarded-Host header. HostHeaderRewrite uses the
+	// host of the forward address, and any other non-empty value is used
+	// literally. The original Host header is kept when empty.
+	HostHeader string
+	// RequestHeaders are headers in the form of "Name: value" to be set on
+	// forwarded requests, overwriting existing values.
+	RequestHeaders []string
+	// RemoveRequestHeaders are names of headers to be removed from forwarded
+	// requests.
+	RemoveRequestHeaders []string
+}
+
 // New creates a new http.Handler for dynamic forwarding.
-func New(logger *logx.Logger, defaultForwardAddr string, forwards ...Forward) (http.Handler, error) {
+func New(logger *logx.Logger, defaultForwardAddr string, opts Options, forwards ...Forward) (http.Handler, error) {
+	setHeaders := make(http.Header, len(opts.RequestHeaders))
+	for _, h := range opts.RequestHeaders {
+		name, value, ok := strings.Cut(h, ":")
+		name = strings.TrimSpace(name)
+		if !ok || !httpguts.ValidHeaderFieldName(name) {
+			return nil, errors.Errorf(`invalid request header %q, want "Name: value"`, h)
+		}
+		if http.CanonicalHeaderKey(name) == "Host" {
+			return nil, errors.New(`use the host header option to set the "Host" header`)
+		}
+		setHeaders.Set(name, strings.TrimSpace(value))
+	}
+	rewriteHeaders := opts.HostHeader != "" || len(setHeaders) > 0 || len(opts.RemoveRequestHeaders) > 0
+	serve := func(w http.ResponseWriter, r *http.Request, proxy *httputil.ReverseProxy, forwardHost string) {
+		if rewriteHeaders {
+			r = r.Clone(r.Context())
+			if opts.HostHeader != "" {
+				r.Header.Set("X-Forwarded-Host", r.Host)
+				r.Host = opts.HostHeader
+				if opts.HostHeader == HostHeaderRewrite {
+					r.Host = forwardHost
+				}
+			}
+			for _, name := range opts.RemoveRequestHeaders {
+				r.Header.Del(name)
+			}
+			for name := range setHeaders {
+				r.Header.Set(name, setHeaders.Get(name))
+			}
+		}
+		proxy.ServeHTTP(w, r)
+	}
+
 	defaultForwardURL, err := url.Parse(defaultForwardAddr)
 	if err != nil {
 		return nil, errors.Wrap(err, "parse default forward address")
@@ -31,6 +84,7 @@ func New(logger *logx.Logger, defaultForwardAddr string, forwards ...Forward) (h
 
 	type prefixProxy struct {
 		prefix string
+		host   string
 		proxy  *httputil.ReverseProxy
 	}
 	proxies := make([]prefixProxy, 0, len(forwards))
@@ -41,6 +95,7 @@ func New(logger *logx.Logger, defaultForwardAddr string, forwards ...Forward) (h
 		}
 		proxies = append(proxies, prefixProxy{
 			prefix: forward.Prefix,
+			host:   forwardURL.Host,
 			proxy:  httputil.NewSingleHostReverseProxy(forwardURL),
 		})
 	}
@@ -63,11 +118,11 @@ func New(logger *logx.Logger, defaultForwardAddr string, forwards ...Forward) (h
 	f.Any("/{**}", func(w http.ResponseWriter, r *http.Request) {
 		for _, p := range proxies {
 			if strings.HasPrefix(r.URL.Path, p.prefix) {
-				p.proxy.ServeHTTP(w, r)
+				serve(w, r, p.proxy, p.host)
 				return
 			}
 		}
-		defaultProxy.ServeHTTP(w, r)
+		serve(w, r, defaultProxy, defaultForwardURL.Host)
 	})
 	return f, nil
 }
