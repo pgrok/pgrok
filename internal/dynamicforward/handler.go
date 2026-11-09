@@ -1,9 +1,11 @@
 package dynamicforward
 
 import (
+	"cmp"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -26,14 +28,27 @@ func New(logger *logx.Logger, defaultForwardAddr string, forwards ...Forward) (h
 	}
 
 	defaultProxy := httputil.NewSingleHostReverseProxy(defaultForwardURL)
-	proxies := make(map[string]*httputil.ReverseProxy)
+
+	type prefixProxy struct {
+		prefix string
+		proxy  *httputil.ReverseProxy
+	}
+	proxies := make([]prefixProxy, 0, len(forwards))
 	for _, forward := range forwards {
 		forwardURL, err := url.Parse(forward.Address)
 		if err != nil {
 			return nil, errors.Wrapf(err, "parse forward address %q", forward.Address)
 		}
-		proxies[forward.Prefix] = httputil.NewSingleHostReverseProxy(forwardURL)
+		proxies = append(proxies, prefixProxy{
+			prefix: forward.Prefix,
+			proxy:  httputil.NewSingleHostReverseProxy(forwardURL),
+		})
 	}
+	// Match the longest prefix first so that overlapping rules (e.g. "/api" and
+	// "/api/v2") are resolved deterministically to the most specific one.
+	slices.SortStableFunc(proxies, func(a, b prefixProxy) int {
+		return cmp.Compare(len(b.prefix), len(a.prefix))
+	})
 
 	f := flamego.New()
 	f.Use(func(c flamego.Context) {
@@ -46,9 +61,9 @@ func New(logger *logx.Logger, defaultForwardAddr string, forwards ...Forward) (h
 		)
 	})
 	f.Any("/{**}", func(w http.ResponseWriter, r *http.Request) {
-		for prefix, proxy := range proxies {
-			if strings.HasPrefix(r.URL.Path, prefix) {
-				proxy.ServeHTTP(w, r)
+		for _, p := range proxies {
+			if strings.HasPrefix(r.URL.Path, p.prefix) {
+				p.proxy.ServeHTTP(w, r)
 				return
 			}
 		}

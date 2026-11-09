@@ -70,3 +70,46 @@ func TestNew(t *testing.T) {
 		require.True(t, hookRequested)
 	})
 }
+
+func TestNew_LongestPrefixWins(t *testing.T) {
+	newServer := func(name string) *httptest.Server {
+		return httptest.NewServer(
+			http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				_, _ = w.Write([]byte(name))
+			}),
+		)
+	}
+	defaultServer := newServer("default")
+	apiServer := newServer("api")
+	apiV2Server := newServer("api-v2")
+
+	// The shorter prefix is listed first so that config order alone cannot
+	// produce the right answer.
+	h, err := New(
+		logx.NewNoopLogger(),
+		defaultServer.URL,
+		Forward{Prefix: "/api", Address: apiServer.URL},
+		Forward{Prefix: "/api/v2", Address: apiV2Server.URL},
+	)
+	require.NoError(t, err)
+
+	tests := []struct {
+		path string
+		want string
+	}{
+		{path: "/api/v2/users", want: "api-v2"},
+		{path: "/api/v1/users", want: "api"},
+		{path: "/apix", want: "api"},
+		{path: "/web", want: "default"},
+	}
+	for _, test := range tests {
+		t.Run(test.path, func(t *testing.T) {
+			// Repeat to catch nondeterministic rule selection.
+			for range 50 {
+				w := httptest.NewRecorder()
+				h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, test.path, nil))
+				require.Equal(t, test.want, w.Body.String())
+			}
+		})
+	}
+}
