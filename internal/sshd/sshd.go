@@ -35,6 +35,10 @@ func Start(
 			if err != nil {
 				return nil, err
 			}
+			if principal.Blocked {
+				logger.Info("Rejected blocked principal", "id", principal.ID, "remote", conn.RemoteAddr().String())
+				return nil, errors.New("principal is blocked")
+			}
 			return &ssh.Permissions{
 				Extensions: map[string]string{
 					"principal-id": strconv.FormatInt(principal.ID, 10),
@@ -114,6 +118,10 @@ func Start(
 			principal, err := db.GetPrincipalByID(ctx, principalID)
 			if err != nil {
 				logger.Error("Failed to get principal", "error", err)
+				return
+			}
+			// The principal may have been blocked during the handshake.
+			if principal.Blocked {
 				return
 			}
 

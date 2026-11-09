@@ -64,6 +64,13 @@ func NewServer(logger *logx.Logger, config *conf.Config, db *database.DB, regist
 		f.Get("/identity-provider", getIdentityProvider)
 		f.Get("/tunnels", authenticate, getTunnels(registry))
 		f.Delete("/tunnels/{id}", authenticate, deleteTunnel(logger, registry))
+
+		f.Group("/admin", func() {
+			f.Get("/principals", listAdminPrincipals(db, registry))
+			f.Patch("/principals/{id}", requireJSON, updateAdminPrincipal(logger, db, registry))
+			f.Get("/tunnels", listAdminTunnels(db, registry))
+			f.Delete("/tunnels/{id}", requireJSON, deleteAdminTunnel(logger, registry))
+		}, requireAdmin)
 	})
 
 	// Human-facing web routes, namespaced under "/-".
@@ -191,6 +198,12 @@ func getOIDCCallback(logger *logx.Logger, db *database.DB) flamego.Handler {
 		)
 		if err != nil {
 			r.PlainText(http.StatusInternalServerError, fmt.Sprintf("Failed to upsert principal: %v", err))
+			return
+		}
+
+		if principal.Blocked {
+			c.Session.Delete("userID")
+			c.Redirect("/sign-in?error=blocked")
 			return
 		}
 
