@@ -59,7 +59,7 @@ Before you get started, make sure you have the following:
 
 ### Set up the client (`pgrok`)
 
-1. Go to http://example.com, authenticate with your SSO to obtain the token and URL (e.g., `http://unknwon.example.com`).
+1. Go to http://example.com, authenticate with your SSO to obtain the token and URL (e.g., `http://unknwon.example.com`). The "Get started" section of the dashboard has the following commands ready to copy with your token and server address filled in.
 1. Download the latest version of the `pgrok`:
     - For Homebrew:
         ```sh
@@ -150,12 +150,12 @@ This goes live at `http://staging-unknwon.example.com`, forwarding to `http://lo
 Because the standard SSH protocol is used for tunneling, you may well just use the vanilla SSH client.
 
 1. Go to http://example.com, authenticate with your SSO to obtain the token and URL (e.g., `http://unknwon.example.com`).
-1. Launch the client by executing the `ssh -N -R 0::3000 example.com -p 2222` command:
+1. Launch the client by executing the `ssh -N -R 0:localhost:3000 example.com -p 2222` command:
     1. Enter the token as your password.
     1. Use the `-v` flag to turn on debug logging.
     1. Upon successful startup, you should see a log looks like:
         ```
-        Allocated port 22487 for remote forward to :3000
+        Allocated port 22487 for remote forward to localhost:3000
         ```
 1. Now visit the URL.
 
