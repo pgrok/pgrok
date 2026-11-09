@@ -116,6 +116,27 @@ Following config options can be overridden through CLI flags for both `http` and
 - `--remote-addr, -r` -> `remote_addr`
 - `--forward-addr, -f` -> `forward_addr`
 - `--token, -t` -> `token`
+- `--qr` -> `qr`
+- `--copy` -> `copy`
+
+#### QR code and clipboard
+
+To open the tunnel on your phone or paste the URL elsewhere right away, `pgrok` can print a QR code of the URL and/or copy it to the clipboard once the tunnel is up, for both `http` and `tcp` subcommands:
+
+```
+pgrok http --qr --copy 3000
+```
+
+Or enable them permanently in the `pgrok.yml`:
+
+```yaml
+qr: true
+copy: true
+```
+
+- Both happen only on the first successful connection, not on reconnects.
+- The QR code is only printed when stdout is a terminal.
+- Copying uses `pbcopy` on macOS, the native clipboard on Windows, and `wl-copy`, `xclip` or `xsel` on Linux. When no clipboard is available (e.g., headless servers), a warning is logged and `pgrok` carries on.
 
 #### HTTP dynamic forwards
 

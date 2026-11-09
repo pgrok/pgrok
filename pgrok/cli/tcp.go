@@ -39,6 +39,14 @@ func commandTCP(homeDir string, logger *logx.Logger) *cli.Command {
 				Usage:   "The authentication token",
 				Aliases: []string{"t"},
 			},
+			&cli.BoolFlag{
+				Name:  "qr",
+				Usage: "Print a QR code of the URL on the first successful connection",
+			},
+			&cli.BoolFlag{
+				Name:  "copy",
+				Usage: "Copy the URL to the clipboard on the first successful connection",
+			},
 		),
 	}
 }
@@ -82,6 +90,7 @@ func actionTCP(ctx context.Context, cmd *cli.Command, logger *logx.Logger) error
 	)
 	logger.Info("Forward", "address", forwardAddr)
 
+	onReady := newReadyHook(cmd, config, logger)
 	cooldownAfter := time.Now().Add(time.Minute)
 	for failed := 0; ; failed++ {
 		err := tryConnect(
@@ -91,6 +100,7 @@ func actionTCP(ctx context.Context, cmd *cli.Command, logger *logx.Logger) error
 			forwardAddr,
 			cmp.Or(cmd.String("token"), config.Token),
 			"", // No subdomain as TCP doesn't use it
+			onReady,
 		)
 		if err != nil {
 			if time.Now().After(cooldownAfter) {

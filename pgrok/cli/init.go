@@ -83,7 +83,12 @@ token: "%s"
 
 # Dynamic forward rules and use "forward_addr" as catch-all.
 #dynamic_forwards: |
-#  /api http://localhost:8080`
+#  /api http://localhost:8080
+
+# Print a QR code of the URL and/or copy it to the clipboard on the first
+# successful connection.
+#qr: true
+#copy: true`
 	config := fmt.Sprintf(
 		configTemplate,
 		cmd.String("remote-addr"),

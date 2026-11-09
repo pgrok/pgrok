@@ -6,12 +6,14 @@ require (
 	charm.land/lipgloss/v2 v2.0.1
 	charm.land/log/v2 v2.0.0
 	github.com/adrg/xdg v0.5.3
+	github.com/atotto/clipboard v0.1.4
 	github.com/coreos/go-oidc v2.5.0+incompatible
 	github.com/flamego/flamego v1.9.7
 	github.com/flamego/session v1.6.5
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/google/uuid v1.6.0
 	github.com/lestrrat-go/jwx/v2 v2.1.6
+	github.com/mdp/qrterminal/v3 v3.2.1
 	github.com/pkg/errors v0.9.1
 	github.com/puzpuzpuz/xsync/v2 v2.5.1
 	github.com/sourcegraph/conc v0.3.0
@@ -22,6 +24,7 @@ require (
 	golang.org/x/crypto v0.55.0
 	golang.org/x/net v0.57.0
 	golang.org/x/oauth2 v0.35.0
+	golang.org/x/term v0.45.0
 	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/driver/postgres v1.6.0
 	gorm.io/gorm v1.31.1
@@ -81,4 +84,5 @@ require (
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.41.0 // indirect
 	gopkg.in/go-jose/go-jose.v2 v2.6.3 // indirect
+	rsc.io/qr v0.2.0 // indirect
 )

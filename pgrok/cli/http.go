@@ -54,6 +54,14 @@ func commandHTTP(homeDir string, logger *logx.Logger) *cli.Command {
 				Usage:   "specify a custom subdomain prefix for a deterministic tunnel URL",
 				Aliases: []string{"s"},
 			},
+			&cli.BoolFlag{
+				Name:  "qr",
+				Usage: "Print a QR code of the URL on the first successful connection",
+			},
+			&cli.BoolFlag{
+				Name:  "copy",
+				Usage: "Copy the URL to the clipboard on the first successful connection",
+			},
 		),
 	}
 }
@@ -106,6 +114,7 @@ func actionHTTP(ctx context.Context, cmd *cli.Command, logger *logx.Logger) erro
 	logger.Debug("Capture server is running on", "url", s.URL)
 
 	surl, _ := url.Parse(s.URL)
+	onReady := newReadyHook(cmd, config, logger)
 	cooldownAfter := time.Now().Add(time.Minute)
 	for failed := 0; ; failed++ {
 		err := tryConnect(
@@ -115,6 +124,7 @@ func actionHTTP(ctx context.Context, cmd *cli.Command, logger *logx.Logger) erro
 			surl.Host,
 			cmp.Or(cmd.String("token"), config.Token),
 			cmd.String("subdomain"),
+			onReady,
 		)
 		if err != nil {
 			if time.Now().After(cooldownAfter) {
@@ -139,6 +149,8 @@ type Config struct {
 	ForwardAddr     string `yaml:"forward_addr"`
 	Token           string `yaml:"token"`
 	DynamicForwards string `yaml:"dynamic_forwards"`
+	QR              bool   `yaml:"qr"`
+	Copy            bool   `yaml:"copy"`
 }
 
 func loadConfig(configPath string) (*Config, error) {
@@ -160,7 +172,9 @@ const (
 	protocolTCP  string = "tcp"
 )
 
-func tryConnect(logger *logx.Logger, protocol, remoteAddr, forwardAddr, token, subdomain string) error {
+// tryConnect establishes the tunnel and blocks until it fails. The onReady
+// callback is invoked with the public URL every time the tunnel is up.
+func tryConnect(logger *logx.Logger, protocol, remoteAddr, forwardAddr, token, subdomain string, onReady func(hostURL string)) error {
 	client, err := ssh.Dial(
 		"tcp",
 		remoteAddr,
@@ -215,6 +229,7 @@ func tryConnect(logger *logx.Logger, protocol, remoteAddr, forwardAddr, token, s
 		message = fmt.Sprintf("🎉 You're ready to go live at %s!", serverInfo.HostURL)
 	}
 	logger.Info(message, "remote", remoteAddr)
+	onReady(serverInfo.HostURL)
 	for {
 		remote, err := remoteListener.Accept()
 		if err != nil {
