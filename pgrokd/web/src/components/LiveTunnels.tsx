@@ -182,7 +182,7 @@ function EmptyState() {
 
 // formatDuration renders a millisecond duration compactly, e.g. "2h 5m" or
 // "42s".
-function formatDuration(ms: number): string {
+export function formatDuration(ms: number): string {
   const seconds = Math.max(0, Math.floor(ms / 1000));
   const days = Math.floor(seconds / 86_400);
   const hours = Math.floor((seconds % 86_400) / 3600);

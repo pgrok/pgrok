@@ -26,3 +26,6 @@ identity_provider:
   required_domain: "example.com"
   allowed_emails:
     - "Unknwon@Example.com"
+
+admins:
+  - "unknwon@example.com"

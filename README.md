@@ -52,6 +52,7 @@ Before you get started, make sure you have the following:
     }
     ```
 1. Create a new OIDC client in your SSO with the **Redirect URI** to be `http://example.com/-/oidc/callback`.
+1. Optionally, list admins in `pgrokd.yml` to manage all users and tunnels from the [admin view](./docs/admin/admin-view.md) of the dashboard.
 
 ### Set up the client (`pgrok`)
 
