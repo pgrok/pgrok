@@ -7,16 +7,10 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"net/http/httptest"
-	"net/url"
-	"os"
-	"strings"
-	"time"
 
 	"github.com/pkg/errors"
 	"github.com/urfave/cli/v3"
 	"golang.org/x/crypto/ssh"
-	"gopkg.in/yaml.v3"
 	"unknwon.dev/x/logx"
 
 	"github.com/pgrok/pgrok/internal/dynamicforward"
@@ -88,100 +82,21 @@ func actionHTTP(ctx context.Context, cmd *cli.Command, logger *logx.Logger) erro
 		cmd.String("forward-addr"),
 		config.ForwardAddr,
 	)
-	logger.Info("Default forward", "address", defaultForwardAddr)
-
-	dynamicForwardRules := strings.Split(config.DynamicForwards, "\n")
-	dynamicForwards := make([]dynamicforward.Forward, 0, len(dynamicForwardRules))
-	for _, rule := range dynamicForwardRules {
-		if rule == "" {
-			continue
-		}
-
-		fields := strings.Fields(rule)
-		if len(fields) != 2 {
-			logger.Debug("Skipped invalid dynamic forward rule", "rule", rule)
-			continue
-		}
-
-		dynamicForwards = append(dynamicForwards,
-			dynamicforward.Forward{
-				Prefix:  fields[0],
-				Address: fields[1],
-			},
-		)
-		logger.Debug("Added dynamic forward rule", "pathPrefix", fields[0], "forwardTo", fields[1])
-	}
-	forwardHandler, err := dynamicforward.New(
-		logger,
-		defaultForwardAddr,
-		dynamicforward.Options{
+	err = runTunnel(logger, tunnel{
+		protocol:        protocolHTTP,
+		remoteAddr:      cmp.Or(cmd.String("remote-addr"), config.RemoteAddr),
+		forwardAddr:     defaultForwardAddr,
+		token:           cmp.Or(cmd.String("token"), config.Token),
+		subdomain:       cmd.String("subdomain"),
+		dynamicForwards: config.DynamicForwards,
+		headers: dynamicforward.Options{
 			HostHeader:           cmp.Or(cmd.String("host-header"), config.HostHeader),
 			RequestHeaders:       append(config.RequestHeaders, cmd.StringSlice("request-header")...),
 			RemoveRequestHeaders: append(config.RemoveRequestHeaders, cmd.StringSlice("remove-request-header")...),
 		},
-		dynamicForwards...,
-	)
-	if err != nil {
-		logger.FatalContext(ctx, "Failed to create forward handler", "error", err)
-	}
-
-	s := httptest.NewServer(forwardHandler)
-	logger.Debug("Capture server is running on", "url", s.URL)
-
-	surl, _ := url.Parse(s.URL)
-	onReady := newReadyHook(logger)
-	cooldownAfter := time.Now().Add(time.Minute)
-	for failed := 0; ; failed++ {
-		err := tryConnect(
-			logger,
-			protocolHTTP,
-			cmp.Or(cmd.String("remote-addr"), config.RemoteAddr),
-			surl.Host,
-			cmp.Or(cmd.String("token"), config.Token),
-			cmd.String("subdomain"),
-			onReady,
-		)
-		if err != nil {
-			if time.Now().After(cooldownAfter) {
-				failed = 0
-			}
-			backoff := time.Duration(2<<(failed/3+1)) * time.Second
-			logger.Error(
-				fmt.Sprintf("Failed to connect to server, will reconnect in %s", backoff.String()),
-				"error", err.Error(),
-			)
-			if strings.Contains(err.Error(), "no supported methods remain") {
-				logger.FatalContext(ctx, "Please double check your token and try again")
-			}
-			time.Sleep(backoff)
-			cooldownAfter = time.Now().Add(time.Minute)
-		}
-	}
-}
-
-type Config struct {
-	RemoteAddr      string `yaml:"remote_addr"`
-	ForwardAddr     string `yaml:"forward_addr"`
-	Token           string `yaml:"token"`
-	DynamicForwards string `yaml:"dynamic_forwards"`
-
-	HostHeader           string   `yaml:"host_header"`
-	RequestHeaders       []string `yaml:"request_headers"`
-	RemoveRequestHeaders []string `yaml:"remove_request_headers"`
-}
-
-func loadConfig(configPath string) (*Config, error) {
-	p, err := os.ReadFile(configPath)
-	if err != nil {
-		return nil, errors.Wrap(err, "read file")
-	}
-
-	var config Config
-	err = yaml.Unmarshal(p, &config)
-	if err != nil {
-		return nil, errors.Wrap(err, "unmarshal")
-	}
-	return &config, nil
+	})
+	fatalTunnelError(ctx, logger, err)
+	return nil
 }
 
 const (

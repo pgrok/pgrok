@@ -13,3 +13,17 @@ token: "REDACTED"
 # Rewrite the Host header to the host of the forward address for local apps that
 # reject unknown hosts. The public host is kept in X-Forwarded-Host.
 #host_header: rewrite
+
+# Named tunnels to be started with "pgrok start <name>..." or "pgrok start --all",
+# sharing the "remote_addr" and "token" above.
+#tunnels:
+#  web:
+#    protocol: http
+#    forward_addr: http://localhost:3000
+#    # Set a distinct subdomain prefix for each HTTP tunnel to get stable URLs.
+#    subdomain: web
+#    dynamic_forwards: |
+#      /api http://localhost:8080
+#  db:
+#    protocol: tcp
+#    forward_addr: localhost:5432
