@@ -9,7 +9,7 @@ RUN pnpm install --frozen-lockfile --prefer-frozen-lockfile \
     && pnpm run build
 WORKDIR /build
 
-FROM golang:1.27-alpine3.23@sha256:8a5046497cda39860b832ffdbe8dd66018a0f05bb01352f533a36e7e2ced66a0 AS binarybuilder
+FROM golang:1.27-alpine3.24@sha256:fa3d596898d9f126af7c01d14ee7597bab3f39cccf392ef36b69fe77cd681f18 AS binarybuilder
 RUN apk --no-cache --no-progress add --virtual \
     build-deps \
     build-base \
@@ -24,24 +24,17 @@ RUN go build -v -trimpath -tags prod \
       -ldflags "-X 'main.version=${BUILD_VERSION}' -X 'main.commit=$(git rev-parse HEAD)' -X 'main.date=$(date -u '+%Y-%m-%d %I:%M:%S %Z')'" \
       -o .bin/pgrokd ./pgrokd/cli
 
-FROM alpine:3.23@sha256:5b10f432ef3da1b8d4c7eb6c487f2f5a8f096bc91145e68878dd4a5019afde11
+FROM alpine:3.24@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf
 
 LABEL org.opencontainers.image.source="https://github.com/pgrok/pgrok"
 
 RUN addgroup --gid 10001 --system nonroot \
   && adduser  --uid 10000 --system --ingroup nonroot --home /home/nonroot nonroot
 
-RUN echo https://dl-cdn.alpinelinux.org/alpine/edge/main/ >> /etc/apk/repositories \
-  && echo https://dl-cdn.alpinelinux.org/alpine/edge/community/ >> /etc/apk/repositories \
-  && apk --no-cache --no-progress add \
+RUN apk --no-cache --no-progress add \
   ca-certificates \
-  "curl>8.20.0-r0" \
-  "libcrypto3>=3.5.8-r0" \
-  "libssl3>=3.5.8-r0" \
-  "musl>=1.2.6-r6" \
-  "musl-utils>=1.2.6-r6" \
-  tini \
-  "zlib>=1.3.2-r1"
+  curl \
+  tini
 
 WORKDIR /app/pgrokd/
 COPY --from=binarybuilder /dist/.bin/pgrokd .
