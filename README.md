@@ -56,6 +56,7 @@ Before you get started, make sure you have the following:
 ### Set up the client (`pgrok`)
 
 1. Go to http://example.com, authenticate with your SSO to obtain the token and URL (e.g., `http://unknwon.example.com`). The "Get started" section of the dashboard has the following commands ready to copy with your token and server address filled in.
+    - If your token leaks, click **Regenerate** next to it on the dashboard. The old token stops working for new connections immediately, so update every client with the new token (re-run `pgrok init ... --token` or edit `token` in `pgrok.yml`). Tunnels that are already connected keep running until they disconnect.
 1. Download the latest version of the `pgrok`:
     - For Homebrew:
         ```sh

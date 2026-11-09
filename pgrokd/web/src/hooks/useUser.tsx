@@ -1,4 +1,4 @@
-import { createContext, useContext } from "react";
+import { createContext, useContext, useMemo, useState } from "react";
 
 export interface UserContextType {
   authed: boolean;
@@ -8,10 +8,19 @@ export interface UserContextType {
   remoteAddr: string;
 }
 
-const UserContext = createContext<UserContextType>({} as UserContextType);
+interface UserContextValue extends UserContextType {
+  /**
+   * Replaces the token shown across the app, e.g. after it is regenerated.
+   */
+  setToken: (token: string) => void;
+}
+
+const UserContext = createContext<UserContextValue>({} as UserContextValue);
 
 export function UserProvider({ user, children }: { user: UserContextType; children: JSX.Element }) {
-  return <UserContext.Provider value={user}>{children}</UserContext.Provider>;
+  const [token, setToken] = useState(user.token);
+  const value = useMemo(() => ({ ...user, token, setToken }), [user, token]);
+  return <UserContext.Provider value={value}>{children}</UserContext.Provider>;
 }
 
 export default function useUser() {
