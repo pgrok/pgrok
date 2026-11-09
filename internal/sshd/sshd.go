@@ -47,6 +47,15 @@ func Start(
 	}
 	for _, signer := range signers {
 		config.AddHostKey(signer)
+
+		// The pgrok client only accepts the RSA host key, log its fingerprint for
+		// admins to publish so users can verify it.
+		if signer.PublicKey().Type() == ssh.KeyAlgoRSA {
+			logger.Info("Host key for pgrok clients",
+				"type", signer.PublicKey().Type(),
+				"fingerprint", ssh.FingerprintSHA256(signer.PublicKey()),
+			)
+		}
 	}
 
 	address := "0.0.0.0:" + strconv.Itoa(port)

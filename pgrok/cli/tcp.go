@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/urfave/cli/v3"
 	"unknwon.dev/x/logx"
 )
@@ -38,6 +39,10 @@ func commandTCP(homeDir string, logger *logx.Logger) *cli.Command {
 				Name:    "token",
 				Usage:   "The authentication token",
 				Aliases: []string{"t"},
+			},
+			&cli.StringFlag{
+				Name:  "host-key-fingerprint",
+				Usage: "The SHA256 fingerprint of the server's host key to pin, instead of trusting it on first use",
 			},
 		),
 	}
@@ -82,6 +87,10 @@ func actionTCP(ctx context.Context, cmd *cli.Command, logger *logx.Logger) error
 	)
 	logger.Info("Forward", "address", forwardAddr)
 
+	hostKeyCallback, err := newHostKeyCallback(logger, configPath, cmp.Or(cmd.String("host-key-fingerprint"), config.HostKeyFingerprint))
+	if err != nil {
+		logger.FatalContext(ctx, "Failed to set up host key verification", "error", err)
+	}
 	onReady := newReadyHook(logger)
 	cooldownAfter := time.Now().Add(time.Minute)
 	for failed := 0; ; failed++ {
@@ -92,9 +101,14 @@ func actionTCP(ctx context.Context, cmd *cli.Command, logger *logx.Logger) error
 			forwardAddr,
 			cmp.Or(cmd.String("token"), config.Token),
 			"", // No subdomain as TCP doesn't use it
+			hostKeyCallback,
 			onReady,
 		)
 		if err != nil {
+			var mismatch *hostKeyMismatchError
+			if errors.As(err, &mismatch) {
+				logger.FatalContext(ctx, mismatch.Error())
+			}
 			if time.Now().After(cooldownAfter) {
 				failed = 0
 			}

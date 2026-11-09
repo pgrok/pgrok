@@ -6,6 +6,11 @@ forward_addr: "http://127.0.0.1:2830"
 # The authentication token.
 token: "REDACTED"
 
+# The SHA256 fingerprint of the server's ssh-rsa host key to pin, instead of
+# trusting it on first use and recording it in the "known_hosts" file next to
+# this config file.
+#host_key_fingerprint: "SHA256:..."
+
 # Dynamic forward rules and use "forward_addr" as catch-all.
 #dynamic_forwards: |
 #  /api http://localhost:8080
