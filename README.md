@@ -172,6 +172,12 @@ This goes live at `http://staging-unknwon.example.com`, forwarding to `http://lo
 - The resulting URL is deterministic: if the prefixed host is already in use, the client fails with an error instead of falling back to a randomized one.
 - This flag only applies to HTTP tunnels. It has no effect on `pgrok tcp`.
 
+#### Live tunnels
+
+The "Live tunnels" card on the dashboard lists your active tunnels with their public URL, protocol, connected duration and client address, and refreshes every few seconds.
+
+Use the "Disconnect" button to close a tunnel's connection on the server side, e.g., to kick a forgotten client. Note that `pgrok` reconnects automatically, so stop the client itself to end a tunnel for good.
+
 ### Vanilla SSH
 
 Because the standard SSH protocol is used for tunneling, you may well just use the vanilla SSH client.

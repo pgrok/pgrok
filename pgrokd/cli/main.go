@@ -18,6 +18,7 @@ import (
 	"github.com/pgrok/pgrok/internal/conf"
 	"github.com/pgrok/pgrok/internal/database"
 	"github.com/pgrok/pgrok/internal/reverseproxy"
+	"github.com/pgrok/pgrok/internal/tunnels"
 	"github.com/pgrok/pgrok/pgrokd/cli/internal/web"
 )
 
@@ -51,7 +52,8 @@ func main() {
 		logger.FatalContext(ctx, "Failed to connect to database", "error", err)
 	}
 
-	webServer, err := web.NewServer(logger.Scoped("web"), config, db)
+	registry := tunnels.NewRegistry()
+	webServer, err := web.NewServer(logger.Scoped("web"), config, db, registry)
 	if err != nil {
 		logger.FatalContext(ctx, "Failed to set up web server", "error", err)
 	}
@@ -61,7 +63,7 @@ func main() {
 
 	var routines conc.WaitGroup
 	routines.Go(func() {
-		if err := runSSHServer(ctx, logger.Scoped("sshd"), config.SSHD.Port, config.Proxy, db, proxies); err != nil && !isBenignShutdown(err, ctx) {
+		if err := runSSHServer(ctx, logger.Scoped("sshd"), config.SSHD.Port, config.Proxy, db, proxies, registry); err != nil && !isBenignShutdown(err, ctx) {
 			logger.ErrorContext(ctx, "SSH server exited unexpectedly", "error", err)
 			stop()
 		}

@@ -22,6 +22,7 @@ import (
 	"github.com/pgrok/pgrok/internal/conf"
 	"github.com/pgrok/pgrok/internal/database"
 	"github.com/pgrok/pgrok/internal/reverseproxy"
+	"github.com/pgrok/pgrok/internal/tunnels"
 )
 
 // Client is a SSH client that has established a connection.
@@ -94,6 +95,7 @@ func (c *Client) handleTCPIPForward(
 	proxy conf.Proxy,
 	req *ssh.Request,
 	proxies *reverseproxy.Cluster,
+	registry *tunnels.Registry,
 ) {
 	// RFC 4254 7.1, https://www.rfc-editor.org/rfc/rfc4254#section-7.1
 	var forwardRequest struct {
@@ -268,6 +270,19 @@ func (c *Client) handleTCPIPForward(
 		c.host = host
 		c.signalReady(nil)
 	}
+
+	removeTunnel := registry.Add(
+		tunnels.Tunnel{
+			PrincipalID: c.principal.ID,
+			Protocol:    c.protocol,
+			URL:         c.hostURL(proxy),
+			RemoteAddr:  c.serverConn.RemoteAddr().String(),
+			ConnectedAt: time.Now(),
+		},
+		c.serverConn.Close,
+	)
+	defer removeTunnel()
+
 	_ = req.Reply(true, ssh.Marshal(payload))
 	<-ctx.Done()
 	if c.protocol == "http" {
@@ -304,28 +319,21 @@ func (c *Client) handleServerInfo(proxy conf.Proxy, req *ssh.Request) {
 		c.protocol = payload.Protocol
 	}
 
-	var hostURL string
 	switch c.protocol {
 	case "tcp":
-		host := cmp.Or(proxy.TCP.Domain, proxy.Domain)
-		if i := strings.Index(host, ":"); i > 0 {
-			host = host[:i]
-		}
-		hostURL = "tcp://" + host + ":" + strconv.Itoa(c.principal.LastTCPPort)
 	case "http":
 		<-c.ready.Done()
 		if cause := context.Cause(c.ready); cause != nil && cause != context.Canceled {
 			_ = req.Reply(false, []byte(cause.Error()))
 			return
 		}
-		hostURL = proxy.Scheme + "://" + c.host
 	default:
 		_ = req.Reply(false, []byte(fmt.Sprintf("unsupported protocol: %s", c.protocol)))
 		return
 	}
 
 	resp, err := json.Marshal(map[string]string{
-		"host_url": hostURL,
+		"host_url": c.hostURL(proxy),
 	})
 	if err != nil {
 		c.logger.Error("Failed to marshal server info",
@@ -336,4 +344,16 @@ func (c *Client) handleServerInfo(proxy conf.Proxy, req *ssh.Request) {
 		return
 	}
 	_ = req.Reply(true, resp)
+}
+
+// hostURL returns the public URL of the tunnel as presented to the client.
+func (c *Client) hostURL(proxy conf.Proxy) string {
+	if c.protocol == "tcp" {
+		host := cmp.Or(proxy.TCP.Domain, proxy.Domain)
+		if i := strings.Index(host, ":"); i > 0 {
+			host = host[:i]
+		}
+		return "tcp://" + host + ":" + strconv.Itoa(c.principal.LastTCPPort)
+	}
+	return proxy.Scheme + "://" + c.host
 }
