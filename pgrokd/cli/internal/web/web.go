@@ -18,13 +18,16 @@ import (
 
 	"github.com/pgrok/pgrok/internal/conf"
 	"github.com/pgrok/pgrok/internal/database"
+	"github.com/pgrok/pgrok/internal/inspector"
 	"github.com/pgrok/pgrok/internal/strutil"
 	"github.com/pgrok/pgrok/internal/tunnels"
 	"github.com/pgrok/pgrok/internal/userutil"
 )
 
 // NewServer constructs the HTTP server that serves the web UI and the JSON API.
-func NewServer(logger *logx.Logger, config *conf.Config, db *database.DB, registry *tunnels.Registry) (*http.Server, error) {
+//
+// The requests inspector is nil when it is disabled.
+func NewServer(logger *logx.Logger, config *conf.Config, db *database.DB, registry *tunnels.Registry, requests *inspector.Inspector) (*http.Server, error) {
 	f := flamego.New()
 	f.Use(flamego.Logger())
 	f.Use(flamego.Recovery())
@@ -64,6 +67,11 @@ func NewServer(logger *logx.Logger, config *conf.Config, db *database.DB, regist
 		f.Get("/identity-provider", getIdentityProvider)
 		f.Get("/tunnels", authenticate, getTunnels(registry))
 		f.Delete("/tunnels/{id}", authenticate, deleteTunnel(logger, registry))
+		f.Group("/requests", func() {
+			f.Get("", getRequests(requests))
+			f.Get("/{id}", getRequest(requests))
+			f.Post("/{id}/replay", requireJSON, postReplayRequest(logger, requests))
+		}, authenticate, requireInspector(requests))
 	})
 
 	// Human-facing web routes, namespaced under "/-".

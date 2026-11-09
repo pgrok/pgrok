@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"net"
 	"net/http"
 	"net/url"
@@ -8,9 +9,11 @@ import (
 	"time"
 
 	"github.com/flamego/flamego"
+	"github.com/pkg/errors"
 	"unknwon.dev/x/logx"
 
 	"github.com/pgrok/pgrok/internal/database"
+	"github.com/pgrok/pgrok/internal/inspector"
 	"github.com/pgrok/pgrok/internal/tunnels"
 )
 
@@ -109,5 +112,123 @@ func deleteTunnel(logger *logx.Logger, registry *tunnels.Registry) flamego.Handl
 			logger.Debug("Failed to close tunnel", "id", t.ID, "error", err)
 		}
 		c.ResponseWriter().WriteHeader(http.StatusNoContent)
+	}
+}
+
+// requireInspector responds 404 when the requests inspector is disabled.
+func requireInspector(requests *inspector.Inspector) flamego.Handler {
+	return func(r flamego.Render) {
+		if requests == nil {
+			r.JSON(http.StatusNotFound, map[string]string{
+				"error": "The request inspector is disabled on this server",
+			})
+		}
+	}
+}
+
+type requestSummary struct {
+	ID         string    `json:"id"`
+	TunnelID   string    `json:"tunnelId"`
+	ReplayOf   string    `json:"replayOf,omitempty"`
+	Method     string    `json:"method"`
+	Host       string    `json:"host"`
+	Path       string    `json:"path"`
+	Status     int       `json:"status"`
+	StartedAt  time.Time `json:"startedAt"`
+	DurationMs float64   `json:"durationMs"`
+	Streaming  bool      `json:"streaming"`
+}
+
+func newRequestSummary(e *inspector.Entry) requestSummary {
+	return requestSummary{
+		ID:         e.ID,
+		TunnelID:   e.TunnelID,
+		ReplayOf:   e.ReplayOf,
+		Method:     e.Method,
+		Host:       e.Host,
+		Path:       e.URI,
+		Status:     e.Status,
+		StartedAt:  e.StartedAt,
+		DurationMs: float64(e.Duration.Microseconds()) / 1000,
+		Streaming:  e.Streaming,
+	}
+}
+
+type requestDetails struct {
+	requestSummary
+	RequestHeaders        http.Header `json:"requestHeaders"`
+	RequestBody           []byte      `json:"requestBody"`
+	RequestBodyTruncated  bool        `json:"requestBodyTruncated"`
+	ResponseHeaders       http.Header `json:"responseHeaders"`
+	ResponseBody          []byte      `json:"responseBody"`
+	ResponseBodyTruncated bool        `json:"responseBodyTruncated"`
+}
+
+// newRequestDetails returns the details of the entry with credentials redacted
+// from headers.
+func newRequestDetails(e *inspector.Entry) requestDetails {
+	return requestDetails{
+		requestSummary:        newRequestSummary(e),
+		RequestHeaders:        inspector.Redact(e.RequestHeader),
+		RequestBody:           e.RequestBody,
+		RequestBodyTruncated:  e.RequestBodyTruncated,
+		ResponseHeaders:       inspector.Redact(e.ResponseHeader),
+		ResponseBody:          e.ResponseBody,
+		ResponseBodyTruncated: e.ResponseBodyTruncated,
+	}
+}
+
+// getRequests lists recorded requests to tunnels of the signed-in principal,
+// newest first, optionally filtered by the "tunnel" query parameter.
+func getRequests(requests *inspector.Inspector) flamego.Handler {
+	return func(c *Context, r flamego.Render) {
+		entries := requests.List(c.Principal.ID, c.Query("tunnel"))
+		resp := make([]requestSummary, 0, len(entries))
+		for _, e := range entries {
+			resp = append(resp, newRequestSummary(e))
+		}
+		r.JSON(http.StatusOK, resp)
+	}
+}
+
+// getRequest returns the details of a recorded request of the signed-in
+// principal. Requests of other principals are reported as not found.
+func getRequest(requests *inspector.Inspector) flamego.Handler {
+	return func(c *Context, r flamego.Render) {
+		e, ok := requests.Get(c.Principal.ID, c.Param("id"))
+		if !ok {
+			r.JSON(http.StatusNotFound, map[string]string{
+				"error": inspector.ErrNotFound.Error(),
+			})
+			return
+		}
+		r.JSON(http.StatusOK, newRequestDetails(e))
+	}
+}
+
+// postReplayRequest sends a recorded request of the signed-in principal again
+// through its tunnel and returns the details of the new recorded request.
+func postReplayRequest(logger *logx.Logger, requests *inspector.Inspector) flamego.Handler {
+	return func(c *Context, r flamego.Render) {
+		ctx, cancel := context.WithTimeout(c.Request().Context(), 30*time.Second)
+		defer cancel()
+
+		e, err := requests.Replay(ctx, c.Principal.ID, c.Param("id"))
+		if err != nil {
+			status := http.StatusInternalServerError
+			switch {
+			case errors.Is(err, inspector.ErrNotFound):
+				status = http.StatusNotFound
+			case errors.Is(err, inspector.ErrTunnelGone):
+				status = http.StatusConflict
+			case errors.Is(err, inspector.ErrNotReplayable):
+				status = http.StatusUnprocessableEntity
+			default:
+				logger.Error("Failed to replay request", "id", c.Param("id"), "error", err)
+			}
+			r.JSON(status, map[string]string{"error": err.Error()})
+			return
+		}
+		r.JSON(http.StatusCreated, newRequestDetails(e))
 	}
 }

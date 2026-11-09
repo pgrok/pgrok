@@ -5,6 +5,7 @@ proxy:
   port: 3000
   scheme: "http"
   domain: "localhost:3000"
+  inspector: true
 sshd:
   port: 2222
 database:
