@@ -21,6 +21,7 @@ import (
 
 	"github.com/pgrok/pgrok/internal/conf"
 	"github.com/pgrok/pgrok/internal/database"
+	"github.com/pgrok/pgrok/internal/metrics"
 	"github.com/pgrok/pgrok/internal/reverseproxy"
 )
 
@@ -210,13 +211,19 @@ func (c *Client) handleTCPIPForward(
 				defer func() { _ = stream.Close() }()
 				go ssh.DiscardRequests(reqs)
 
+				var toClient, toVisitor io.Writer = stream, conn
+				if c.protocol == "tcp" {
+					toClient = metrics.CountingWriter(stream, metrics.TCPTunnelBytesTotal.WithLabelValues(c.principal.Subdomain, "in"))
+					toVisitor = metrics.CountingWriter(conn, metrics.TCPTunnelBytesTotal.WithLabelValues(c.principal.Subdomain, "out"))
+				}
+
 				streamCtx, done := context.WithCancel(ctx)
 				go func() {
-					_, _ = io.Copy(stream, conn)
+					_, _ = io.Copy(toClient, conn)
 					done()
 				}()
 				go func() {
-					_, _ = io.Copy(conn, stream)
+					_, _ = io.Copy(toVisitor, stream)
 					done()
 				}()
 				<-streamCtx.Done()
@@ -252,7 +259,7 @@ func (c *Client) handleTCPIPForward(
 			id := uuid.New()
 			alternative = hex.EncodeToString(id[:]) + "-" + c.host
 		}
-		host, err := proxies.Set(c.host, alternative, listener.Addr().String())
+		host, err := proxies.Set(c.host, alternative, listener.Addr().String(), c.principal.Subdomain)
 		if err != nil {
 			if c.customHost {
 				err = errors.Errorf("requested subdomain %q is already in use", c.host)
@@ -268,6 +275,9 @@ func (c *Client) handleTCPIPForward(
 		c.host = host
 		c.signalReady(nil)
 	}
+	activeTunnels := metrics.TunnelsActive.WithLabelValues(c.protocol)
+	activeTunnels.Inc()
+	defer activeTunnels.Dec()
 	_ = req.Reply(true, ssh.Marshal(payload))
 	<-ctx.Done()
 	if c.protocol == "http" {

@@ -25,6 +25,11 @@ proxy:
 sshd:
   # The listening port of the SSH server.
   port: 2222
+# Optional settings for the Prometheus metrics server, disabled when unset.
+# Do not expose this port publicly, metric labels contain user subdomains.
+#metrics:
+#  # The listening port of the metrics server, metrics are served at "/metrics".
+#  port: 3390
 
 # Settings for the database.
 database:

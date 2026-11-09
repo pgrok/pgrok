@@ -58,6 +58,10 @@ func main() {
 
 	proxies := reverseproxy.NewCluster(logger.Scoped("proxy"), config.ExternalURL)
 	proxyServer := newProxyServer(logger.Scoped("proxy"), config.Proxy.Port, proxies)
+	var metricsServer *http.Server
+	if config.Metrics.Port > 0 {
+		metricsServer = newMetricsServer(logger.Scoped("metrics"), config.Metrics.Port)
+	}
 
 	var routines conc.WaitGroup
 	routines.Go(func() {
@@ -78,6 +82,14 @@ func main() {
 			stop()
 		}
 	})
+	if metricsServer != nil {
+		routines.Go(func() {
+			if err := metricsServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				logger.ErrorContext(ctx, "Metrics server exited unexpectedly", "error", err)
+				stop()
+			}
+		})
+	}
 	routines.Go(func() {
 		<-ctx.Done()
 		logger.WarnContext(ctx, "Shutdown requested")
@@ -90,6 +102,11 @@ func main() {
 		}
 		if err := proxyServer.Shutdown(shutdownCtx); err != nil {
 			logger.ErrorContext(shutdownCtx, "Failed to shut down proxy server gracefully", "error", err)
+		}
+		if metricsServer != nil {
+			if err := metricsServer.Shutdown(shutdownCtx); err != nil {
+				logger.ErrorContext(shutdownCtx, "Failed to shut down metrics server gracefully", "error", err)
+			}
 		}
 	})
 

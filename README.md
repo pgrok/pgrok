@@ -52,6 +52,7 @@ Before you get started, make sure you have the following:
     }
     ```
 1. Create a new OIDC client in your SSO with the **Redirect URI** to be `http://example.com/-/oidc/callback`.
+1. (Optional) Enable [Prometheus metrics](./docs/admin/metrics.md).
 
 ### Set up the client (`pgrok`)
 

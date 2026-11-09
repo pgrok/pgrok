@@ -17,6 +17,9 @@ type Config struct {
 	SSHD  struct {
 		Port int `yaml:"port"`
 	} `yaml:"sshd"`
+	Metrics struct {
+		Port int `yaml:"port"`
+	} `yaml:"metrics"`
 	Database         *Database         `yaml:"database"`
 	IdentityProvider *IdentityProvider `yaml:"identity_provider"`
 }
