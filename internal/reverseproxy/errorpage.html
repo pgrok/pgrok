@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>{{.Title}} · pgrok</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --background: hsl(48 100% 98%);
+    --foreground: hsl(0 0% 0%);
+    --card: hsl(0 0% 100%);
+    --primary: hsl(50 100% 60%);
+    --primary-foreground: hsl(0 0% 0%);
+    --muted-foreground: hsl(0 0% 35%);
+    --code: hsl(48 100% 94%);
+    --border: hsl(0 0% 0%);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --background: hsl(0 0% 9%);
+      --foreground: hsl(0 0% 98%);
+      --card: hsl(0 0% 14%);
+      --muted-foreground: hsl(0 0% 65%);
+      --code: hsl(0 0% 20%);
+      --border: hsl(0 0% 98%);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 24px;
+    background: var(--background);
+    color: var(--foreground);
+    font: 16px/1.5 "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .card {
+    width: 100%;
+    max-width: 32rem;
+    background: var(--card);
+    border: 2px solid var(--border);
+    border-radius: 4px;
+    box-shadow: 4px 4px 0 0 var(--border);
+  }
+  .header { padding: 16px; border-bottom: 2px solid var(--border); }
+  .content { padding: 16px; }
+  .brand {
+    display: inline-block;
+    margin-bottom: 12px;
+    padding: 0 8px;
+    background: var(--primary);
+    color: var(--primary-foreground);
+    border: 2px solid hsl(0 0% 0%);
+    font: 900 14px/1.6 "Archivo Black", ui-sans-serif, system-ui, sans-serif;
+  }
+  h1 {
+    margin: 0;
+    font: 900 1.5rem/1.25 "Archivo Black", ui-sans-serif, system-ui, sans-serif;
+  }
+  .host { margin: 8px 0 0; font-weight: 600; overflow-wrap: anywhere; }
+  p { margin: 0 0 12px; }
+  .muted { color: var(--muted-foreground); }
+  code {
+    padding: 1px 4px;
+    background: var(--code);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    font: 0.875em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  .button {
+    display: inline-block;
+    margin-top: 4px;
+    padding: 6px 16px;
+    background: var(--primary);
+    color: var(--primary-foreground);
+    border: 2px solid hsl(0 0% 0%);
+    border-radius: 4px;
+    box-shadow: 4px 4px 0 0 var(--border);
+    font: 900 1rem/1.5 "Archivo Black", ui-sans-serif, system-ui, sans-serif;
+    text-decoration: none;
+    transition: all 0.2s;
+  }
+  .button:hover { box-shadow: 3px 3px 0 0 var(--border); transform: translateY(2px); }
+</style>
+</head>
+<body>
+<main class="card">
+  <div class="header">
+    <div class="brand">pgrok</div>
+    <h1>{{.Title}}</h1>
+    <p class="host">{{.Host}}</p>
+  </div>
+  <div class="content">
+    <p>{{.Message}}</p>
+    <p class="muted">{{.Hint}}</p>
+    {{- if .DashboardURL}}
+    <a class="button" href="{{.DashboardURL}}">Open pgrok dashboard</a>
+    {{- end}}
+  </div>
+</main>
+</body>
+</html>

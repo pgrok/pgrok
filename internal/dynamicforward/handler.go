@@ -15,6 +15,11 @@ import (
 	"unknwon.dev/x/logx"
 )
 
+// UpstreamErrorHeader is set on the response when the client fails to reach the
+// local service, so that pgrokd can tell it apart from a 502 returned by the
+// local service itself and render a friendly error page.
+const UpstreamErrorHeader = "X-Pgrok-Upstream-Error"
+
 // Forward represents a dynamic forward rule.
 type Forward struct {
 	Prefix  string
@@ -86,7 +91,7 @@ func New(logger *logx.Logger, defaultForwardAddr string, opts Options, forwards 
 		return nil, errors.Wrap(err, "parse default forward address")
 	}
 
-	defaultProxy := httputil.NewSingleHostReverseProxy(defaultForwardURL)
+	defaultProxy := newProxy(logger, defaultForwardURL)
 
 	type prefixProxy struct {
 		prefix string
@@ -102,7 +107,7 @@ func New(logger *logx.Logger, defaultForwardAddr string, opts Options, forwards 
 		proxies = append(proxies, prefixProxy{
 			prefix: forward.Prefix,
 			host:   forwardURL.Host,
-			proxy:  httputil.NewSingleHostReverseProxy(forwardURL),
+			proxy:  newProxy(logger, forwardURL),
 		})
 	}
 	// Match the longest prefix first so that overlapping rules (e.g., "/api" and
@@ -131,4 +136,16 @@ func New(logger *logx.Logger, defaultForwardAddr string, opts Options, forwards 
 		serve(w, r, defaultProxy, defaultForwardURL.Host)
 	})
 	return f, nil
+}
+
+// newProxy returns a reverse proxy to the target that marks its own failures
+// to reach the target with UpstreamErrorHeader.
+func newProxy(logger *logx.Logger, target *url.URL) *httputil.ReverseProxy {
+	proxy := httputil.NewSingleHostReverseProxy(target)
+	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
+		logger.Error("Failed to forward request", "path", r.URL.Path, "forwardTo", target.Host, "error", err)
+		w.Header().Set(UpstreamErrorHeader, "1")
+		w.WriteHeader(http.StatusBadGateway)
+	}
+	return proxy
 }

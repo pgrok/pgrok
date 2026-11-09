@@ -491,3 +491,42 @@ func sshAuthenticate(token string) error {
 	}
 	return client.Close()
 }
+
+func TestErrorPages(t *testing.T) {
+	get := func(t *testing.T, host, accept string) (int, string) {
+		req, err := http.NewRequest(http.MethodGet, "http://localhost:3000/", nil)
+		require.NoError(t, err)
+		req.Host = host
+		req.Header.Set("Accept", accept)
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		defer func() { _ = resp.Body.Close() }()
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		return resp.StatusCode, string(body)
+	}
+
+	t.Run("no tunnel", func(t *testing.T) {
+		status, body := get(t, "nobody.localhost:3000", "text/html")
+		assert.Equal(t, http.StatusBadGateway, status)
+		assert.Contains(t, body, "This tunnel is offline")
+		assert.Contains(t, body, "nobody.localhost:3000")
+		assert.Contains(t, body, `href="http://localhost:3320"`)
+
+		status, body = get(t, "nobody.localhost:3000", "*/*")
+		assert.Equal(t, http.StatusBadGateway, status)
+		assert.Equal(t, "No reverse proxy is available for the host: nobody.localhost:3000\n", body)
+	})
+
+	t.Run("local service down", func(t *testing.T) {
+		// Nothing listens on port 8001.
+		endpoint, shutdownPgrok, err := setupPgrok(context.Background(), "http", 8001)
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, shutdownPgrok()) })
+
+		status, body := get(t, endpoint, "text/html")
+		assert.Equal(t, http.StatusBadGateway, status)
+		assert.Contains(t, body, "the local service at the other end is not responding")
+		assert.NotContains(t, body, "dial tcp")
+	})
+}
