@@ -31,6 +31,11 @@
         email: "email"
     #  # The required domain name, "field_mapping.email" is required to set for this to work.
     #  required_domain: "example.com"
+    #  # Only these emails may sign in (case-insensitive), "field_mapping.email" is required to set for this to work.
+    #  # When "required_domain" is also set, both must match.
+    #  allowed_emails:
+    #    - "alice@example.com"
+    #    - "bob@example.com"
     ```
 1. Download the latest version of the `pgrokd` archive from the [Releases](https://github.com/pgrok/pgrok/releases) page.
 1. Launch the `pgrokd` in background (systemd, screen, nohup).

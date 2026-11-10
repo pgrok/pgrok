@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 
 	"github.com/coreos/go-oidc"
@@ -273,11 +274,35 @@ func handleOIDCCallback(ctx context.Context, logger *logx.Logger, idp *conf.Iden
 		userInfo.DisplayName = userInfo.Identifier
 	}
 
-	if idp.RequiredDomain != "" {
-		email, _ := claims[idp.FieldMapping.Email].(string)
-		if !strings.HasSuffix(email, "@"+idp.RequiredDomain) {
-			return nil, errors.Errorf("the email %q does not have required domain %q", email, idp.RequiredDomain)
-		}
+	err = checkEmail(idp, claims)
+	if err != nil {
+		return nil, err
 	}
 	return userInfo, nil
+}
+
+// checkEmail returns an error if the email in the claims is not allowed to
+// sign in. Both "required_domain" and "allowed_emails" apply when set.
+func checkEmail(idp *conf.IdentityProvider, claims map[string]any) error {
+	email, _ := claims[idp.FieldMapping.Email].(string)
+	if idp.RequiredDomain != "" {
+		if !strings.HasSuffix(email, "@"+idp.RequiredDomain) {
+			return errors.Errorf("the email %q does not have required domain %q", email, idp.RequiredDomain)
+		}
+	}
+
+	if len(idp.AllowedEmails) > 0 {
+		// An unverified email could be set to anything by the user on some
+		// identity providers, so it cannot be trusted for an allowlist.
+		if verified, ok := claims["email_verified"].(bool); ok && !verified {
+			return errors.Errorf("the email %q is not verified by the identity provider", email)
+		}
+		allowed := email != "" && slices.ContainsFunc(idp.AllowedEmails, func(e string) bool {
+			return strings.EqualFold(strings.TrimSpace(e), email)
+		})
+		if !allowed {
+			return errors.Errorf("the email %q is not in the allowed emails", email)
+		}
+	}
+	return nil
 }
