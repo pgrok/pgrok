@@ -80,6 +80,11 @@ func (db *DB) ListPrincipals(ctx context.Context) ([]*Principal, error) {
 	return principals, db.WithContext(ctx).Order("id").Find(&principals).Error
 }
 
+// DeletePrincipalByID deletes the principal with given id.
+func (db *DB) DeletePrincipalByID(ctx context.Context, id int64) error {
+	return db.WithContext(ctx).Where("id = ?", id).Delete(&Principal{}).Error
+}
+
 // UpdatePrincipalBlocked updates whether the principal is blocked.
 func (db *DB) UpdatePrincipalBlocked(ctx context.Context, id int64, blocked bool) error {
 	return db.WithContext(ctx).Model(&Principal{}).Where("id = ?", id).Update("blocked", blocked).Error

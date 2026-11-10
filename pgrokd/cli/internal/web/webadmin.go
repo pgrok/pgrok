@@ -119,6 +119,55 @@ func updateAdminPrincipal(logger *logx.Logger, db *database.DB, registry *tunnel
 	}
 }
 
+// deleteAdminPrincipal deletes a principal and disconnects all of their active
+// tunnels. It is not a ban: the person gets a new account with a new token on
+// their next sign-in if the identity provider still lets them in. An admin
+// cannot delete themselves.
+func deleteAdminPrincipal(logger *logx.Logger, db *database.DB, registry *tunnels.Registry) flamego.Handler {
+	return func(c *Context, r flamego.Render) {
+		ctx := c.Request().Context()
+		principal, err := db.GetPrincipalByID(ctx, c.ParamInt64("id"))
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				r.JSON(http.StatusNotFound, map[string]string{"error": "User not found"})
+				return
+			}
+			r.JSON(http.StatusInternalServerError, map[string]string{
+				"error": "Failed to get principal: " + err.Error(),
+			})
+			return
+		}
+		if principal.ID == c.Principal.ID {
+			r.JSON(http.StatusBadRequest, map[string]string{"error": "You cannot delete yourself"})
+			return
+		}
+
+		// Delete the principal before closing the tunnels, so that its token is
+		// already rejected when the clients try to reconnect. Existing dashboard
+		// sessions are treated as signed out because the principal no longer
+		// exists, and IDs are never reused.
+		err = db.DeletePrincipalByID(ctx, principal.ID)
+		if err != nil {
+			r.JSON(http.StatusInternalServerError, map[string]string{
+				"error": "Failed to delete principal: " + err.Error(),
+			})
+			return
+		}
+		logger.Info("Deleted principal",
+			"id", principal.ID,
+			"identifier", principal.Identifier,
+			"by", c.Principal.Identifier,
+		)
+
+		for _, t := range registry.ListByPrincipal(principal.ID) {
+			if err := t.Close(); err != nil {
+				logger.Debug("Failed to close tunnel", "id", t.ID, "error", err)
+			}
+		}
+		c.ResponseWriter().WriteHeader(http.StatusNoContent)
+	}
+}
+
 type adminTunnelInfo struct {
 	tunnelInfo
 	OwnerID          int64  `json:"ownerId"`
