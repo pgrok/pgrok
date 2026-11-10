@@ -119,6 +119,17 @@ function AdminPanels() {
     await refresh();
   }
 
+  async function deletePrincipal(principal: AdminPrincipal) {
+    try {
+      // A body is required for axios to send the Content-Type header.
+      await axios.delete(`/api/admin/principals/${principal.id}`, { ...JSON_REQUEST, data: {} });
+    } catch (error_) {
+      const message = isAxiosError<{ error?: string }>(error_) ? error_.response?.data?.error : undefined;
+      setError(message ?? `Failed to delete ${principal.displayName}.`);
+    }
+    await refresh();
+  }
+
   async function disconnect(id: string) {
     try {
       // A body is required for axios to send the Content-Type header.
@@ -165,7 +176,12 @@ function AdminPanels() {
                 </thead>
                 <tbody className="divide-y-2 divide-border">
                   {principals.map((principal) => (
-                    <PrincipalRow key={principal.id} principal={principal} onSetBlocked={setBlocked} />
+                    <PrincipalRow
+                      key={principal.id}
+                      principal={principal}
+                      onSetBlocked={setBlocked}
+                      onDelete={deletePrincipal}
+                    />
                   ))}
                 </tbody>
               </table>
@@ -213,94 +229,144 @@ function AdminPanels() {
 function PrincipalRow({
   principal,
   onSetBlocked,
+  onDelete,
 }: {
   principal: AdminPrincipal;
   onSetBlocked: (principal: AdminPrincipal, blocked: boolean) => Promise<void>;
+  onDelete: (principal: AdminPrincipal) => Promise<void>;
 }) {
-  const [confirming, setConfirming] = useState(false);
+  const [confirming, setConfirming] = useState<"block" | "delete">();
   const [busy, setBusy] = useState(false);
   const createdAt = new Date(principal.createdAt);
 
-  async function confirm() {
+  async function confirmBlock() {
     setBusy(true);
     await onSetBlocked(principal, !principal.blocked);
     setBusy(false);
-    setConfirming(false);
+    setConfirming(undefined);
   }
 
+  async function confirmDelete() {
+    setBusy(true);
+    // The row is removed by the refresh once the user is deleted.
+    await onDelete(principal);
+    setBusy(false);
+    setConfirming(undefined);
+  }
+
+  const tunnels = `${principal.activeTunnels} tunnel${principal.activeTunnels === 1 ? "" : "s"}`;
   const action = principal.blocked ? "Unblock" : "Block";
   let question = "Block this user?";
   if (principal.blocked) {
     question = "Restore access?";
   } else if (principal.activeTunnels > 0) {
-    question = `Block and disconnect ${principal.activeTunnels} tunnel${principal.activeTunnels === 1 ? "" : "s"}?`;
+    question = `Block and disconnect ${tunnels}?`;
   }
 
+  const dangerButton = "bg-destructive text-destructive-foreground hover:bg-destructive";
   return (
-    <tr className={principal.blocked ? "bg-destructive/10" : undefined}>
-      <td className="py-3 pr-4">
-        <div className="font-semibold">
-          {principal.displayName}
-          {principal.isSelf && <span className="font-normal text-muted-foreground"> (you)</span>}
-        </div>
-        <div className="text-muted-foreground">{principal.identifier}</div>
-      </td>
-      <td className="py-3 pr-4">
-        <code className="break-all">{principal.subdomain}</code>
-      </td>
-      <td className="whitespace-nowrap py-3 pr-4" title={createdAt.toLocaleString()}>
-        {createdAt.toLocaleDateString()}
-      </td>
-      <td className="py-3 pr-4">{principal.activeTunnels}</td>
-      <td className="py-3 pr-4">
-        <div className="flex gap-1">
-          {principal.blocked ? (
-            <Tag className="border-destructive bg-destructive text-destructive-foreground">Blocked</Tag>
-          ) : (
-            <Tag>Active</Tag>
+    <>
+      <tr className={cn(principal.blocked && "bg-destructive/10", confirming === "delete" && "border-b-0")}>
+        <td className="py-3 pr-4">
+          <div className="font-semibold">
+            {principal.displayName}
+            {principal.isSelf && <span className="font-normal text-muted-foreground"> (you)</span>}
+          </div>
+          <div className="text-muted-foreground">{principal.identifier}</div>
+        </td>
+        <td className="py-3 pr-4">
+          <code className="break-all">{principal.subdomain}</code>
+        </td>
+        <td className="whitespace-nowrap py-3 pr-4" title={createdAt.toLocaleString()}>
+          {createdAt.toLocaleDateString()}
+        </td>
+        <td className="py-3 pr-4">{principal.activeTunnels}</td>
+        <td className="py-3 pr-4">
+          <div className="flex gap-1">
+            {principal.blocked ? (
+              <Tag className="border-destructive bg-destructive text-destructive-foreground">Blocked</Tag>
+            ) : (
+              <Tag>Active</Tag>
+            )}
+            {principal.isAdmin && <Tag className="bg-primary text-primary-foreground">Admin</Tag>}
+          </div>
+        </td>
+        {/* The right padding keeps the buttons' offset shadows from being clipped. */}
+        <td className="py-3 pr-1">
+          {/* Admins cannot block or delete themselves. */}
+          {!principal.isSelf && confirming === "block" && (
+            <div className="flex items-center justify-end gap-2">
+              <span className="text-right">{question}</span>
+              <Button
+                size="sm"
+                className={principal.blocked ? undefined : dangerButton}
+                disabled={busy}
+                onClick={() => void confirmBlock()}
+              >
+                {action}
+              </Button>
+              <Button size="sm" variant="outline" disabled={busy} onClick={() => setConfirming(undefined)}>
+                Cancel
+              </Button>
+            </div>
           )}
-          {principal.isAdmin && <Tag className="bg-primary text-primary-foreground">Admin</Tag>}
-        </div>
-      </td>
-      {/* The right padding keeps the buttons' offset shadows from being clipped. */}
-      <td className="py-3 pr-1">
-        {/* Admins cannot block themselves. */}
-        {!principal.isSelf && confirming && (
-          <div className="flex items-center justify-end gap-2">
-            <span className="text-right">{question}</span>
-            <Button
-              size="sm"
-              className={
-                principal.blocked ? undefined : "bg-destructive text-destructive-foreground hover:bg-destructive"
-              }
-              disabled={busy}
-              onClick={() => void confirm()}
+          {!principal.isSelf && confirming !== "block" && (
+            <div className="flex justify-end gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                title={
+                  principal.blocked
+                    ? "Allow this user to sign in and connect again with the same token"
+                    : "Disconnect this user's tunnels and reject their sign-ins and connections"
+                }
+                disabled={confirming === "delete"}
+                onClick={() => setConfirming("block")}
+              >
+                {action}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                title="Remove this user and disconnect their tunnels"
+                disabled={confirming === "delete"}
+                onClick={() => setConfirming("delete")}
+              >
+                Delete
+              </Button>
+            </div>
+          )}
+        </td>
+      </tr>
+      {confirming === "delete" && (
+        <tr className={cn(principal.blocked && "bg-destructive/10")}>
+          <td colSpan={6} className="pb-3 pr-1">
+            <div
+              role="alert"
+              className="flex flex-col gap-3 rounded border-2 border-destructive px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
             >
-              {action}
-            </Button>
-            <Button size="sm" variant="outline" disabled={busy} onClick={() => setConfirming(false)}>
-              Cancel
-            </Button>
-          </div>
-        )}
-        {!principal.isSelf && !confirming && (
-          <div className="flex justify-end">
-            <Button
-              size="sm"
-              variant="outline"
-              title={
-                principal.blocked
-                  ? "Allow this user to sign in and connect again with the same token"
-                  : "Disconnect this user's tunnels and reject their sign-ins and connections"
-              }
-              onClick={() => setConfirming(true)}
-            >
-              {action}
-            </Button>
-          </div>
-        )}
-      </td>
-    </tr>
+              <div>
+                <p className="font-semibold">
+                  Delete {principal.displayName} ({principal.identifier})? This can&apos;t be undone and disconnects{" "}
+                  {tunnels}.
+                </p>
+                <p className="text-muted-foreground">
+                  They get a new account with a new token if they sign in again. To keep them out, block instead.
+                </p>
+              </div>
+              <div className="flex shrink-0 gap-2">
+                <Button size="sm" className={dangerButton} disabled={busy} onClick={() => void confirmDelete()}>
+                  Delete
+                </Button>
+                <Button size="sm" variant="outline" disabled={busy} onClick={() => setConfirming(undefined)}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
 
@@ -386,6 +452,8 @@ function TunnelRow({
 
 function Tag({ className = "", children }: { className?: string; children: React.ReactNode }) {
   return (
-    <span className={cn("rounded border-2 border-border px-1.5 py-0.5 text-xs font-semibold", className)}>{children}</span>
+    <span className={cn("rounded border-2 border-border px-1.5 py-0.5 text-xs font-semibold", className)}>
+      {children}
+    </span>
   );
 }

@@ -727,6 +727,7 @@ func TestAdmin(t *testing.T) {
 	}
 	otherPath := fmt.Sprintf("/api/admin/principals/%d", other.ID)
 	assert.Equal(t, http.StatusForbidden, doRequest(t, otherClient, http.MethodPatch, otherPath, "application/json", `{"blocked":true}`))
+	assert.Equal(t, http.StatusForbidden, doRequest(t, otherClient, http.MethodDelete, otherPath, "application/json", `{}`))
 	assert.Equal(t, http.StatusForbidden, doRequest(t, otherClient, http.MethodDelete, "/api/admin/tunnels/"+uuid.NewString(), "application/json", `{}`))
 
 	// The admin sees all users and tunnels with their owners.
@@ -779,9 +780,12 @@ func TestAdmin(t *testing.T) {
 	assert.Equal(t, http.StatusUnsupportedMediaType, doRequest(t, webClient, http.MethodDelete, "/api/admin/tunnels/"+otherTunnel.ID, "", ""))
 	assert.Equal(t, http.StatusUnsupportedMediaType, doRequest(t, webClient, http.MethodPatch, otherPath, "text/plain", `{"blocked":true}`))
 
-	// Admins cannot block themselves.
+	assert.Equal(t, http.StatusUnsupportedMediaType, doRequest(t, webClient, http.MethodDelete, otherPath, "", ""))
+
+	// Admins cannot block or delete themselves.
 	selfPath := fmt.Sprintf("/api/admin/principals/%d", principals["unknwon@example.com"].ID)
 	assert.Equal(t, http.StatusBadRequest, doRequest(t, webClient, http.MethodPatch, selfPath, "application/json", `{"blocked":true}`))
+	assert.Equal(t, http.StatusBadRequest, doRequest(t, webClient, http.MethodDelete, selfPath, "application/json", `{}`))
 
 	// Blocking disconnects the tunnels, rejects the dashboard session and new SSH
 	// connections.
@@ -807,7 +811,8 @@ func TestAdmin(t *testing.T) {
 	require.NoError(t, dialSSH(other.Token))
 	endpoint, shutdownOtherPgrok, err := setupPgrokWithToken(ctx, other.Token, "http", 0, "")
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, shutdownOtherPgrok()) })
+	// The client exits by itself once the principal is deleted.
+	t.Cleanup(func() { _ = shutdownOtherPgrok() })
 	require.Eventually(t, func() bool {
 		tunnels, err := listTunnels()
 		return err == nil && tunnels["http://"+endpoint].OwnerIdentifier == "mallory@example.com"
@@ -818,4 +823,23 @@ func TestAdmin(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, http.StatusNoContent, doRequest(t, webClient, http.MethodDelete, "/api/admin/tunnels/"+tunnels["http://"+endpoint].ID, "application/json", `{}`))
 	assert.Equal(t, http.StatusNotFound, doRequest(t, webClient, http.MethodDelete, "/api/admin/tunnels/"+uuid.NewString(), "application/json", `{}`))
+
+	// Deleting disconnects the tunnels of the client once it has reconnected,
+	// rejects the token and the dashboard session, and removes the user.
+	require.Eventually(t, func() bool {
+		tunnels, err := listTunnels()
+		return err == nil && tunnels["http://"+endpoint].OwnerIdentifier == "mallory@example.com"
+	}, 15*time.Second, 200*time.Millisecond)
+	require.Equal(t, http.StatusNoContent, doRequest(t, webClient, http.MethodDelete, otherPath, "application/json", `{}`))
+	require.Eventually(t, func() bool {
+		tunnels, err := listTunnels()
+		_, ok := tunnels["http://"+endpoint]
+		return err == nil && !ok
+	}, 5*time.Second, 100*time.Millisecond)
+	assert.NotContains(t, listPrincipals(), "mallory@example.com")
+	status, err = getJSON(otherClient, "/api/user-info", nil)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusUnauthorized, status)
+	assert.ErrorContains(t, dialSSH(other.Token), "unable to authenticate")
+	assert.Equal(t, http.StatusNotFound, doRequest(t, webClient, http.MethodDelete, otherPath, "application/json", `{}`))
 }

@@ -68,6 +68,7 @@ func NewServer(logger *logx.Logger, config *conf.Config, db *database.DB, regist
 		f.Group("/admin", func() {
 			f.Get("/principals", listAdminPrincipals(db, registry))
 			f.Patch("/principals/{id}", requireJSON, updateAdminPrincipal(logger, db, registry))
+			f.Delete("/principals/{id}", requireJSON, deleteAdminPrincipal(logger, db, registry))
 			f.Get("/tunnels", listAdminTunnels(db, registry))
 			f.Delete("/tunnels/{id}", requireJSON, deleteAdminTunnel(logger, registry))
 		}, requireAdmin)

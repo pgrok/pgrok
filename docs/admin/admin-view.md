@@ -26,6 +26,14 @@ Blocking a user:
 
 Unblocking a user restores access with the same token, they only need to restart `pgrok`. Admins cannot block themselves.
 
+Deleting a user, e.g., someone who has been removed from the identity provider:
+
+- Removes their account and token, which cannot be undone.
+- Disconnects all of their active tunnels immediately, and `pgrok` exits with an authentication error instead of reconnecting.
+- Signs them out of the dashboard.
+
+Deletion is not a ban. If the person can still sign in to the identity provider, they get a fresh account with a new token (and the same subdomain) on their next sign-in. To keep them out, block them instead. Likewise, deleting a user whose identifier is listed in `admins` does not remove their admin rights; remove them from `admins` for that. Admins cannot delete themselves.
+
 ## All tunnels
 
 The "All tunnels" table lists every active tunnel with its owner, public URL, protocol, connected duration and client address. Use "Disconnect" to close a tunnel's connection on the server side. Note that `pgrok` reconnects automatically, so block the user to keep them out.
