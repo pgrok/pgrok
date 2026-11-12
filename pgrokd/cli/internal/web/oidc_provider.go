@@ -92,12 +92,12 @@ func getOIDCProviderLogin(db *database.DB, provider *op.Provider) flamego.Handle
 			return
 		}
 		if client.Trusted() && !slices.Contains(req.Prompt, oidc.PromptConsent) {
-			err = db.CompleteOIDCAuthRequest(c.Request().Context(), req.ID, c.Principal.ID, authTime)
+			callbackURL, err := oidcprovider.ApproveAuthRequest(c.Request().Context(), db, c.Config.ExternalURL, req.ID, c.Principal.ID, authTime)
 			if err != nil {
 				r.PlainText(http.StatusInternalServerError, "Failed to approve request: "+err.Error())
 				return
 			}
-			c.Redirect(oidcprovider.CallbackURL(c.Config.ExternalURL, req.ID))
+			c.Redirect(callbackURL)
 			return
 		}
 		c.Redirect("/consent?authRequestID=" + url.QueryEscape(req.ID))
@@ -166,10 +166,11 @@ func decideOIDCProviderAuthRequest(c *Context, db *database.DB, req *database.OI
 		if !ok || !signedInRecentlyEnough(req, authTime) {
 			return "", nil, errors.New("please sign in again")
 		}
-		if err := db.CompleteOIDCAuthRequest(ctx, req.ID, c.Principal.ID, authTime); err != nil {
+		callbackURL, err := oidcprovider.ApproveAuthRequest(ctx, db, c.Config.ExternalURL, req.ID, c.Principal.ID, authTime)
+		if err != nil {
 			return "", nil, errors.Wrap(err, "approve request")
 		}
-		return oidcprovider.CallbackURL(c.Config.ExternalURL, req.ID), nil, nil
+		return callbackURL, nil, nil
 	}
 
 	redirectURL, formPost, err = oidcprovider.DeniedResponse(c.Config.ExternalURL, req)
