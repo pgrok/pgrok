@@ -1,17 +1,30 @@
 package oidcprovider
 
 import (
+	"context"
 	"net/url"
+	"time"
 
 	"github.com/zitadel/oidc/v3/pkg/oidc"
 
 	"github.com/pgrok/pgrok/internal/database"
 )
 
-// CallbackURL is where the login UI sends the browser once the authorization
-// request is approved, so that the provider issues the code to the client.
-func CallbackURL(issuer, authRequestID string) string {
-	return issuer + PathPrefix + "authorize/callback?id=" + url.QueryEscape(authRequestID)
+// ApproveAuthRequest marks the authorization request as approved by the
+// principal, who signed in at authTime, and returns where the login UI sends
+// the browser next so that the provider issues the code to the client. The URL
+// carries a one-time secret instead of the request ID, which the request's
+// creator knows, so that only the approving browser can collect the code.
+func ApproveAuthRequest(ctx context.Context, db *database.DB, issuer, authRequestID string, principalID int64, authTime time.Time) (callbackURL string, err error) {
+	secret, err := randomToken()
+	if err != nil {
+		return "", err
+	}
+	err = db.CompleteOIDCAuthRequest(ctx, authRequestID, principalID, authTime, hashToken(secret))
+	if err != nil {
+		return "", err
+	}
+	return issuer + PathPrefix + "authorize/callback?id=" + url.QueryEscape(secret), nil
 }
 
 // DeniedResponse is where the login UI sends the browser when the user denies

@@ -100,8 +100,10 @@ func (s *Storage) CreateAuthRequest(ctx context.Context, req *oidc.AuthRequest, 
 	return &authRequest{authReq}, nil
 }
 
+// AuthRequestByID returns the approved request for the provider's callback,
+// whose "id" is the one-time secret from ApproveAuthRequest.
 func (s *Storage) AuthRequestByID(ctx context.Context, id string) (op.AuthRequest, error) {
-	req, err := s.db.GetOIDCAuthRequestByID(ctx, id)
+	req, err := s.db.RedeemOIDCAuthRequestCallback(ctx, hashToken(id))
 	if err != nil {
 		return nil, err
 	}

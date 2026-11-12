@@ -511,6 +511,12 @@ func TestOIDCProviderAuthorizationCode(t *testing.T) {
 			require.NoError(t, err)
 			_ = resp.Body.Close()
 			location = resp.Header.Get("Location")
+
+			// The provider issues a code for an approval only once.
+			resp, err = browser.Get(decision.RedirectURL)
+			require.NoError(t, err)
+			_ = resp.Body.Close()
+			assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 		}
 		callback, err := neturl.Parse(location)
 		require.NoError(t, err)
