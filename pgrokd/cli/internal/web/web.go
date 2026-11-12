@@ -220,6 +220,7 @@ func getOIDCCallback(logger *logx.Logger, db *database.DB) flamego.Handler {
 		}
 
 		c.Session.Set("userID", principal.ID)
+		c.Session.Set("authTime", time.Now().Unix())
 
 		// Resume what sent the user to sign in, such as an authorization request
 		// of the OpenID Provider.
@@ -235,6 +236,7 @@ func getOIDCCallback(logger *logx.Logger, db *database.DB) flamego.Handler {
 // getSignOut clears the session and returns to the home page.
 func getSignOut(c *Context) {
 	c.Session.Delete("userID")
+	c.Session.Delete("authTime")
 	c.Redirect("/")
 }
 
