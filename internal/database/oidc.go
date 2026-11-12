@@ -50,7 +50,10 @@ type OIDCAuthRequest struct {
 	CodeChallenge       string   `gorm:"not null"`
 	CodeChallengeMethod string   `gorm:"not null"`
 	Prompt              []string `gorm:"serializer:json;not null"`
-	LoginHint           string   `gorm:"not null"`
+	// MaxAge is the "max_age" parameter in seconds, or nil when absent.
+	// "prompt=login" sets it to 0.
+	MaxAge    *uint
+	LoginHint string `gorm:"not null"`
 	// CodeHash is the SHA-256 of the authorization code, set once the request is
 	// approved.
 	CodeHash    *string `gorm:"unique"`
@@ -174,6 +177,7 @@ type OIDCRefreshToken struct {
 	AuthTime      time.Time `gorm:"not null"`
 	AccessTokenID string    `gorm:"not null"`
 	Used          bool      `gorm:"not null"`
+	UsedAt        time.Time
 	ExpiresAt     time.Time `gorm:"not null;index"`
 	CreatedAt     time.Time `gorm:"not null"`
 }
@@ -207,7 +211,7 @@ func (db *DB) RotateOIDCRefreshToken(ctx context.Context, currentID string, acce
 			return err
 		}
 
-		err = tx.Model(&current).Update("used", true).Error
+		err = tx.Model(&current).Updates(map[string]any{"used": true, "used_at": time.Now()}).Error
 		if err != nil {
 			return errors.Wrap(err, "mark used")
 		}
