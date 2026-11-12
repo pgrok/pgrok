@@ -82,8 +82,7 @@ func getOIDCProviderLogin(db *database.DB, provider *op.Provider) flamego.Handle
 
 		authTime, ok := c.AuthTime()
 		if !c.Authenticated() || !ok || !signedInRecentlyEnough(req, authTime) {
-			c.Session.Set("returnTo", c.Request().URL.RequestURI())
-			c.Redirect("/-/oidc/auth")
+			c.Redirect("/-/oidc/auth?returnTo=" + url.QueryEscape(c.Request().URL.RequestURI()))
 			return
 		}
 
