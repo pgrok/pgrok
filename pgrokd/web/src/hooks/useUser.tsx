@@ -10,7 +10,7 @@ export interface UserContextType {
 
 interface UserContextValue extends UserContextType {
   /**
-   * Replaces the token shown across the app, e.g. after it is regenerated.
+   * Replaces the token shown across the app, e.g., after it is regenerated.
    */
   setToken: (token: string) => void;
 }

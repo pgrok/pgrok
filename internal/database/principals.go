@@ -35,8 +35,9 @@ func newPrincipalToken() string {
 	return cryptoutil.SHA1(strutil.MustRandomChars(10))
 }
 
-// UpsertPrincipal upserts a principal with given options. A new principal is
-// assigned a freshly generated token.
+// UpsertPrincipal returns the principal with given identifier, creating it with
+// given options and a freshly generated token if it does not exist. An existing
+// principal is returned as is.
 func (db *DB) UpsertPrincipal(ctx context.Context, opts UpsertPrincipalOptions) (*Principal, error) {
 	p := &Principal{
 		Identifier:  opts.Identifier,

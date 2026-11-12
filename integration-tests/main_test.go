@@ -487,7 +487,7 @@ func sshAuthenticate(token string) error {
 		Timeout:         5 * time.Second,
 	})
 	if err != nil {
-		return err
+		return errors.Wrap(err, "dial")
 	}
 	return client.Close()
 }

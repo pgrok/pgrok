@@ -1,7 +1,8 @@
-import { Button } from "@/components/retroui/Button";
 import axios, { isAxiosError } from "axios";
 import { useState } from "react";
+import { Button } from "@/components/retroui/Button";
 import useUser from "../hooks/useUser";
+import { RegenerateTokenResponse } from "../types";
 
 type State = "idle" | "confirming" | "pending" | "done";
 
@@ -18,12 +19,13 @@ export default function RegenerateToken() {
     setState("pending");
     setError("");
     try {
-      // Sending a JSON body is required by the server as a CSRF guard.
-      const response = await axios.post<{ token: string }>("/api/regenerate-token", {});
+      // The server requires a JSON Content-Type as a CSRF guard, which axios sets
+      // for the object body.
+      const response = await axios.post<RegenerateTokenResponse>("/api/regenerate-token", {});
       setToken(response.data.token);
       setState("done");
     } catch (error_) {
-      const message = isAxiosError<{ error?: string }>(error_) ? error_.response?.data?.error : undefined;
+      const message = isAxiosError<RegenerateTokenResponse>(error_) ? error_.response?.data?.error : undefined;
       setError(message || "Failed to regenerate token, please try again.");
       setState("confirming");
     }
@@ -42,9 +44,11 @@ export default function RegenerateToken() {
       <Panel role="status" tone="success">
         <p className="font-semibold">Token regenerated. The new token is shown above.</p>
         <p className="mt-2">
-          Update every pgrok client before it next connects: run <code className={codeClass}>pgrok init</code> again
-          with <code className={codeClass}>--token {token}</code>, or replace the{" "}
-          <code className={codeClass}>token</code> value in <code className={codeClass}>pgrok.yml</code>.
+          Update every pgrok client before it next connects: replace the <code className={codeClass}>token</code>{" "}
+          value in <code className={codeClass}>pgrok.yml</code> with it, or pass{" "}
+          <code className={codeClass}>--token {token}</code> to clients started with that flag. Re-running{" "}
+          <code className={codeClass}>pgrok init ... --token {token}</code> also works, but rewrites the whole{" "}
+          <code className={codeClass}>pgrok.yml</code>.
         </p>
         <div className="mt-3">
           <Button size="sm" variant="outline" onClick={() => setState("idle")}>
@@ -62,8 +66,9 @@ export default function RegenerateToken() {
       </p>
       <p className="mt-2">
         The current token stops working immediately. pgrok clients still using it will fail to connect or reconnect
-        until you update them: run <code className={codeClass}>pgrok init ... --token</code> with the new token, or
-        edit the <code className={codeClass}>token</code> value in <code className={codeClass}>pgrok.yml</code>.
+        until you update them with the new token: the <code className={codeClass}>token</code> value in{" "}
+        <code className={codeClass}>pgrok.yml</code>, or the <code className={codeClass}>--token</code> flag for
+        clients started with it.
       </p>
       <p className="mt-2">
         Tunnels that are already connected are not cut off: they keep running with the old token until they
