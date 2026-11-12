@@ -69,6 +69,28 @@ func TestCheckEmail(t *testing.T) {
 			claims: map[string]any{"email": "alice@example.com", "email_verified": true},
 		},
 		{
+			name:    "unverified email as a string",
+			idp:     newIdP("", "alice@example.com"),
+			claims:  map[string]any{"email": "alice@example.com", "email_verified": "false"},
+			wantErr: "is not verified",
+		},
+		{
+			name:    "unrecognized email_verified value",
+			idp:     newIdP("", "alice@example.com"),
+			claims:  map[string]any{"email": "alice@example.com", "email_verified": "yes"},
+			wantErr: "is not verified",
+		},
+		{
+			name:   "verified email as a string",
+			idp:    newIdP("", "alice@example.com"),
+			claims: map[string]any{"email": "alice@example.com", "email_verified": "true"},
+		},
+		{
+			name:   "required domain is case-insensitive",
+			idp:    newIdP("Example.com", "alice@example.com"),
+			claims: map[string]any{"email": "Alice@EXAMPLE.com"},
+		},
+		{
 			name:    "allowed email outside the required domain",
 			idp:     newIdP("example.com", "contractor@other.com"),
 			claims:  map[string]any{"email": "contractor@other.com"},
