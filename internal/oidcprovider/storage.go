@@ -189,13 +189,19 @@ func (s *Storage) CreateAccessAndRefreshTokens(ctx context.Context, request op.T
 	}
 	refreshTokenID := hashToken(newRefreshToken)
 	access := newAccessToken(request, info.clientID, refreshTokenID)
+	// A refresh request can narrow the scopes of the access token, but the new
+	// refresh token keeps those of the grant (RFC 6749, section 6).
+	scopes := access.Scopes
+	if r, ok := request.(*refreshTokenRequest); ok {
+		scopes = nonNil(r.Scopes)
+	}
 	refresh := &database.OIDCRefreshToken{
 		ID:            refreshTokenID,
 		FamilyID:      uuid.NewString(),
 		ClientID:      info.clientID,
 		Subject:       request.GetSubject(),
 		Audience:      access.Audience,
-		Scopes:        access.Scopes,
+		Scopes:        scopes,
 		AMR:           nonNil(info.amr),
 		AuthTime:      info.authTime,
 		AccessTokenID: access.ID,
@@ -233,7 +239,7 @@ func (s *Storage) TokenRequestByRefreshToken(ctx context.Context, refreshToken s
 		}
 		return nil, errors.New("refresh token was already used")
 	}
-	return &refreshTokenRequest{token}, nil
+	return &refreshTokenRequest{OIDCRefreshToken: token}, nil
 }
 
 type endWebSessionKey struct{}
@@ -484,14 +490,22 @@ func (r *authRequest) Done() bool { return r.OIDCAuthRequest.Done }
 // refreshTokenRequest adapts a stored refresh token to op.RefreshTokenRequest.
 type refreshTokenRequest struct {
 	*database.OIDCRefreshToken
+	// currentScopes are the scopes the client asked for when refreshing, or nil
+	// when it asked for all of them.
+	currentScopes []string
 }
 
 var _ op.RefreshTokenRequest = (*refreshTokenRequest)(nil)
 
-func (r *refreshTokenRequest) GetAMR() []string            { return r.AMR }
-func (r *refreshTokenRequest) GetAudience() []string       { return r.Audience }
-func (r *refreshTokenRequest) GetAuthTime() time.Time      { return r.AuthTime }
-func (r *refreshTokenRequest) GetClientID() string         { return r.ClientID }
-func (r *refreshTokenRequest) GetScopes() []string         { return r.Scopes }
+func (r *refreshTokenRequest) GetAMR() []string       { return r.AMR }
+func (r *refreshTokenRequest) GetAudience() []string  { return r.Audience }
+func (r *refreshTokenRequest) GetAuthTime() time.Time { return r.AuthTime }
+func (r *refreshTokenRequest) GetClientID() string    { return r.ClientID }
+func (r *refreshTokenRequest) GetScopes() []string {
+	if r.currentScopes != nil {
+		return r.currentScopes
+	}
+	return r.Scopes
+}
 func (r *refreshTokenRequest) GetSubject() string          { return r.Subject }
-func (r *refreshTokenRequest) SetCurrentScopes(s []string) { r.Scopes = s }
+func (r *refreshTokenRequest) SetCurrentScopes(s []string) { r.currentScopes = s }
