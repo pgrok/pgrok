@@ -44,7 +44,7 @@ func New(logger *logx.Logger, defaultForwardAddr string, forwards ...Forward) (h
 			proxy:  httputil.NewSingleHostReverseProxy(forwardURL),
 		})
 	}
-	// Match the longest prefix first so that overlapping rules (e.g. "/api" and
+	// Match the longest prefix first so that overlapping rules (e.g., "/api" and
 	// "/api/v2") are resolved deterministically to the most specific one.
 	slices.SortStableFunc(proxies, func(a, b prefixProxy) int {
 		return cmp.Compare(len(b.prefix), len(a.prefix))
