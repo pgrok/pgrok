@@ -687,6 +687,13 @@ forward_addr: "http://localhost:9833"
 `), 0o600)
 	require.NoError(t, err)
 
+	// Tunnels use the login to the server in the config file, so logging in
+	// to another one fails.
+	output, err := exec.Command("../.bin/pgrok", "login", "--config", configPath, "--server-url", "http://localhost:9833").CombinedOutput()
+	assert.Error(t, err)
+	assert.Contains(t, string(output), `The server differs from "server_url"`)
+	assert.NoDirExists(t, filepath.Join(dir, "credentials"))
+
 	// Log in, approving the user code that the CLI prints.
 	login := exec.Command("../.bin/pgrok", "login", "--config", configPath)
 	stderr, err := login.StderrPipe()

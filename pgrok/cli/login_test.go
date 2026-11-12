@@ -127,7 +127,8 @@ func TestTokenFuncAfterLogout(t *testing.T) {
 }
 
 func TestConfigCredentialsPath(t *testing.T) {
-	configPath := filepath.Join(t.TempDir(), "pgrok.yml")
+	// Brackets are not a pattern in the directory name.
+	configPath := filepath.Join(t.TempDir(), "proj[1", "pgrok.yml")
 	_, err := configCredentialsPath(configPath, "")
 	assert.True(t, os.IsNotExist(err))
 

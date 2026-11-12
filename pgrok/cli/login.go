@@ -53,9 +53,16 @@ func configCredentialsPath(configPath, serverURL string) (string, error) {
 	if serverURL != "" {
 		return credentialsPath(configPath, serverURL), nil
 	}
-	paths, err := filepath.Glob(filepath.Join(filepath.Dir(configPath), "credentials", "*.json"))
+	dir := filepath.Join(filepath.Dir(configPath), "credentials")
+	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return "", err
+	}
+	var paths []string
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".json") {
+			paths = append(paths, filepath.Join(dir, entry.Name()))
+		}
 	}
 	switch len(paths) {
 	case 0:
@@ -248,13 +255,17 @@ func commandLogin(homeDir string, logger *logx.Logger) *cli.Command {
 	}
 }
 
+// configServerURL returns "server_url" in the config file, or "" without one.
+func configServerURL(configPath string) string {
+	if config, err := loadConfig(configPath); err == nil {
+		return config.ServerURL
+	}
+	return ""
+}
+
 // serverURL returns the server URL from the flag, or else from the config file.
 func serverURL(cmd *cli.Command) string {
-	var configServerURL string
-	if config, err := loadConfig(cmd.String("config")); err == nil {
-		configServerURL = config.ServerURL
-	}
-	return cmp.Or(cmd.String("server-url"), configServerURL)
+	return cmp.Or(cmd.String("server-url"), configServerURL(cmd.String("config")))
 }
 
 func actionLogin(ctx context.Context, cmd *cli.Command, logger *logx.Logger) error {
@@ -262,6 +273,13 @@ func actionLogin(ctx context.Context, cmd *cli.Command, logger *logx.Logger) err
 	serverURL := serverURL(cmd)
 	if serverURL == "" {
 		logger.FatalContext(ctx, `Please specify the server with "--server-url" or "server_url" in the config file`)
+	}
+	// Tunnels use the login to the server in the config file, so a login to
+	// another one would not be used.
+	if configured := configServerURL(configPath); configured != "" &&
+		credentialsPath(configPath, configured) != credentialsPath(configPath, serverURL) {
+		logger.FatalContext(ctx, `The server differs from "server_url" in the config file, which tunnels sign in to. Change "server_url" or drop "--server-url"`,
+			"server", serverURL, "server_url", configured, "config", configPath)
 	}
 
 	config := oauth2Config(serverURL)
