@@ -4,7 +4,7 @@ import React, { ButtonHTMLAttributes } from "react";
 import { Button as BaseButton } from "@base-ui/react/button";
 
 export const buttonVariants = cva(
-  "font-head transition-all rounded cursor-pointer duration-200 font-medium flex justify-center items-center disabled:opacity-60 disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary",
+  "font-head transition-all rounded cursor-pointer duration-200 font-semibold flex justify-center items-center disabled:opacity-60 disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary",
   {
     variants: {
       variant: {
