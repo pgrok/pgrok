@@ -217,6 +217,12 @@ func authenticateUser() (token, url string, _ error) {
 	if token == "" || url == "" {
 		return "", "", errors.New(`"token" or "url" not found`)
 	}
+
+	// The dashboard builds the copy-paste "pgrok init --remote-addr" command
+	// from this value, so it must match the address clients actually dial.
+	if got, want := userInfo["remoteAddr"], "localhost:2222"; got != want {
+		return "", "", errors.Errorf(`unexpected "remoteAddr": want %q but got %q`, want, got)
+	}
 	return token, url, nil
 }
 

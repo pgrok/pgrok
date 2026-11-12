@@ -5,6 +5,7 @@ export interface UserContextType {
   displayName: string;
   token: string;
   url: string;
+  remoteAddr: string;
 }
 
 const UserContext = createContext<UserContextType>({} as UserContextType);
