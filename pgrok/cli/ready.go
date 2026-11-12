@@ -4,6 +4,7 @@ import (
 	"io"
 	"os"
 
+	"charm.land/lipgloss/v2"
 	"github.com/mdp/qrterminal/v3"
 	"golang.org/x/term"
 	"unknwon.dev/x/logx"
@@ -16,6 +17,9 @@ func newReadyHook(logger *logx.Logger) func(hostURL string) {
 		logger.Debug("Skipped printing QR code because stdout is not a terminal")
 		return func(string) {}
 	}
+	// The QR code is colored with ANSI sequences, which the legacy Windows
+	// console only renders once enabled. This is a no-op on other platforms.
+	lipgloss.EnableLegacyWindowsANSI(os.Stdout)
 	return onNewURL(os.Stdout)
 }
 
