@@ -96,13 +96,17 @@ type savingTokenSource struct {
 	// process last read or wrote it. After a failed save the file holds an
 	// older, already used one, which must not replace the token in memory.
 	savedRefreshToken string
+	// otherServer is whether the credentials file last held a login to another
+	// server, which this process must not overwrite.
+	otherServer bool
 }
 
 // reload adopts the token in the credentials file when another process has
 // refreshed it, and reports whether it did.
 func (s *savingTokenSource) reload() bool {
 	creds, err := loadCredentials(s.path)
-	if err != nil || creds.ServerURL != s.creds.ServerURL || creds.Token.RefreshToken == s.savedRefreshToken {
+	s.otherServer = err == nil && creds.ServerURL != s.creds.ServerURL
+	if err != nil || s.otherServer || creds.Token.RefreshToken == s.savedRefreshToken {
 		return false
 	}
 	s.creds = creds
@@ -134,14 +138,21 @@ func (s *savingTokenSource) Token() (*oauth2.Token, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Save a new token, and retry a save that failed earlier.
-	if token.AccessToken != s.creds.Token.AccessToken || token.RefreshToken != s.savedRefreshToken {
-		s.creds.Token = token
-		if err = saveCredentials(s.path, s.creds); err != nil {
+	refreshed := token.AccessToken != s.creds.Token.AccessToken
+	s.creds.Token = token
+	if s.otherServer || (!refreshed && token.RefreshToken == s.savedRefreshToken) {
+		return token, nil
+	}
+	// Save a new token, or retry a save that failed earlier.
+	if err = saveCredentials(s.path, s.creds); err != nil {
+		if refreshed {
 			return nil, errors.Wrap(err, "save refreshed credentials")
 		}
-		s.savedRefreshToken = token.RefreshToken
+		// The failure was reported when the token was refreshed. Keep using
+		// the token, and try to save it again on the next call.
+		return token, nil
 	}
+	s.savedRefreshToken = token.RefreshToken
 	return token, nil
 }
 
