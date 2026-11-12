@@ -117,6 +117,10 @@ Following config options can be overridden through CLI flags for both `http` and
 - `--forward-addr, -f` -> `forward_addr`
 - `--token, -t` -> `token`
 
+#### QR code
+
+To open the tunnel on your phone right away, `pgrok` prints a QR code of the URL once the tunnel is up, for both `http` and `tcp` subcommands. It is printed again only when a reconnect gets a different URL, and only when stdout is a terminal.
+
 #### HTTP dynamic forwards
 
 Typical HTTP reverse tunnel solutions only support forwarding requests to a single address, `pgrok` can be configured to have dynamic forward rules when tunneling HTTP requests.
