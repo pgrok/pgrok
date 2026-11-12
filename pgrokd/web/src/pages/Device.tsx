@@ -52,6 +52,13 @@ export default function DevicePage() {
       await axios.post(`/api/oidc-provider/device-authorizations/${encodeURIComponent(code)}`, { approve });
       setStep({ name: "done", approved: approve });
     } catch (error_) {
+      if (isAxiosError(error_) && error_.response?.status === 401) {
+        // The session predates sign-in times or has ended: sign in again and
+        // come back to the same code.
+        const returnTo = `/device?user_code=${encodeURIComponent(code)}`;
+        globalThis.location.assign(`/-/oidc/auth?returnTo=${encodeURIComponent(returnTo)}`);
+        return;
+      }
       setError(errorMessage(error_));
     }
     setSubmitting(false);
