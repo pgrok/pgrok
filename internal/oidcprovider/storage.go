@@ -236,8 +236,22 @@ func (s *Storage) TokenRequestByRefreshToken(ctx context.Context, refreshToken s
 	return &refreshTokenRequest{token}, nil
 }
 
+type endWebSessionKey struct{}
+
+// WithEndWebSession returns a copy of ctx in which an accepted end_session
+// request also calls endWebSession, which signs the user out of the web UI.
+func WithEndWebSession(ctx context.Context, endWebSession func()) context.Context {
+	return context.WithValue(ctx, endWebSessionKey{}, endWebSession)
+}
+
 func (s *Storage) TerminateSession(ctx context.Context, userID, clientID string) error {
-	return s.db.DeleteOIDCTokensBySubjectAndClient(ctx, userID, clientID)
+	if err := s.db.DeleteOIDCTokensBySubjectAndClient(ctx, userID, clientID); err != nil {
+		return err
+	}
+	if endWebSession, ok := ctx.Value(endWebSessionKey{}).(func()); ok {
+		endWebSession()
+	}
+	return nil
 }
 
 func (s *Storage) GetRefreshTokenInfo(ctx context.Context, clientID, token string) (userID, tokenID string, err error) {
