@@ -92,16 +92,21 @@ type savingTokenSource struct {
 	mu    sync.Mutex
 	path  string
 	creds *credentials
+	// savedRefreshToken is the refresh token in the credentials file when this
+	// process last read or wrote it. After a failed save the file holds an
+	// older, already used one, which must not replace the token in memory.
+	savedRefreshToken string
 }
 
 // reload adopts the token in the credentials file when another process has
 // refreshed it, and reports whether it did.
 func (s *savingTokenSource) reload() bool {
 	creds, err := loadCredentials(s.path)
-	if err != nil || creds.ServerURL != s.creds.ServerURL || creds.Token.RefreshToken == s.creds.Token.RefreshToken {
+	if err != nil || creds.ServerURL != s.creds.ServerURL || creds.Token.RefreshToken == s.savedRefreshToken {
 		return false
 	}
 	s.creds = creds
+	s.savedRefreshToken = creds.Token.RefreshToken
 	return true
 }
 
@@ -134,6 +139,7 @@ func (s *savingTokenSource) Token() (*oauth2.Token, error) {
 		if err = saveCredentials(s.path, s.creds); err != nil {
 			return nil, errors.Wrap(err, "save refreshed credentials")
 		}
+		s.savedRefreshToken = token.RefreshToken
 	}
 	return token, nil
 }
@@ -154,7 +160,7 @@ func tokenFunc(ctx context.Context, staticToken, configPath string) (func() (str
 		}
 		return nil, errors.Wrapf(err, "load credentials from %q", path)
 	}
-	source := &savingTokenSource{ctx: ctx, path: path, creds: creds}
+	source := &savingTokenSource{ctx: ctx, path: path, creds: creds, savedRefreshToken: creds.Token.RefreshToken}
 	// The server also answers "invalid_grant" when it fails to look up the
 	// refresh token, such as while its database restarts, so only a repeated one
 	// means that the login expired.
