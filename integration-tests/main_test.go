@@ -542,6 +542,15 @@ func TestOIDCProviderAuthorizationCode(t *testing.T) {
 
 		_, err = config.Exchange(ctx, callback.Query().Get("code"))
 		assert.Error(t, err, "a code can be redeemed only once")
+
+		// Logging out with the ID token also signs the user out of pgrokd.
+		resp, err := browser.Get("http://localhost:3320/oauth2/end_session?id_token_hint=" + neturl.QueryEscape(token.Extra("id_token").(string)))
+		require.NoError(t, err)
+		_ = resp.Body.Close()
+		resp, err = browser.Get("http://localhost:3320/api/user-info")
+		require.NoError(t, err)
+		_ = resp.Body.Close()
+		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	})
 
 	t.Run("deny", func(t *testing.T) {
