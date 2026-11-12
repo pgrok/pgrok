@@ -1,7 +1,7 @@
 ![pgrok banner](assets/banner.png)
 
 <div align="center">
-  <h3>Poor man's ngrok</h3>
+  <h3>Programmable Networking</h3>
   <a href="https://sourcegraph.com/github.com/pgrok/pgrok"><img src="https://img.shields.io/badge/view%20on-Sourcegraph-brightgreen.svg?style=for-the-badge&logo=sourcegraph" alt="Sourcegraph"></a>
 </div>
 
@@ -13,7 +13,7 @@ This is intended for small teams that need to expose the local development envir
 
 It gives stable subdomain for every user, and gated by your SSO through OIDC protocol.
 
-Think of this as a bare-bones alternative to the [ngrok's $65/user/month enterprise tier](https://ngrok.com/pricing) (at the time of founding this project, they have since changed pricing). Trying to put this behind a production system will blow up your SLA.
+Trying to put this behind a production system will blow up your SLA.
 
 For individuals and production systems, just buy ngrok, it is still my favorite.
 
@@ -184,6 +184,10 @@ Please read through our [contributing guide](.github/contributing.md) and [set u
 ## Credits
 
 The project wouldn't be possible without reading [function61/holepunch-server](https://github.com/function61/holepunch-server), [function61/holepunch-client](https://github.com/function61/holepunch-client), and [TCP/IP Port Forwarding](https://github.com/apache/mina-sshd/blob/master/docs/technical/tcpip-forwarding.md).
+
+## Historical context
+
+pgrok originally used the tagline "Poor man's ngrok" as a bare-bones alternative to [ngrok's $65/user/month enterprise tier](https://ngrok.com/pricing) at the time the project was founded. ngrok has since changed its pricing; pgrok's tagline is now **Programmable Networking**.
 
 ## License
 
