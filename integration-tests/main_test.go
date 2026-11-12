@@ -455,3 +455,21 @@ func TestOIDCProviderDiscovery(t *testing.T) {
 	assert.Equal(t, "RS256", jwks.Keys[0].Alg)
 	assert.Equal(t, "sig", jwks.Keys[0].Use)
 }
+
+func TestOIDCProviderEndSessionSignsOut(t *testing.T) {
+	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
+	require.NoError(t, err)
+	client := &http.Client{Jar: jar}
+	status := func(url string) int {
+		resp, err := client.Get(url)
+		require.NoError(t, err)
+		_ = resp.Body.Close()
+		return resp.StatusCode
+	}
+
+	require.Equal(t, http.StatusOK, status("http://localhost:3320/-/oidc/auth"))
+	require.Equal(t, http.StatusOK, status("http://localhost:3320/api/user-info"))
+
+	assert.Equal(t, http.StatusOK, status("http://localhost:3320/oauth2/end_session"))
+	assert.Equal(t, http.StatusUnauthorized, status("http://localhost:3320/api/user-info"))
+}
