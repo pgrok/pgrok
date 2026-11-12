@@ -1,14 +1,33 @@
 @import "tailwindcss";
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
 
 @custom-variant dark (&:is(.dark *));
 
-/* RetroUI theme (https://retroui.dev) — neobrutalist tokens, hard offset
-   shadows. Installed via the RetroUI shadcn registry; see components.json. */
+/* Typography follows Gogs (https://github.com/gogs/gogs/blob/main/web/DESIGN.md):
+   self-hosted Geist for all UI text and Geist Mono for code, with system CJK
+   fallbacks so non-Latin scripts render in a native font. */
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-head: "Archivo Black", ui-sans-serif, system-ui, sans-serif;
+  --font-sans:
+    "Geist Variable", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+  --font-head: var(--font-sans);
+  --font-mono: "Geist Mono Variable", "PingFang SC", "Microsoft YaHei", Consolas, "Liberation Mono", Menlo, monospace;
 }
 
+/* Geist Mono enables programming ligatures by default; render code
+   character-for-character instead. */
+@layer base {
+  .font-mono,
+  code,
+  pre,
+  kbd,
+  samp {
+    font-variant-ligatures: none;
+  }
+}
+
+/* RetroUI theme (https://retroui.dev) — neobrutalist tokens, hard offset
+   shadows. Installed via the RetroUI shadcn registry; see components.json. */
 @theme inline {
   --shadow-xs: 1px 1px 0 0 var(--border);
   --shadow-sm: 2px 2px 0 0 var(--border);
