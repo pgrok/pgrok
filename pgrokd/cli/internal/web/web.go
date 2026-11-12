@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"fmt"
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -86,10 +87,15 @@ func NewServer(logger *logx.Logger, config *conf.Config, db *database.DB, provid
 
 	// The provider serves RP-initiated logout, which must also end the web
 	// session that signed the user in, so the request goes through the session
-	// middleware first.
+	// middleware first. Only a logout that proves which user it is for, with an
+	// id_token_hint, ends the session, so that other sites cannot sign users out.
 	endSession := func(c *Context) {
 		r := c.Request().Request
-		ctx := oidcprovider.WithEndWebSession(r.Context(), func() { signOut(c) })
+		ctx := oidcprovider.WithEndWebSession(r.Context(), func(subject string) {
+			if c.Principal != nil && subject == oidcprovider.Subject(c.Principal.ID) {
+				signOut(c)
+			}
+		})
 		provider.ServeHTTP(c.ResponseWriter(), r.WithContext(ctx))
 	}
 	f.Combo(oidcprovider.EndSessionPath).Get(endSession).Post(endSession)
@@ -171,13 +177,18 @@ func getOIDCAuth(c *Context, r flamego.Render) {
 		url.QueryEscape("openid profile email"),
 		c.Config.IdentityProvider.RequiredDomain,
 	)
-	// An OpenID Provider client asked for a sign-in no older than maxAge
+	// An OpenID Provider client may ask for a sign-in no older than maxAge
 	// seconds, which the identity provider has to enforce for its own session.
-	if maxAge, err := strconv.ParseUint(c.Query("maxAge"), 10, 32); err == nil {
-		authURL += "&max_age=" + strconv.FormatUint(maxAge, 10)
-		if maxAge == 0 {
-			authURL += "&prompt=login"
-		}
+	// Asking for max_age on every sign-in also makes the identity provider
+	// report when the user really signed in (OpenID Connect Core 1.0, section
+	// 2), since that, not the time of this sign-in, is what clients are told.
+	maxAge, err := strconv.ParseUint(c.Query("maxAge"), 10, 32)
+	if err != nil {
+		maxAge = math.MaxInt32
+	}
+	authURL += "&max_age=" + strconv.FormatUint(maxAge, 10)
+	if maxAge == 0 {
+		authURL += "&prompt=login"
 	}
 	c.Redirect(authURL)
 }
@@ -237,7 +248,7 @@ func getOIDCCallback(logger *logx.Logger, db *database.DB) flamego.Handler {
 		}
 
 		c.Session.Set("userID", principal.ID)
-		c.Session.Set("authTime", time.Now().Unix())
+		c.Session.Set("authTime", userInfo.AuthTime.Unix())
 
 		// Resume what sent the user to sign in, such as an authorization request
 		// of the OpenID Provider.
@@ -265,6 +276,8 @@ func getSignOut(c *Context) {
 type idpUserInfo struct {
 	Identifier  string
 	DisplayName string
+	// AuthTime is when the user signed in to the identity provider.
+	AuthTime time.Time
 }
 
 func handleOIDCCallback(ctx context.Context, logger *logx.Logger, idp *conf.IdentityProvider, redirectURL, code, nonce string) (*idpUserInfo, error) {
@@ -302,6 +315,18 @@ func handleOIDCCallback(ctx context.Context, logger *logx.Logger, idp *conf.Iden
 	if nonce != idToken.Nonce {
 		return nil, errors.Errorf("mismatched nonce, want %q but got %q", nonce, idToken.Nonce)
 	}
+	var idTokenClaims struct {
+		AuthTime int64 `json:"auth_time"`
+	}
+	if err = idToken.Claims(&idTokenClaims); err != nil {
+		return nil, errors.Wrap(err, "unmarshal ID Token claims")
+	}
+	// Identity providers that do not report it, such as Google by default,
+	// signed the user in just now as far as pgrokd can tell.
+	authTime := time.Now()
+	if idTokenClaims.AuthTime > 0 && idTokenClaims.AuthTime < authTime.Unix() {
+		authTime = time.Unix(idTokenClaims.AuthTime, 0)
+	}
 
 	rawUserInfo, err := p.UserInfo(ctx, oauth2.StaticTokenSource(token))
 	if err != nil {
@@ -315,7 +340,7 @@ func handleOIDCCallback(ctx context.Context, logger *logx.Logger, idp *conf.Iden
 	}
 	logger.DebugContext(ctx, "User info", "claims", claims)
 
-	userInfo := &idpUserInfo{}
+	userInfo := &idpUserInfo{AuthTime: authTime}
 	if v, ok := claims[idp.FieldMapping.Identifier].(string); ok {
 		userInfo.Identifier = v
 	}

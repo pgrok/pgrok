@@ -550,6 +550,15 @@ func TestOIDCProviderAuthorizationCode(t *testing.T) {
 
 		_, err = config.Exchange(ctx, callback.Query().Get("code"))
 		assert.Error(t, err, "a code can be redeemed only once")
+
+		// Logging out with the ID token also signs the user out of pgrokd.
+		resp, err := browser.Get("http://localhost:3320/oauth2/end_session?id_token_hint=" + neturl.QueryEscape(token.Extra("id_token").(string)))
+		require.NoError(t, err)
+		_ = resp.Body.Close()
+		resp, err = browser.Get("http://localhost:3320/api/user-info")
+		require.NoError(t, err)
+		_ = resp.Body.Close()
+		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	})
 
 	t.Run("deny", func(t *testing.T) {
@@ -732,7 +741,57 @@ forward_addr: "http://localhost:9833"
 	assert.Error(t, err, "the refresh token is revoked")
 }
 
-func TestOIDCProviderEndSessionSignsOut(t *testing.T) {
+// TestOIDCProviderPromptLogin checks that a client asking for a fresh sign-in
+// gets one from the identity provider, which the browser cannot skip.
+func TestOIDCProviderPromptLogin(t *testing.T) {
+	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
+	require.NoError(t, err)
+	browser := &http.Client{Jar: jar}
+	get := func(t *testing.T, url string) *http.Response {
+		resp, err := browser.Get(url)
+		require.NoError(t, err)
+		_ = resp.Body.Close()
+		return resp
+	}
+
+	// Sign in from the identity provider's existing session.
+	require.Equal(t, http.StatusOK, get(t, "http://localhost:3320/-/oidc/auth").StatusCode)
+
+	// signInURL returns where pgrokd sends the browser to sign in for a new
+	// authorization request with prompt=login.
+	signInURL := func(t *testing.T) *neturl.URL {
+		client := &http.Client{
+			Jar: jar,
+			CheckRedirect: func(req *http.Request, _ []*http.Request) error {
+				if req.URL.Path == "/-/oidc/auth" {
+					return http.ErrUseLastResponse
+				}
+				return nil
+			},
+		}
+		resp, err := client.Get("http://localhost:3320/oauth2/authorize?client_id=integration&redirect_uri=http://localhost:9999/callback&response_type=code&scope=openid&state=s&prompt=login")
+		require.NoError(t, err)
+		_ = resp.Body.Close()
+		location, err := resp.Location()
+		require.NoError(t, err)
+		require.Equal(t, "/-/oidc/auth", location.Path)
+		return location
+	}
+
+	t.Run("skipping the identity provider's sign-in", func(t *testing.T) {
+		location := signInURL(t)
+		query := location.Query()
+		query.Del("maxAge")
+		location.RawQuery = query.Encode()
+		assert.Equal(t, http.StatusForbidden, get(t, location.String()).StatusCode)
+	})
+
+	t.Run("signing in again", func(t *testing.T) {
+		assert.Equal(t, "/consent", get(t, signInURL(t).String()).Request.URL.Path)
+	})
+}
+
+func TestOIDCProviderEndSession(t *testing.T) {
 	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
 	require.NoError(t, err)
 	client := &http.Client{Jar: jar}
@@ -746,6 +805,8 @@ func TestOIDCProviderEndSessionSignsOut(t *testing.T) {
 	require.Equal(t, http.StatusOK, status("http://localhost:3320/-/oidc/auth"))
 	require.Equal(t, http.StatusOK, status("http://localhost:3320/api/user-info"))
 
+	// A logout that does not say which user it is for, which any site can
+	// send, keeps the user signed in.
 	assert.Equal(t, http.StatusOK, status("http://localhost:3320/oauth2/end_session"))
-	assert.Equal(t, http.StatusUnauthorized, status("http://localhost:3320/api/user-info"))
+	assert.Equal(t, http.StatusOK, status("http://localhost:3320/api/user-info"))
 }
