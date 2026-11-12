@@ -317,7 +317,9 @@ func handleOIDCCallback(ctx context.Context, logger *logx.Logger, idp *conf.Iden
 		return nil, errors.Errorf("mismatched nonce, want %q but got %q", nonce, idToken.Nonce)
 	}
 	var idTokenClaims struct {
-		AuthTime int64 `json:"auth_time"`
+		// A number of seconds, which may have a fraction (RFC 7519, section 2).
+		// Anything else counts as missing.
+		AuthTime any `json:"auth_time"`
 	}
 	if err = idToken.Claims(&idTokenClaims); err != nil {
 		return nil, errors.Wrap(err, "unmarshal ID Token claims")
@@ -325,8 +327,8 @@ func handleOIDCCallback(ctx context.Context, logger *logx.Logger, idp *conf.Iden
 	// Identity providers that do not report it, such as Google by default,
 	// signed the user in just now as far as pgrokd can tell.
 	authTime := time.Now()
-	if idTokenClaims.AuthTime > 0 && idTokenClaims.AuthTime < authTime.Unix() {
-		authTime = time.Unix(idTokenClaims.AuthTime, 0)
+	if seconds, ok := idTokenClaims.AuthTime.(float64); ok && seconds > 0 && int64(seconds) < authTime.Unix() {
+		authTime = time.Unix(int64(seconds), 0)
 	}
 
 	rawUserInfo, err := p.UserInfo(ctx, oauth2.StaticTokenSource(token))
