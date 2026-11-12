@@ -126,6 +126,7 @@ func TestNew_RequestHeaders(t *testing.T) {
 		Accept         string
 		Authorization  string
 		ForwardedProto string
+		ForwardedFor   string
 	}
 	newServer := func() *url.URL {
 		s := httptest.NewServer(
@@ -137,6 +138,7 @@ func TestNew_RequestHeaders(t *testing.T) {
 					Accept:         r.Header.Get("Accept"),
 					Authorization:  r.Header.Get("Authorization"),
 					ForwardedProto: r.Header.Get("X-Forwarded-Proto"),
+					ForwardedFor:   r.Header.Get("X-Forwarded-For"),
 				})
 			}),
 		)
@@ -161,6 +163,7 @@ func TestNew_RequestHeaders(t *testing.T) {
 		req.Header.Set("Accept", "text/plain")
 		req.Header.Set("Authorization", "Bearer secret")
 		req.Header.Set("X-Forwarded-Proto", "https")
+		req.Header.Set("X-Forwarded-For", "203.0.113.1")
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, req)
 		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
@@ -206,7 +209,7 @@ func TestNew_RequestHeaders(t *testing.T) {
 				"X-Custom: one, two",
 				"accept: application/json",
 			},
-			RemoveRequestHeaders: []string{"authorization"},
+			RemoveRequestHeaders: []string{"authorization", "x-forwarded-for"},
 		}
 		for _, path := range []string{"/", "/api/users"} {
 			got := do(t, opts, path)
@@ -214,6 +217,7 @@ func TestNew_RequestHeaders(t *testing.T) {
 			require.Equal(t, "one, two", got.Custom, path)
 			require.Equal(t, "application/json", got.Accept, path)
 			require.Empty(t, got.Authorization, path)
+			require.Empty(t, got.ForwardedFor, path)
 		}
 	})
 

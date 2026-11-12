@@ -155,7 +155,7 @@ remove_request_headers:
   - Cookie
 ```
 
-The `--host-header` flag overrides `host_header`, and headers from the CLI flags are applied after those in the config file.
+The `--host-header` flag overrides `host_header`, and headers from the CLI flags are applied after those in the config file. All removals are applied before any header is set, so a header that is both removed and set is sent with the set value, regardless of where each comes from. When set, `X-Forwarded-For` gets the local address appended and hop-by-hop headers (e.g., `Connection`, `Upgrade`) are dropped by the proxy.
 
 #### Custom subdomain prefix
 

@@ -33,7 +33,11 @@ type Options struct {
 	// literally. The original Host header is kept when empty.
 	HostHeader string
 	// RequestHeaders are headers in the form of "Name: value" to be set on
-	// forwarded requests, overwriting existing values.
+	// forwarded requests, overwriting existing values. They are set after
+	// RemoveRequestHeaders are removed.
+	//
+	// The reverse proxy still appends the local address to X-Forwarded-For and
+	// drops hop-by-hop headers (e.g., Connection).
 	RequestHeaders []string
 	// RemoveRequestHeaders are names of headers to be removed from forwarded
 	// requests.
@@ -66,7 +70,9 @@ func New(logger *logx.Logger, defaultForwardAddr string, opts Options, forwards 
 				}
 			}
 			for _, name := range opts.RemoveRequestHeaders {
-				r.Header.Del(name)
+				// Keep the key with a nil value instead of deleting it, otherwise the
+				// reverse proxy adds X-Forwarded-For back.
+				r.Header[http.CanonicalHeaderKey(name)] = nil
 			}
 			for name := range setHeaders {
 				r.Header.Set(name, setHeaders.Get(name))

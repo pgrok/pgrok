@@ -29,7 +29,7 @@ func commandHTTP(homeDir string, logger *logx.Logger) *cli.Command {
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			return actionHTTP(ctx, cmd, logger)
 		},
-		// Header values may contain commas, e.g. "Accept: text/html, */*".
+		// Header values may contain commas, e.g., "Accept: text/html, */*".
 		DisableSliceFlagSeparator: true,
 		Flags: append(
 			commonFlags(homeDir, logger),
