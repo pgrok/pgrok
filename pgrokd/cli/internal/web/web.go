@@ -3,7 +3,6 @@ package web
 import (
 	"context"
 	"fmt"
-	"math"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -182,9 +181,12 @@ func getOIDCAuth(c *Context, r flamego.Render) {
 	// Asking for max_age on every sign-in also makes the identity provider
 	// report when the user really signed in (OpenID Connect Core 1.0, section
 	// 2), since that, not the time of this sign-in, is what clients are told.
+	// Keep it to a year: some identity providers add it to the sign-in time in
+	// 32 bits, and Keycloak before 26.4 then asks for a password every time.
+	const maxMaxAge = 365 * 24 * 60 * 60
 	maxAge, err := strconv.ParseUint(c.Query("maxAge"), 10, 32)
-	if err != nil {
-		maxAge = math.MaxInt32
+	if err != nil || maxAge > maxMaxAge {
+		maxAge = maxMaxAge
 	}
 	authURL += "&max_age=" + strconv.FormatUint(maxAge, 10)
 	if maxAge == 0 {
