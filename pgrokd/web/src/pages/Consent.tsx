@@ -28,7 +28,29 @@ export default function ConsentPage() {
       const response = await axios.post(`/api/oidc-provider/auth-requests/${encodeURIComponent(data.id)}`, {
         approve,
       });
-      globalThis.location.assign((response.data as { redirectURL: string }).redirectURL);
+      const { redirectURL, formPost } = response.data as {
+        redirectURL: string;
+        formPost?: Record<string, string[]>;
+      };
+      if (!formPost) {
+        globalThis.location.assign(redirectURL);
+        return;
+      }
+      // The client asked for response_mode=form_post: POST the response.
+      const form = document.createElement("form");
+      form.method = "POST";
+      form.action = redirectURL;
+      for (const [name, values] of Object.entries(formPost)) {
+        for (const value of values) {
+          const input = document.createElement("input");
+          input.type = "hidden";
+          input.name = name;
+          input.value = value;
+          form.append(input);
+        }
+      }
+      document.body.append(form);
+      form.submit();
     } catch (error_) {
       setSubmitting(false);
       setError(

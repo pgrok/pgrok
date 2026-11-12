@@ -87,6 +87,16 @@ func NewServer(logger *logx.Logger, config *conf.Config, db *database.DB) (*http
 		f.Get(strings.TrimPrefix(oidcprovider.LoginPath, "/-"), getOIDCProviderLogin(db, provider))
 	})
 
+	// The provider serves RP-initiated logout, which must also end the web
+	// session that signed the user in, so the request goes through the session
+	// middleware first.
+	endSession := func(c *Context) {
+		r := c.Request().Request
+		ctx := oidcprovider.WithEndWebSession(r.Context(), func() { signOut(c) })
+		provider.ServeHTTP(c.ResponseWriter(), r.WithContext(ctx))
+	}
+	f.Combo(oidcprovider.EndSessionPath).Get(endSession).Post(endSession)
+
 	address := fmt.Sprintf("0.0.0.0:%d", config.Web.Port)
 	logger.Info("Web server listening on",
 		"address", address,
@@ -95,7 +105,7 @@ func NewServer(logger *logx.Logger, config *conf.Config, db *database.DB) (*http
 	return &http.Server{
 		Addr: address,
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if oidcprovider.Handles(r) {
+			if oidcprovider.Handles(r) && r.URL.Path != oidcprovider.EndSessionPath {
 				provider.ServeHTTP(w, r)
 				return
 			}
@@ -236,10 +246,15 @@ func getOIDCCallback(logger *logx.Logger, db *database.DB) flamego.Handler {
 	}
 }
 
-// getSignOut clears the session and returns to the home page.
-func getSignOut(c *Context) {
+// signOut ends the user's web session.
+func signOut(c *Context) {
 	c.Session.Delete("userID")
 	c.Session.Delete("authTime")
+}
+
+// getSignOut clears the session and returns to the home page.
+func getSignOut(c *Context) {
+	signOut(c)
 	c.Redirect("/")
 }
 
