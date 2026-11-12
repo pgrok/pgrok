@@ -155,15 +155,24 @@ func tokenFunc(ctx context.Context, staticToken, configPath string) (func() (str
 		return nil, errors.Wrapf(err, "load credentials from %q", path)
 	}
 	source := &savingTokenSource{ctx: ctx, path: path, creds: creds}
+	// The server also answers "invalid_grant" when it fails to look up the
+	// refresh token, such as while its database restarts, so only a repeated one
+	// means that the login expired.
+	const loginExpiredAfter = 5
+	invalidGrants := 0
 	return func() (string, error) {
 		token, err := source.Token()
 		if err != nil {
 			var retrieveErr *oauth2.RetrieveError
 			if errors.As(err, &retrieveErr) && retrieveErr.ErrorCode == "invalid_grant" {
-				return "", errLoginExpired
+				invalidGrants++
+				if invalidGrants >= loginExpiredAfter {
+					return "", errLoginExpired
+				}
 			}
 			return "", errors.Wrap(err, "refresh access token")
 		}
+		invalidGrants = 0
 		return token.AccessToken, nil
 	}, nil
 }
