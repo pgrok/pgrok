@@ -10,7 +10,7 @@ export default function CopyButton({ value, label = "Copy" }: { value: string; l
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      // Clipboard access can be denied (e.g. insecure context); ignore.
+      // Clipboard access can be denied (e.g., insecure context); ignore.
     }
   }
 
