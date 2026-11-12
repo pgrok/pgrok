@@ -32,10 +32,38 @@ type credentials struct {
 // refreshed, so retrying cannot help.
 var errLoginExpired = errors.New(`your login has expired or was revoked, run "pgrok login" again`)
 
-// credentialsPath returns where the credentials are saved, next to the config
-// file.
-func credentialsPath(configPath string) string {
-	return filepath.Join(filepath.Dir(configPath), "credentials.json")
+// credentialsPath returns where the login to the server is saved, next to the
+// config file. Each server has its own file, so that logging in to one server
+// leaves the login to another, which running tunnels may use, alone.
+func credentialsPath(configPath, serverURL string) string {
+	name := strings.TrimSuffix(serverURL, "/")
+	name = strings.TrimPrefix(strings.TrimPrefix(name, "https://"), "http://")
+	name = strings.Map(func(r rune) rune {
+		if r == '.' || r == '-' || ('0' <= r && r <= '9') || ('a' <= r && r <= 'z') || ('A' <= r && r <= 'Z') {
+			return r
+		}
+		return '_'
+	}, name)
+	return filepath.Join(filepath.Dir(configPath), "credentials", name+".json")
+}
+
+// configCredentialsPath returns where the login to the server of the config
+// is saved. Without a server in the config, it is the only saved login.
+func configCredentialsPath(configPath, serverURL string) (string, error) {
+	if serverURL != "" {
+		return credentialsPath(configPath, serverURL), nil
+	}
+	paths, err := filepath.Glob(filepath.Join(filepath.Dir(configPath), "credentials", "*.json"))
+	if err != nil {
+		return "", err
+	}
+	switch len(paths) {
+	case 0:
+		return "", os.ErrNotExist
+	case 1:
+		return paths[0], nil
+	}
+	return "", errors.New(`there are logins to several servers, set "server_url" in the config file to choose one`)
 }
 
 func loadCredentials(path string) (*credentials, error) {
@@ -96,17 +124,17 @@ type savingTokenSource struct {
 	// process last read or wrote it. After a failed save the file holds an
 	// older, already used one, which must not replace the token in memory.
 	savedRefreshToken string
-	// otherServer is whether the credentials file last held a login to another
-	// server, which this process must not overwrite.
-	otherServer bool
+	// signedOut is whether the credentials file was deleted by "pgrok logout",
+	// which this process must not undo by saving its token.
+	signedOut bool
 }
 
 // reload adopts the token in the credentials file when another process has
 // refreshed it, and reports whether it did.
 func (s *savingTokenSource) reload() bool {
 	creds, err := loadCredentials(s.path)
-	s.otherServer = err == nil && creds.ServerURL != s.creds.ServerURL
-	if err != nil || s.otherServer || creds.Token.RefreshToken == s.savedRefreshToken {
+	s.signedOut = os.IsNotExist(err)
+	if err != nil || creds.Token.RefreshToken == s.savedRefreshToken {
 		return false
 	}
 	s.creds = creds
@@ -140,7 +168,7 @@ func (s *savingTokenSource) Token() (*oauth2.Token, error) {
 	}
 	refreshed := token.AccessToken != s.creds.Token.AccessToken
 	s.creds.Token = token
-	if s.otherServer || (!refreshed && token.RefreshToken == s.savedRefreshToken) {
+	if s.signedOut || (!refreshed && token.RefreshToken == s.savedRefreshToken) {
 		return token, nil
 	}
 	// Save a new token, or retry a save that failed earlier.
@@ -159,13 +187,19 @@ func (s *savingTokenSource) Token() (*oauth2.Token, error) {
 // tokenFunc returns what the tunnel commands authenticate with on each
 // connection attempt: the token from the flag or config file, or else a fresh
 // access token from the credentials saved by "pgrok login".
-func tokenFunc(ctx context.Context, staticToken, configPath string) (func() (string, error), error) {
+func tokenFunc(ctx context.Context, staticToken, configPath, serverURL string) (func() (string, error), error) {
 	if staticToken != "" {
 		return func() (string, error) { return staticToken, nil }, nil
 	}
 
-	path := credentialsPath(configPath)
-	creds, err := loadCredentials(path)
+	path, err := configCredentialsPath(configPath, serverURL)
+	if err != nil && !os.IsNotExist(err) {
+		return nil, err
+	}
+	var creds *credentials
+	if err == nil {
+		creds, err = loadCredentials(path)
+	}
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, errors.New(`no token is configured, run "pgrok login" or set "token" in the config file`)
@@ -214,13 +248,18 @@ func commandLogin(homeDir string, logger *logx.Logger) *cli.Command {
 	}
 }
 
-func actionLogin(ctx context.Context, cmd *cli.Command, logger *logx.Logger) error {
-	configPath := cmd.String("config")
+// serverURL returns the server URL from the flag, or else from the config file.
+func serverURL(cmd *cli.Command) string {
 	var configServerURL string
-	if config, err := loadConfig(configPath); err == nil {
+	if config, err := loadConfig(cmd.String("config")); err == nil {
 		configServerURL = config.ServerURL
 	}
-	serverURL := cmp.Or(cmd.String("server-url"), configServerURL)
+	return cmp.Or(cmd.String("server-url"), configServerURL)
+}
+
+func actionLogin(ctx context.Context, cmd *cli.Command, logger *logx.Logger) error {
+	configPath := cmd.String("config")
+	serverURL := serverURL(cmd)
 	if serverURL == "" {
 		logger.FatalContext(ctx, `Please specify the server with "--server-url" or "server_url" in the config file`)
 	}
@@ -237,7 +276,7 @@ func actionLogin(ctx context.Context, cmd *cli.Command, logger *logx.Logger) err
 	if err != nil {
 		logger.FatalContext(ctx, "Failed to sign in", "error", err)
 	}
-	path := credentialsPath(configPath)
+	path := credentialsPath(configPath, serverURL)
 	err = saveCredentials(path, &credentials{ServerURL: serverURL, Token: token})
 	if err != nil {
 		logger.FatalContext(ctx, "Failed to save credentials", "path", path, "error", err)
@@ -253,13 +292,16 @@ func commandLogout(homeDir string, logger *logx.Logger) *cli.Command {
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			return actionLogout(ctx, cmd, logger)
 		},
-		Flags: commonFlags(homeDir, logger),
+		Flags: append(commonFlags(homeDir, logger), serverURLFlag()),
 	}
 }
 
 func actionLogout(ctx context.Context, cmd *cli.Command, logger *logx.Logger) error {
-	path := credentialsPath(cmd.String("config"))
-	creds, err := loadCredentials(path)
+	path, err := configCredentialsPath(cmd.String("config"), serverURL(cmd))
+	var creds *credentials
+	if err == nil {
+		creds, err = loadCredentials(path)
+	}
 	if err != nil {
 		if os.IsNotExist(err) {
 			logger.Info("Not signed in")

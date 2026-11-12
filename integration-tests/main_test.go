@@ -709,7 +709,8 @@ forward_addr: "http://localhost:9833"
 	}()
 	require.NoError(t, login.Wait())
 
-	credentialsPath := filepath.Join(dir, "credentials.json")
+	// Each server has its own credentials file.
+	credentialsPath := filepath.Join(dir, "credentials", "localhost_3320.json")
 	info, err := os.Stat(credentialsPath)
 	require.NoError(t, err)
 	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())

@@ -106,7 +106,7 @@ func actionHTTP(ctx context.Context, cmd *cli.Command, logger *logx.Logger) erro
 	logger.Debug("Capture server is running on", "url", s.URL)
 
 	surl, _ := url.Parse(s.URL)
-	token, err := tokenFunc(ctx, cmp.Or(cmd.String("token"), config.Token), configPath)
+	token, err := tokenFunc(ctx, cmp.Or(cmd.String("token"), config.Token), configPath, config.ServerURL)
 	if err != nil {
 		logger.FatalContext(ctx, "Failed to get token", "error", err)
 	}

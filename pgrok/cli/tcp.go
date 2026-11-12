@@ -82,7 +82,7 @@ func actionTCP(ctx context.Context, cmd *cli.Command, logger *logx.Logger) error
 	)
 	logger.Info("Forward", "address", forwardAddr)
 
-	token, err := tokenFunc(ctx, cmp.Or(cmd.String("token"), config.Token), configPath)
+	token, err := tokenFunc(ctx, cmp.Or(cmd.String("token"), config.Token), configPath, config.ServerURL)
 	if err != nil {
 		logger.FatalContext(ctx, "Failed to get token", "error", err)
 	}
