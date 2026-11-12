@@ -551,6 +551,56 @@ func TestOIDCProviderAuthorizationCode(t *testing.T) {
 	})
 }
 
+// TestOIDCProviderPromptLogin checks that a client asking for a fresh sign-in
+// gets one from the identity provider, which the browser cannot skip.
+func TestOIDCProviderPromptLogin(t *testing.T) {
+	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
+	require.NoError(t, err)
+	browser := &http.Client{Jar: jar}
+	get := func(t *testing.T, url string) *http.Response {
+		resp, err := browser.Get(url)
+		require.NoError(t, err)
+		_ = resp.Body.Close()
+		return resp
+	}
+
+	// Sign in from the identity provider's existing session.
+	require.Equal(t, http.StatusOK, get(t, "http://localhost:3320/-/oidc/auth").StatusCode)
+
+	// signInURL returns where pgrokd sends the browser to sign in for a new
+	// authorization request with prompt=login.
+	signInURL := func(t *testing.T) *neturl.URL {
+		client := &http.Client{
+			Jar: jar,
+			CheckRedirect: func(req *http.Request, _ []*http.Request) error {
+				if req.URL.Path == "/-/oidc/auth" {
+					return http.ErrUseLastResponse
+				}
+				return nil
+			},
+		}
+		resp, err := client.Get("http://localhost:3320/oauth2/authorize?client_id=integration&redirect_uri=http://localhost:9999/callback&response_type=code&scope=openid&state=s&prompt=login")
+		require.NoError(t, err)
+		_ = resp.Body.Close()
+		location, err := resp.Location()
+		require.NoError(t, err)
+		require.Equal(t, "/-/oidc/auth", location.Path)
+		return location
+	}
+
+	t.Run("skipping the identity provider's sign-in", func(t *testing.T) {
+		location := signInURL(t)
+		query := location.Query()
+		query.Del("maxAge")
+		location.RawQuery = query.Encode()
+		assert.Equal(t, http.StatusForbidden, get(t, location.String()).StatusCode)
+	})
+
+	t.Run("signing in again", func(t *testing.T) {
+		assert.Equal(t, "/consent", get(t, signInURL(t).String()).Request.URL.Path)
+	})
+}
+
 func TestOIDCProviderEndSession(t *testing.T) {
 	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
 	require.NoError(t, err)

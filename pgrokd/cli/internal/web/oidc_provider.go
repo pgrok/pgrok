@@ -83,7 +83,13 @@ func getOIDCProviderLogin(db *database.DB, provider *op.Provider) flamego.Handle
 
 		authTime, ok := c.AuthTime()
 		if !c.Authenticated() || !ok || !signedInRecentlyEnough(req, authTime) {
-			signIn := "/-/oidc/auth?returnTo=" + url.QueryEscape(c.Request().URL.RequestURI())
+			if c.Authenticated() && ok && c.Query("signedIn") != "" {
+				// The browser comes back from signing in for this request.
+				r.PlainText(http.StatusForbidden, "Your identity provider did not ask you to sign in again, which the app requires. Please sign out of your identity provider and try again.")
+				return
+			}
+			returnTo := oidcprovider.LoginPath + "?authRequestID=" + url.QueryEscape(req.ID) + "&signedIn=1"
+			signIn := "/-/oidc/auth?returnTo=" + url.QueryEscape(returnTo)
 			if req.MaxAge != nil {
 				// Without it, an identity provider with a live session of its own
 				// signs the user in again without asking.
