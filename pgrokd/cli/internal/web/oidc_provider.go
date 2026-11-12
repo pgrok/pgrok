@@ -84,17 +84,24 @@ func getOIDCProviderLogin(db *database.DB, provider *op.Provider) flamego.Handle
 
 		authTime, ok := c.AuthTime()
 		if !c.Authenticated() || !ok || !signedInRecentlyEnough(req, authTime) {
+			signedIn, maxAge := "1", req.MaxAge
 			if c.Authenticated() && ok && c.Query("signedIn") != "" {
-				// The browser comes back from signing in for this request.
-				r.PlainText(http.StatusForbidden, "Your identity provider did not ask you to sign in again, which the app requires. Please sign out of your identity provider and try again.")
-				return
+				// The browser comes back from signing in for this request. An
+				// identity provider whose session was just under max_age old
+				// rightly did not ask the user to sign in, and the session got too
+				// old on the way here, so ask it once more for a new sign-in.
+				if c.Query("signedIn") != "1" || maxAge == nil || *maxAge == 0 {
+					r.PlainText(http.StatusForbidden, "Your identity provider did not ask you to sign in again, which the app requires. Please sign out of your identity provider and try again.")
+					return
+				}
+				signedIn, maxAge = "2", new(uint)
 			}
-			returnTo := oidcprovider.LoginPath + "?authRequestID=" + url.QueryEscape(req.ID) + "&signedIn=1"
+			returnTo := oidcprovider.LoginPath + "?authRequestID=" + url.QueryEscape(req.ID) + "&signedIn=" + signedIn
 			signIn := "/-/oidc/auth?returnTo=" + url.QueryEscape(returnTo)
-			if req.MaxAge != nil {
+			if maxAge != nil {
 				// Without it, an identity provider with a live session of its own
 				// signs the user in again without asking.
-				signIn += "&maxAge=" + strconv.FormatUint(uint64(*req.MaxAge), 10)
+				signIn += "&maxAge=" + strconv.FormatUint(uint64(*maxAge), 10)
 			}
 			c.Redirect(signIn)
 			return
