@@ -23,7 +23,12 @@ const (
 	authRequestLifetime  = 10 * time.Minute
 	accessTokenLifetime  = time.Hour
 	refreshTokenLifetime = 30 * 24 * time.Hour
-	idTokenLifetime      = time.Hour
+	// refreshTokenReuseGrace is how long after a refresh token was rotated it
+	// can be presented again without revoking its family. Clients that share a
+	// refresh token, such as two pgrok processes started together, can race to
+	// rotate it, and the loser is not an attacker.
+	refreshTokenReuseGrace = 10 * time.Second
+	idTokenLifetime        = time.Hour
 )
 
 // Storage implements op.Storage on the pgrokd database. Subjects are principal
@@ -80,6 +85,7 @@ func (s *Storage) CreateAuthRequest(ctx context.Context, req *oidc.AuthRequest, 
 		CodeChallengeMethod: string(req.CodeChallengeMethod),
 		Prompt:              req.Prompt,
 		LoginHint:           req.LoginHint,
+		MaxAge:              req.MaxAge,
 		ExpiresAt:           time.Now().Add(authRequestLifetime),
 	}
 	if authReq.Scopes == nil {
@@ -200,6 +206,10 @@ func (s *Storage) CreateAccessAndRefreshTokens(ctx context.Context, request op.T
 		err = s.db.CreateOIDCTokens(ctx, access, refresh)
 	} else {
 		err = s.db.RotateOIDCRefreshToken(ctx, hashToken(currentRefreshToken), access, refresh)
+		if errors.Is(err, database.ErrOIDCRecordNotFound) {
+			// Another request rotated the token concurrently.
+			return "", "", time.Time{}, oidc.ErrInvalidGrant().WithDescription("refresh token was already used")
+		}
 	}
 	if err != nil {
 		return "", "", time.Time{}, err
@@ -216,8 +226,10 @@ func (s *Storage) TokenRequestByRefreshToken(ctx context.Context, refreshToken s
 		return nil, err
 	}
 	if token.Used {
-		if err = s.db.DeleteOIDCRefreshTokenFamily(ctx, token.FamilyID); err != nil {
-			return nil, errors.Wrap(err, "revoke reused refresh token family")
+		if time.Since(token.UsedAt) > refreshTokenReuseGrace {
+			if err = s.db.DeleteOIDCRefreshTokenFamily(ctx, token.FamilyID); err != nil {
+				return nil, errors.Wrap(err, "revoke reused refresh token family")
+			}
 		}
 		return nil, errors.New("refresh token was already used")
 	}
@@ -255,7 +267,12 @@ func (s *Storage) RevokeToken(ctx context.Context, tokenOrTokenID, _, clientID s
 		return oidc.ErrServerError().WithParent(err)
 	}
 
+	// A refresh token arrives as the hash from GetRefreshTokenInfo, or as the
+	// token itself when the request hinted that it is an access token.
 	refresh, err := s.db.GetOIDCRefreshToken(ctx, tokenOrTokenID)
+	if errors.Is(err, database.ErrOIDCRecordNotFound) {
+		refresh, err = s.db.GetOIDCRefreshToken(ctx, hashToken(tokenOrTokenID))
+	}
 	if errors.Is(err, database.ErrOIDCRecordNotFound) {
 		// Unknown tokens are already as revoked as they can be (RFC 7009,
 		// section 2.2).
