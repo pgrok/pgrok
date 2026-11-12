@@ -288,7 +288,15 @@ func (db *DB) DeleteOIDCRefreshTokenFamily(ctx context.Context, familyID string)
 // the subject.
 func (db *DB) DeleteOIDCTokensBySubjectAndClient(ctx context.Context, subject, clientID string) error {
 	return db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		err := tx.Where("subject = ? AND client_id = ?", subject, clientID).Delete(&OIDCAccessToken{}).Error
+		// Wait for a rotation in progress to commit, as in
+		// DeleteOIDCRefreshTokenFamily, so that the deletes include its tokens.
+		var ids []string
+		err := tx.Model(&OIDCRefreshToken{}).Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("subject = ? AND client_id = ?", subject, clientID).Pluck("id", &ids).Error
+		if err != nil {
+			return err
+		}
+		err = tx.Where("subject = ? AND client_id = ?", subject, clientID).Delete(&OIDCAccessToken{}).Error
 		if err != nil {
 			return err
 		}

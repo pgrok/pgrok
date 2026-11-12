@@ -551,7 +551,7 @@ func TestOIDCProviderAuthorizationCode(t *testing.T) {
 	})
 }
 
-func TestOIDCProviderEndSessionSignsOut(t *testing.T) {
+func TestOIDCProviderEndSession(t *testing.T) {
 	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
 	require.NoError(t, err)
 	client := &http.Client{Jar: jar}
@@ -565,6 +565,8 @@ func TestOIDCProviderEndSessionSignsOut(t *testing.T) {
 	require.Equal(t, http.StatusOK, status("http://localhost:3320/-/oidc/auth"))
 	require.Equal(t, http.StatusOK, status("http://localhost:3320/api/user-info"))
 
+	// A logout that does not say which user it is for, which any site can
+	// send, keeps the user signed in.
 	assert.Equal(t, http.StatusOK, status("http://localhost:3320/oauth2/end_session"))
-	assert.Equal(t, http.StatusUnauthorized, status("http://localhost:3320/api/user-info"))
+	assert.Equal(t, http.StatusOK, status("http://localhost:3320/api/user-info"))
 }
