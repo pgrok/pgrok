@@ -19,6 +19,33 @@ type Config struct {
 	} `yaml:"sshd"`
 	Database         *Database         `yaml:"database"`
 	IdentityProvider *IdentityProvider `yaml:"identity_provider"`
+	OIDCProvider     OIDCProvider      `yaml:"oidc_provider"`
+}
+
+// OIDCProvider configures pgrokd as an OpenID Provider, with "external_url" as
+// its issuer.
+type OIDCProvider struct {
+	// Clients are the OAuth 2.0 clients allowed to use the provider in addition
+	// to the built-in pgrok CLI client.
+	Clients []OIDCClient `yaml:"clients"`
+}
+
+// OIDCClient is an OAuth 2.0 client registered with the OpenID Provider.
+type OIDCClient struct {
+	ID string `yaml:"id"`
+	// Name is shown to users when they are asked to approve the client.
+	Name string `yaml:"name"`
+	// Secret authenticates a confidential client. Leave empty for a public client,
+	// such as a single-page or native app, which must then use PKCE.
+	Secret                 string   `yaml:"secret"`
+	RedirectURIs           []string `yaml:"redirect_uris"`
+	PostLogoutRedirectURIs []string `yaml:"post_logout_redirect_uris"`
+	// GrantTypes defaults to "authorization_code" and "refresh_token". The others
+	// supported are "client_credentials" (confidential clients only) and
+	// "urn:ietf:params:oauth:grant-type:device_code".
+	GrantTypes []string `yaml:"grant_types"`
+	// Trusted skips the consent screen, for first-party apps.
+	Trusted bool `yaml:"trusted"`
 }
 
 type Proxy struct {
@@ -82,6 +109,17 @@ func Load(configPath string) (*Config, error) {
 		if idp.RequiredDomain != "" && idp.FieldMapping.Email == "" {
 			return nil, errors.New("cannot require email domain without field mapping for email")
 		}
+	}
+
+	seen := make(map[string]bool)
+	for _, client := range config.OIDCProvider.Clients {
+		if client.ID == "" {
+			return nil, errors.New("oidc_provider: client without id")
+		}
+		if seen[client.ID] {
+			return nil, errors.Errorf("oidc_provider: duplicate client id %q", client.ID)
+		}
+		seen[client.ID] = true
 	}
 	return &config, nil
 }

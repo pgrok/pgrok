@@ -18,6 +18,7 @@ import (
 	"github.com/pgrok/pgrok/internal/conf"
 	"github.com/pgrok/pgrok/internal/cryptoutil"
 	"github.com/pgrok/pgrok/internal/database"
+	"github.com/pgrok/pgrok/internal/oidcprovider"
 	"github.com/pgrok/pgrok/internal/strutil"
 	"github.com/pgrok/pgrok/internal/userutil"
 )
@@ -70,14 +71,25 @@ func NewServer(logger *logx.Logger, config *conf.Config, db *database.DB) (*http
 		f.Get("/sign-out", getSignOut)
 	})
 
+	provider, err := oidcprovider.New(context.Background(), config, db)
+	if err != nil {
+		return nil, errors.Wrap(err, "set up OpenID Provider")
+	}
+
 	address := fmt.Sprintf("0.0.0.0:%d", config.Web.Port)
 	logger.Info("Web server listening on",
 		"address", address,
 		"env", flamego.Env(),
 	)
 	return &http.Server{
-		Addr:    address,
-		Handler: f,
+		Addr: address,
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if oidcprovider.Handles(r) {
+				provider.ServeHTTP(w, r)
+				return
+			}
+			f.ServeHTTP(w, r)
+		}),
 	}, nil
 }
 

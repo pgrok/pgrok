@@ -48,3 +48,21 @@ identity_provider:
     email: "email"
 #  # The required domain name, "field_mapping.email" is required to set for this to work.
 #  required_domain: "example.com"
+
+# Settings for pgrokd as an OpenID Provider, with "external_url" as its issuer.
+# Discovery is served at "<external_url>/.well-known/openid-configuration". The
+# pgrok CLI signs in as the built-in public client "pgrok-cli".
+#oidc_provider:
+#  clients:
+#    # A confidential web app using the authorization code flow.
+#    - id: "my-app"
+#      name: "My App"
+#      secret: "<random secret>"
+#      redirect_uris: ["https://my-app.example.com/callback"]
+#    # A public client (no secret), which must use PKCE.
+#    - id: "my-spa"
+#      redirect_uris: ["https://spa.example.com/callback"]
+#    # A service using the client credentials grant.
+#    - id: "my-service"
+#      secret: "<random secret>"
+#      grant_types: ["client_credentials"]
