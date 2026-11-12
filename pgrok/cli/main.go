@@ -66,7 +66,7 @@ func main() {
 
 	app := &cli.Command{
 		Name:           "pgrok",
-		Usage:          "Poor man's ngrok",
+		Usage:          "Programmable Networking",
 		Version:        version,
 		DefaultCommand: "http",
 		Commands: []*cli.Command{
