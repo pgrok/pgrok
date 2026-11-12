@@ -7,15 +7,11 @@
 
 ## What?
 
-The pgrok is a multi-tenant HTTP/TCP reverse tunnel solution through remote port forwarding from the SSH protocol.
+pgrok is a self-hosted, multi-tenant networking platform for exposing HTTP services and raw TCP connections through SSH reverse tunnels.
 
-This is intended for small teams that need to expose the local development environment to the public internet, and you need to bring your own domain name and SSO provider.
+Run it on your own infrastructure with your own domain and OIDC-compatible SSO provider. Users sign in through your team's SSO to obtain their tunnel credentials and stable HTTP subdomains.
 
-It gives stable subdomain for every user, and gated by your SSO through OIDC protocol.
-
-Trying to put this behind a production system will blow up your SLA.
-
-For individuals and production systems, just buy ngrok, it is still my favorite.
+Use the pgrok CLI to create tunnels, choose predictable subdomains, and route HTTP requests to different local services by path—or connect with a standard SSH client.
 
 ## Why?
 
@@ -184,10 +180,6 @@ Please read through our [contributing guide](.github/contributing.md) and [set u
 ## Credits
 
 The project wouldn't be possible without reading [function61/holepunch-server](https://github.com/function61/holepunch-server), [function61/holepunch-client](https://github.com/function61/holepunch-client), and [TCP/IP Port Forwarding](https://github.com/apache/mina-sshd/blob/master/docs/technical/tcpip-forwarding.md).
-
-## Historical context
-
-pgrok originally used the tagline "Poor man's ngrok" as a bare-bones alternative to [ngrok's $65/user/month enterprise tier](https://ngrok.com/pricing) at the time the project was founded. ngrok has since changed its pricing; pgrok's tagline is now **Programmable Networking**.
 
 ## License
 
