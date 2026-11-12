@@ -2,6 +2,7 @@ package web
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/flamego/flamego"
 	"github.com/flamego/session"
@@ -45,6 +46,16 @@ func contexter(config *conf.Config, db *database.DB) flamego.Handler {
 
 		ctx.Map(c)
 	}
+}
+
+// AuthTime returns when the user signed in, or false for sessions created
+// before pgrokd recorded it.
+func (c *Context) AuthTime() (time.Time, bool) {
+	unix, ok := c.Session.Get("authTime").(int64)
+	if !ok {
+		return time.Time{}, false
+	}
+	return time.Unix(unix, 0), true
 }
 
 // authenticate aborts unauthenticated requests with 401.

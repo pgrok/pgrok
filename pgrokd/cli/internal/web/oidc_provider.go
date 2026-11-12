@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/flamego/flamego"
 	"github.com/pkg/errors"
@@ -18,9 +19,31 @@ import (
 )
 
 // isLocalPath reports whether p is a path on this server, which is safe to
-// redirect to.
+// redirect to. Browsers drop tabs and newlines from URLs and read backslashes
+// as slashes, so "/\t/evil.example" and "/\\evil.example" lead off-site and are
+// rejected along with every other control character and backslash.
 func isLocalPath(p string) bool {
-	return strings.HasPrefix(p, "/") && !strings.HasPrefix(p, "//") && !strings.HasPrefix(p, "/\\")
+	if !strings.HasPrefix(p, "/") || strings.HasPrefix(p, "//") || strings.ContainsRune(p, '\\') {
+		return false
+	}
+	for _, r := range p {
+		if r < 0x20 || r == 0x7f {
+			return false
+		}
+	}
+	u, err := url.Parse(p)
+	return err == nil && u.Scheme == "" && u.Host == ""
+}
+
+// signedInRecentlyEnough reports whether the user signed in recently enough for
+// the authorization request: after it was created when it asks for a fresh
+// sign-in ("prompt=login", which sets max_age to 0), or within its max_age.
+func signedInRecentlyEnough(req *database.OIDCAuthRequest, authTime time.Time) bool {
+	if req.MaxAge == nil {
+		return true
+	}
+	return !authTime.Before(req.CreatedAt.Truncate(time.Second)) ||
+		time.Since(authTime) <= time.Duration(*req.MaxAge)*time.Second
 }
 
 // sameOrigin rejects requests that a page on another origin could have sent,
@@ -57,7 +80,8 @@ func getOIDCProviderLogin(db *database.DB, provider *op.Provider) flamego.Handle
 			return
 		}
 
-		if !c.Authenticated() {
+		authTime, ok := c.AuthTime()
+		if !c.Authenticated() || !ok || !signedInRecentlyEnough(req, authTime) {
 			c.Session.Set("returnTo", c.Request().URL.RequestURI())
 			c.Redirect("/-/oidc/auth")
 			return
@@ -69,7 +93,7 @@ func getOIDCProviderLogin(db *database.DB, provider *op.Provider) flamego.Handle
 			return
 		}
 		if client.Trusted() && !slices.Contains(req.Prompt, oidc.PromptConsent) {
-			err = db.CompleteOIDCAuthRequest(c.Request().Context(), req.ID, c.Principal.ID)
+			err = db.CompleteOIDCAuthRequest(c.Request().Context(), req.ID, c.Principal.ID, authTime)
 			if err != nil {
 				r.PlainText(http.StatusInternalServerError, "Failed to approve request: "+err.Error())
 				return
@@ -135,7 +159,11 @@ func postOIDCProviderAuthRequest(db *database.DB) flamego.Handler {
 func decideOIDCProviderAuthRequest(c *Context, db *database.DB, req *database.OIDCAuthRequest, approve bool) (string, error) {
 	ctx := c.Request().Context()
 	if approve {
-		if err := db.CompleteOIDCAuthRequest(ctx, req.ID, c.Principal.ID); err != nil {
+		authTime, ok := c.AuthTime()
+		if !ok || !signedInRecentlyEnough(req, authTime) {
+			return "", errors.New("please sign in again")
+		}
+		if err := db.CompleteOIDCAuthRequest(ctx, req.ID, c.Principal.ID, authTime); err != nil {
 			return "", errors.Wrap(err, "approve request")
 		}
 		return oidcprovider.CallbackURL(c.Config.ExternalURL, req.ID), nil
