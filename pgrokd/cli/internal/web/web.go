@@ -141,9 +141,12 @@ func getOIDCAuth(c *Context, r flamego.Render) {
 		return
 	}
 
-	// Remember where to go after signing in, such as the device page.
+	// Remember where to go after signing in. Every sign-in sets or clears it,
+	// so that one abandoned midway does not redirect a later one.
 	if returnTo := c.Query("returnTo"); isLocalPath(returnTo) {
 		c.Session.Set("returnTo", returnTo)
+	} else {
+		c.Session.Delete("returnTo")
 	}
 
 	nonce := strutil.MustRandomChars(10)
