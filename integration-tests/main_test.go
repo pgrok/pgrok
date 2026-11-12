@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/cookiejar"
+	neturl "net/url"
 	"os"
 	"os/exec"
 	"strconv"
@@ -28,6 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.bobheadxi.dev/streamline/streamexec"
 	"golang.org/x/net/publicsuffix"
+	"golang.org/x/oauth2"
 	"unknwon.dev/x/logx"
 )
 
@@ -454,4 +456,91 @@ func TestOIDCProviderDiscovery(t *testing.T) {
 	assert.NotEmpty(t, jwks.Keys[0].Kid)
 	assert.Equal(t, "RS256", jwks.Keys[0].Alg)
 	assert.Equal(t, "sig", jwks.Keys[0].Use)
+}
+
+// TestOIDCProviderAuthorizationCode signs in through the upstream identity
+// provider, approves the consent screen, and redeems the code.
+func TestOIDCProviderAuthorizationCode(t *testing.T) {
+	ctx := context.Background()
+	provider, err := oidc.NewProvider(ctx, "http://localhost:3320")
+	require.NoError(t, err)
+	config := oauth2.Config{
+		ClientID:     "integration",
+		ClientSecret: "integrationsecret",
+		Endpoint:     provider.Endpoint(),
+		RedirectURL:  "http://localhost:9999/callback",
+		Scopes:       []string{oidc.ScopeOpenID, "profile"},
+	}
+
+	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
+	require.NoError(t, err)
+	// Stop at the client's redirect URI, where nothing is listening.
+	browser := &http.Client{
+		Jar: jar,
+		CheckRedirect: func(req *http.Request, _ []*http.Request) error {
+			if strings.HasPrefix(req.URL.String(), config.RedirectURL) {
+				return http.ErrUseLastResponse
+			}
+			return nil
+		},
+	}
+	approve := func(t *testing.T, approve bool) *neturl.URL {
+		resp, err := browser.Get(config.AuthCodeURL("state1", oidc.Nonce("nonce1")))
+		require.NoError(t, err)
+		_ = resp.Body.Close()
+		require.Equal(t, "/consent", resp.Request.URL.Path)
+		id := resp.Request.URL.Query().Get("authRequestID")
+
+		req, err := http.NewRequest(http.MethodPost, "http://localhost:3320/api/oidc-provider/auth-requests/"+id, strings.NewReader(fmt.Sprintf(`{"approve":%t}`, approve)))
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", "application/json")
+		resp, err = browser.Do(req)
+		require.NoError(t, err)
+		var decision struct {
+			RedirectURL string `json:"redirectURL"`
+		}
+		require.NoError(t, json.NewDecoder(resp.Body).Decode(&decision))
+		_ = resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+
+		// Denying redirects straight to the client, while approving goes through
+		// the provider, which then redirects to the client with the code.
+		location := decision.RedirectURL
+		if !strings.HasPrefix(location, config.RedirectURL) {
+			resp, err = browser.Get(location)
+			require.NoError(t, err)
+			_ = resp.Body.Close()
+			location = resp.Header.Get("Location")
+		}
+		callback, err := neturl.Parse(location)
+		require.NoError(t, err)
+		require.Equal(t, "state1", callback.Query().Get("state"))
+		return callback
+	}
+
+	t.Run("approve", func(t *testing.T) {
+		callback := approve(t, true)
+		token, err := config.Exchange(ctx, callback.Query().Get("code"))
+		require.NoError(t, err)
+		idToken, err := provider.Verifier(&oidc.Config{ClientID: config.ClientID}).Verify(ctx, token.Extra("id_token").(string))
+		require.NoError(t, err)
+		assert.Equal(t, "nonce1", idToken.Nonce)
+
+		userInfo, err := provider.UserInfo(ctx, oauth2.StaticTokenSource(token))
+		require.NoError(t, err)
+		var claims struct {
+			PreferredUsername string `json:"preferred_username"`
+		}
+		require.NoError(t, userInfo.Claims(&claims))
+		assert.Equal(t, "unknwon@example.com", claims.PreferredUsername)
+
+		_, err = config.Exchange(ctx, callback.Query().Get("code"))
+		assert.Error(t, err, "a code can be redeemed only once")
+	})
+
+	t.Run("deny", func(t *testing.T) {
+		callback := approve(t, false)
+		assert.Equal(t, "access_denied", callback.Query().Get("error"))
+		assert.Empty(t, callback.Query().Get("code"))
+	})
 }

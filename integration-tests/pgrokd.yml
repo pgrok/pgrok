@@ -24,3 +24,9 @@ identity_provider:
     display_name: "name"
     email: "email"
   required_domain: "example.com"
+oidc_provider:
+  clients:
+    - id: "integration"
+      name: "Integration App"
+      secret: "integrationsecret"
+      redirect_uris: ["http://localhost:9999/callback"]

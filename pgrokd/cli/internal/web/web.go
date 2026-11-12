@@ -25,12 +25,17 @@ import (
 
 // NewServer constructs the HTTP server that serves the web UI and the JSON API.
 func NewServer(logger *logx.Logger, config *conf.Config, db *database.DB) (*http.Server, error) {
+	provider, err := oidcprovider.New(context.Background(), config, db)
+	if err != nil {
+		return nil, errors.Wrap(err, "set up OpenID Provider")
+	}
+
 	f := flamego.New()
 	f.Use(flamego.Logger())
 	f.Use(flamego.Recovery())
 	f.Use(flamego.Renderer())
 
-	err := mountWebAppRoutes(f)
+	err = mountWebAppRoutes(f)
 	if err != nil {
 		return nil, errors.Wrap(err, "set up web assets")
 	}
@@ -61,6 +66,10 @@ func NewServer(logger *logx.Logger, config *conf.Config, db *database.DB) (*http
 	f.Group("/api", func() {
 		f.Get("/user-info", authenticate, getUserInfo)
 		f.Get("/identity-provider", getIdentityProvider)
+		f.Group("/oidc-provider/auth-requests/{id}", func() {
+			f.Get("", getOIDCProviderAuthRequest(db, provider))
+			f.Post("", sameOrigin, postOIDCProviderAuthRequest(db))
+		}, authenticate)
 	})
 
 	// Human-facing web routes, namespaced under "/-".
@@ -69,12 +78,8 @@ func NewServer(logger *logx.Logger, config *conf.Config, db *database.DB) (*http
 		f.Get("/oidc/auth", getOIDCAuth)
 		f.Get("/oidc/callback", getOIDCCallback(logger, db))
 		f.Get("/sign-out", getSignOut)
+		f.Get(strings.TrimPrefix(oidcprovider.LoginPath, "/-"), getOIDCProviderLogin(db, provider))
 	})
-
-	provider, err := oidcprovider.New(context.Background(), config, db)
-	if err != nil {
-		return nil, errors.Wrap(err, "set up OpenID Provider")
-	}
 
 	address := fmt.Sprintf("0.0.0.0:%d", config.Web.Port)
 	logger.Info("Web server listening on",
@@ -204,7 +209,15 @@ func getOIDCCallback(logger *logx.Logger, db *database.DB) flamego.Handler {
 		}
 
 		c.Session.Set("userID", principal.ID)
-		c.Redirect("/")
+
+		// Resume what sent the user to sign in, such as an authorization request
+		// of the OpenID Provider.
+		returnTo, _ := c.Session.Get("returnTo").(string)
+		c.Session.Delete("returnTo")
+		if !isLocalPath(returnTo) {
+			returnTo = "/"
+		}
+		c.Redirect(returnTo)
 	}
 }
 

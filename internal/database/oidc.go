@@ -102,10 +102,12 @@ func (db *DB) SetOIDCAuthRequestCodeHash(ctx context.Context, id, codeHash strin
 	return db.WithContext(ctx).Model(&OIDCAuthRequest{}).Where("id = ?", id).Update("code_hash", codeHash).Error
 }
 
-// CompleteOIDCAuthRequest marks the request as approved by the principal.
+// CompleteOIDCAuthRequest marks the request as approved by the principal. A
+// request can be approved only once, so that nobody else who learns its ID can
+// replace the principal before the client redeems the code.
 func (db *DB) CompleteOIDCAuthRequest(ctx context.Context, id string, principalID int64) error {
 	result := db.WithContext(ctx).Model(&OIDCAuthRequest{}).
-		Where("id = ? AND expires_at > ?", id, time.Now()).
+		Where("id = ? AND NOT done AND expires_at > ?", id, time.Now()).
 		Updates(map[string]any{
 			"principal_id": principalID,
 			"auth_time":    time.Now(),
