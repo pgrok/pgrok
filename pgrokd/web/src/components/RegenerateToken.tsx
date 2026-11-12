@@ -44,7 +44,7 @@ export default function RegenerateToken() {
       <Panel role="status" tone="success">
         <p className="font-semibold">Token regenerated. The new token is shown above.</p>
         <p className="mt-2">
-          Update every pgrok client before it next connects: replace the <code className={codeClass}>token</code>{" "}
+          Replace the <code className={codeClass}>token</code>{" "}
           value in <code className={codeClass}>pgrok.yml</code> with it, or pass{" "}
           <code className={codeClass}>--token {token}</code> to clients started with that flag. Re-running{" "}
           <code className={codeClass}>pgrok init ... --token {token}</code> also works, but rewrites the whole{" "}
@@ -65,14 +65,12 @@ export default function RegenerateToken() {
         Regenerate your token?
       </p>
       <p className="mt-2">
-        The current token stops working immediately. pgrok clients still using it will fail to connect or reconnect
-        until you update them with the new token: the <code className={codeClass}>token</code> value in{" "}
+        The current token stops working immediately. Update to the new token: the <code className={codeClass}>token</code> value in{" "}
         <code className={codeClass}>pgrok.yml</code>, or the <code className={codeClass}>--token</code> flag for
         clients started with it.
       </p>
       <p className="mt-2">
-        Tunnels that are already connected are not cut off: they keep running with the old token until they
-        disconnect on their own.
+        Tunnels that are already connected are not cut off.
       </p>
       {error && (
         <p role="alert" className="mt-2 font-semibold text-destructive">
