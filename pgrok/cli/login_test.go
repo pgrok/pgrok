@@ -32,32 +32,34 @@ func TestTokenFuncKeepsRotatedTokenWhenSaveFails(t *testing.T) {
 		}
 		n++
 		latest = "r" + strconv.Itoa(n)
-		// Already expired, so that every call refreshes.
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"access_token": "a" + strconv.Itoa(n), "token_type": "Bearer", "refresh_token": latest, "expires_in": 1,
+			"access_token": "a" + strconv.Itoa(n), "token_type": "Bearer", "refresh_token": latest, "expires_in": 3600,
 		})
 	}))
 	defer server.Close()
 
-	dir := filepath.Join(t.TempDir(), "pgrok")
-	configPath := filepath.Join(dir, "pgrok.yml")
-	require.NoError(t, saveCredentials(credentialsPath(configPath), &credentials{
+	configPath := filepath.Join(t.TempDir(), "pgrok.yml")
+	path := credentialsPath(configPath)
+	require.NoError(t, saveCredentials(path, &credentials{
 		ServerURL: server.URL,
 		Token:     &oauth2.Token{AccessToken: "a0", RefreshToken: "r0", Expiry: time.Now().Add(-time.Hour)},
 	}))
 	token, err := tokenFunc(context.Background(), "", configPath)
 	require.NoError(t, err)
 
-	// The credentials file cannot be written, so the rotated token is not saved.
-	require.NoError(t, os.Chmod(dir, 0o500))
-	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
+	// A directory where saving writes its temporary file makes the save fail on
+	// every platform, so the rotated token is not saved.
+	require.NoError(t, os.Mkdir(path+".tmp", 0o700))
 	_, err = token()
 	require.Error(t, err)
 
-	// Once the file can be written again, the next refresh must use the
-	// rotated token kept in memory, not the already used one in the file.
-	require.NoError(t, os.Chmod(dir, 0o700))
+	// Once the file can be written again, the next call uses the rotated token
+	// kept in memory, not the already used one in the file, and saves it.
+	require.NoError(t, os.Remove(path+".tmp"))
 	got, err := token()
-	require.NoError(t, err, "refresh after a failed save")
-	assert.Equal(t, "a2", got)
+	require.NoError(t, err)
+	assert.Equal(t, "a1", got)
+	saved, err := loadCredentials(path)
+	require.NoError(t, err)
+	assert.Equal(t, "r1", saved.Token.RefreshToken)
 }

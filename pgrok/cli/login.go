@@ -134,7 +134,8 @@ func (s *savingTokenSource) Token() (*oauth2.Token, error) {
 	if err != nil {
 		return nil, err
 	}
-	if token.AccessToken != s.creds.Token.AccessToken {
+	// Save a new token, and retry a save that failed earlier.
+	if token.AccessToken != s.creds.Token.AccessToken || token.RefreshToken != s.savedRefreshToken {
 		s.creds.Token = token
 		if err = saveCredentials(s.path, s.creds); err != nil {
 			return nil, errors.Wrap(err, "save refreshed credentials")
