@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/coreos/go-oidc"
 	"github.com/flamego/flamego"
@@ -69,6 +70,11 @@ func NewServer(logger *logx.Logger, config *conf.Config, db *database.DB) (*http
 		f.Group("/oidc-provider/auth-requests/{id}", func() {
 			f.Get("", getOIDCProviderAuthRequest(db, provider))
 			f.Post("", sameOrigin, postOIDCProviderAuthRequest(db))
+		}, authenticate)
+		limiter := &userCodeGuessLimiter{failures: make(map[int64][]time.Time)}
+		f.Group("/oidc-provider/device-authorizations/{userCode}", func() {
+			f.Get("", getOIDCProviderDeviceAuthorization(db, provider, limiter))
+			f.Post("", sameOrigin, postOIDCProviderDeviceAuthorization(db, limiter))
 		}, authenticate)
 	})
 
@@ -137,6 +143,11 @@ func getOIDCAuth(c *Context, r flamego.Render) {
 	if err != nil {
 		r.PlainText(http.StatusInternalServerError, fmt.Sprintf("Failed to create new provider: %v", err))
 		return
+	}
+
+	// Remember where to go after signing in, such as the device page.
+	if returnTo := c.Query("returnTo"); isLocalPath(returnTo) {
+		c.Session.Set("returnTo", returnTo)
 	}
 
 	nonce := strutil.MustRandomChars(10)

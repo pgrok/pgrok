@@ -7,6 +7,8 @@ import (
 	"net/url"
 	"slices"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/flamego/flamego"
 	"github.com/pkg/errors"
@@ -149,4 +151,99 @@ func decideOIDCProviderAuthRequest(c *Context, db *database.DB, req *database.OI
 		return "", errors.Wrap(err, "delete request")
 	}
 	return redirectURL, nil
+}
+
+// userCodeGuessLimiter limits how many wrong user codes each principal can
+// enter, because user codes are short enough to guess (RFC 8628, section 5.1).
+type userCodeGuessLimiter struct {
+	mu       sync.Mutex
+	failures map[int64][]time.Time
+}
+
+const (
+	userCodeGuessWindow = 10 * time.Minute
+	userCodeGuessMax    = 10
+)
+
+// allow reports whether the principal may enter another user code.
+func (l *userCodeGuessLimiter) allow(principalID int64) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	cutoff := time.Now().Add(-userCodeGuessWindow)
+	l.failures[principalID] = slices.DeleteFunc(l.failures[principalID], func(t time.Time) bool { return t.Before(cutoff) })
+	if len(l.failures[principalID]) == 0 {
+		delete(l.failures, principalID)
+	}
+	return len(l.failures[principalID]) < userCodeGuessMax
+}
+
+// fail records a wrong user code entered by the principal.
+func (l *userCodeGuessLimiter) fail(principalID int64) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.failures[principalID] = append(l.failures[principalID], time.Now())
+}
+
+// lookupDeviceAuthorization returns the undecided device authorization with the
+// user code in the "userCode" route parameter, writing an error response when
+// there is none.
+func lookupDeviceAuthorization(c *Context, r flamego.Render, db *database.DB, limiter *userCodeGuessLimiter) *database.OIDCDeviceAuthorization {
+	if !limiter.allow(c.Principal.ID) {
+		r.JSON(http.StatusTooManyRequests, map[string]string{"error": "Too many wrong codes. Please wait a few minutes and try again."})
+		return nil
+	}
+	auth, err := db.GetOIDCDeviceAuthorizationByUserCode(c.Request().Context(), oidcprovider.NormalizeUserCode(c.Param("userCode")))
+	if errors.Is(err, database.ErrOIDCRecordNotFound) {
+		limiter.fail(c.Principal.ID)
+		r.JSON(http.StatusNotFound, map[string]string{"error": "The code is invalid or has expired. Please check it and try again."})
+		return nil
+	} else if err != nil {
+		r.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return nil
+	}
+	return auth
+}
+
+// getOIDCProviderDeviceAuthorization returns what the device page shows about
+// the device authorization with a user code.
+func getOIDCProviderDeviceAuthorization(db *database.DB, provider *op.Provider, limiter *userCodeGuessLimiter) flamego.Handler {
+	return func(c *Context, r flamego.Render) {
+		auth := lookupDeviceAuthorization(c, r, db, limiter)
+		if auth == nil {
+			return
+		}
+		client, err := provider.Storage().GetClientByClientID(c.Request().Context(), auth.ClientID)
+		if err != nil {
+			r.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		r.JSON(http.StatusOK, map[string]any{
+			"clientName": client.(*oidcprovider.Client).Name(),
+			"scopes":     auth.Scopes,
+		})
+	}
+}
+
+// postOIDCProviderDeviceAuthorization records the user's decision on the device
+// authorization with a user code. The device learns it on its next poll.
+func postOIDCProviderDeviceAuthorization(db *database.DB, limiter *userCodeGuessLimiter) flamego.Handler {
+	return func(c *Context, r flamego.Render) {
+		var body struct {
+			Approve bool `json:"approve"`
+		}
+		if err := json.NewDecoder(c.Request().Request.Body).Decode(&body); err != nil {
+			r.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request body."})
+			return
+		}
+		auth := lookupDeviceAuthorization(c, r, db, limiter)
+		if auth == nil {
+			return
+		}
+		err := db.DecideOIDCDeviceAuthorization(c.Request().Context(), auth.UserCode, oidcprovider.Subject(c.Principal.ID), body.Approve)
+		if err != nil {
+			r.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		r.JSON(http.StatusOK, map[string]bool{"approved": body.Approve})
+	}
 }

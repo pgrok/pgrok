@@ -48,6 +48,8 @@ func New(logger *logx.Logger, config *conf.Database) (*DB, error) {
 		postgres.Open(dsn),
 		&gorm.Config{
 			SkipDefaultTransaction: true,
+			// Translate errors such as unique violations into gorm.ErrDuplicatedKey.
+			TranslateError: true,
 			NowFunc: func() time.Time {
 				return time.Now().UTC().Truncate(time.Microsecond)
 			},
@@ -72,6 +74,7 @@ func New(logger *logx.Logger, config *conf.Database) (*DB, error) {
 		&OIDCAuthRequest{},
 		&OIDCAccessToken{},
 		&OIDCRefreshToken{},
+		&OIDCDeviceAuthorization{},
 	)
 	if err != nil {
 		return nil, errors.Wrap(err, "auto migrate")

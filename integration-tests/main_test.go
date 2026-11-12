@@ -544,3 +544,73 @@ func TestOIDCProviderAuthorizationCode(t *testing.T) {
 		assert.Empty(t, callback.Query().Get("code"))
 	})
 }
+
+// signIn returns an HTTP client signed in to pgrokd through the upstream
+// identity provider.
+func signIn(t *testing.T) *http.Client {
+	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
+	require.NoError(t, err)
+	client := &http.Client{Jar: jar}
+	resp, err := client.Get("http://localhost:3320/-/oidc/auth")
+	require.NoError(t, err)
+	_ = resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	return client
+}
+
+// decideDeviceAuthorization approves or denies the device authorization with
+// the user code, as the device page does.
+func decideDeviceAuthorization(t *testing.T, browser *http.Client, userCode string, approve bool) {
+	req, err := http.NewRequest(
+		http.MethodPost,
+		"http://localhost:3320/api/oidc-provider/device-authorizations/"+neturl.PathEscape(userCode),
+		strings.NewReader(fmt.Sprintf(`{"approve":%t}`, approve)),
+	)
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := browser.Do(req)
+	require.NoError(t, err)
+	_ = resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+}
+
+func TestOIDCProviderDeviceAuthorization(t *testing.T) {
+	ctx := context.Background()
+	config := oauth2.Config{
+		ClientID: "pgrok-cli",
+		Endpoint: oauth2.Endpoint{
+			DeviceAuthURL: "http://localhost:3320/oauth2/device_authorization",
+			TokenURL:      "http://localhost:3320/oauth2/token",
+			AuthStyle:     oauth2.AuthStyleInParams,
+		},
+		Scopes: []string{"offline_access"},
+	}
+	browser := signIn(t)
+
+	t.Run("approve", func(t *testing.T) {
+		auth, err := config.DeviceAuth(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, "http://localhost:3320/device?user_code="+auth.UserCode, auth.VerificationURIComplete)
+
+		// Users may type the code in lowercase and without the dash.
+		decideDeviceAuthorization(t, browser, strings.ToLower(strings.ReplaceAll(auth.UserCode, "-", "")), true)
+		token, err := config.DeviceAccessToken(ctx, auth)
+		require.NoError(t, err)
+		assert.NotEmpty(t, token.AccessToken)
+		assert.NotEmpty(t, token.RefreshToken)
+
+		refreshed, err := config.TokenSource(ctx, &oauth2.Token{RefreshToken: token.RefreshToken}).Token()
+		require.NoError(t, err)
+		assert.NotEqual(t, token.AccessToken, refreshed.AccessToken)
+	})
+
+	t.Run("deny", func(t *testing.T) {
+		auth, err := config.DeviceAuth(ctx)
+		require.NoError(t, err)
+		decideDeviceAuthorization(t, browser, auth.UserCode, false)
+		_, err = config.DeviceAccessToken(ctx, auth)
+		var retrieveErr *oauth2.RetrieveError
+		require.ErrorAs(t, err, &retrieveErr)
+		assert.Equal(t, "access_denied", retrieveErr.ErrorCode)
+	})
+}

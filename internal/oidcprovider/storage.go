@@ -133,6 +133,8 @@ func tokenInfoFromRequest(request op.TokenRequest) (tokenInfo, error) {
 		return tokenInfo{clientID: req.ClientID, authTime: req.GetAuthTime(), amr: req.GetAMR()}, nil
 	case *refreshTokenRequest:
 		return tokenInfo{clientID: req.ClientID, authTime: req.AuthTime, amr: req.AMR}, nil
+	case *op.DeviceAuthorizationState:
+		return tokenInfo{clientID: req.ClientID, authTime: req.AuthTime, amr: req.AMR}, nil
 	case *oidc.JWTTokenRequest:
 		// Client credentials grant, where the client is the subject.
 		return tokenInfo{clientID: req.Subject, authTime: time.Now()}, nil

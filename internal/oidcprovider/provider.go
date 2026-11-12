@@ -64,6 +64,12 @@ func New(ctx context.Context, config *conf.Config, db *database.DB) (*op.Provide
 			AuthMethodPost:           true,
 			GrantTypeRefreshToken:    true,
 			SupportedUILocales:       []language.Tag{language.English},
+			DeviceAuthorization: op.DeviceAuthorizationConfig{
+				Lifetime:     deviceAuthorizationLifetime,
+				PollInterval: devicePollInterval,
+				UserFormPath: DevicePath,
+				UserCode:     op.UserCodeBase20,
+			},
 		},
 		storage,
 		op.StaticIssuer(config.ExternalURL),
