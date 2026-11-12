@@ -15,6 +15,7 @@ import (
 
 	"github.com/pgrok/pgrok/internal/dynamicforward"
 	"github.com/pgrok/pgrok/internal/inspector"
+	"github.com/pgrok/pgrok/internal/tui"
 )
 
 // tunnel contains everything needed to run a single tunnel.
@@ -36,17 +37,31 @@ type tunnel struct {
 var errTokenRejected = errors.New("token rejected by the server")
 
 // runTunnel connects the tunnel to the remote server and keeps reconnecting with
-// backoff whenever the connection fails. It only returns on unrecoverable
-// errors, e.g. errTokenRejected.
-func runTunnel(logger *logx.Logger, t tunnel) error {
+// backoff whenever the connection fails, reporting to hub, which may be nil. It
+// only returns on unrecoverable errors, e.g. errTokenRejected.
+func runTunnel(logger *logx.Logger, t tunnel, hub *tui.Hub) error {
 	localAddr := t.forwardAddr
 	var inspectURL string
 	if t.protocol == protocolHTTP {
 		logger.Info("Default forward", "address", t.forwardAddr)
-		forwardHandler, err := dynamicforward.New(logger, t.forwardAddr, t.headers, parseDynamicForwards(logger, t.dynamicForwards)...)
+		forwards := parseDynamicForwards(logger, t.dynamicForwards)
+		forwardHandler, err := dynamicforward.New(logger, t.forwardAddr, t.headers, forwards...)
 		if err != nil {
 			return errors.Wrap(err, "create forward handler")
 		}
+		// The terminal UI captures requests next to the reverse proxy, so that
+		// it sees the requests the inspector replays too.
+		forwardHandler = hub.Capture(forwardHandler, func(path string) (prefix, addr string) {
+			for _, f := range forwards {
+				if strings.HasPrefix(path, f.Prefix) && len(f.Prefix) > len(prefix) {
+					prefix, addr = f.Prefix, f.Address
+				}
+			}
+			if addr == "" {
+				addr = t.forwardAddr
+			}
+			return prefix, addr
+		})
 
 		if t.inspectAddr != "" && t.inspectAddr != "false" {
 			ln, err := net.Listen("tcp", t.inspectAddr)
@@ -64,6 +79,12 @@ func runTunnel(logger *logx.Logger, t tunnel) error {
 			}
 		}
 
+		routes := make([][2]string, 0, len(forwards))
+		for _, f := range forwards {
+			routes = append(routes, [2]string{f.Prefix, f.Address})
+		}
+		hub.SetHTTP(routes, inspectURL, forwardHandler)
+
 		s := httptest.NewServer(forwardHandler)
 		defer s.Close()
 		logger.Debug("Capture server is running on", "url", s.URL)
@@ -75,10 +96,16 @@ func runTunnel(logger *logx.Logger, t tunnel) error {
 	}
 
 	// Each tunnel has its own hook, so it only compares against its own last URL.
-	onReady := newReadyHook(logger)
+	// The terminal UI has its own share modal, and printing to stdout would
+	// corrupt its screen.
+	onReady := func(string) {}
+	if hub == nil {
+		onReady = newReadyHook(logger)
+	}
 	cooldownAfter := time.Now().Add(time.Minute)
 	for failed := 0; ; failed++ {
-		err := tryConnect(logger, t.protocol, t.remoteAddr, localAddr, t.token, t.subdomain, inspectURL, onReady)
+		hub.SetConnecting()
+		err := tryConnect(logger, hub, t.protocol, t.remoteAddr, localAddr, t.token, t.subdomain, inspectURL, onReady)
 		if err != nil {
 			if time.Now().After(cooldownAfter) {
 				failed = 0
@@ -91,7 +118,11 @@ func runTunnel(logger *logx.Logger, t tunnel) error {
 			if strings.Contains(err.Error(), "no supported methods remain") {
 				return errTokenRejected
 			}
-			time.Sleep(backoff)
+			hub.SetDisconnected(err, backoff)
+			select {
+			case <-time.After(backoff):
+			case <-hub.Retry():
+			}
 			cooldownAfter = time.Now().Add(time.Minute)
 		}
 	}
