@@ -106,6 +106,7 @@ func actionHTTP(ctx context.Context, cmd *cli.Command, logger *logx.Logger) erro
 	logger.Debug("Capture server is running on", "url", s.URL)
 
 	surl, _ := url.Parse(s.URL)
+	onReady := newReadyHook(logger)
 	cooldownAfter := time.Now().Add(time.Minute)
 	for failed := 0; ; failed++ {
 		err := tryConnect(
@@ -115,6 +116,7 @@ func actionHTTP(ctx context.Context, cmd *cli.Command, logger *logx.Logger) erro
 			surl.Host,
 			cmp.Or(cmd.String("token"), config.Token),
 			cmd.String("subdomain"),
+			onReady,
 		)
 		if err != nil {
 			if time.Now().After(cooldownAfter) {
@@ -160,7 +162,10 @@ const (
 	protocolTCP  string = "tcp"
 )
 
-func tryConnect(logger *logx.Logger, protocol, remoteAddr, forwardAddr, token, subdomain string) error {
+// tryConnect establishes the tunnel and blocks until it fails. The onReady
+// callback is invoked with the public URL reported by the server (which may be
+// empty) every time the tunnel is up.
+func tryConnect(logger *logx.Logger, protocol, remoteAddr, forwardAddr, token, subdomain string, onReady func(hostURL string)) error {
 	client, err := ssh.Dial(
 		"tcp",
 		remoteAddr,
@@ -215,6 +220,7 @@ func tryConnect(logger *logx.Logger, protocol, remoteAddr, forwardAddr, token, s
 		message = fmt.Sprintf("🎉 You're ready to go live at %s!", serverInfo.HostURL)
 	}
 	logger.Info(message, "remote", remoteAddr)
+	onReady(serverInfo.HostURL)
 	for {
 		remote, err := remoteListener.Accept()
 		if err != nil {

@@ -72,6 +72,9 @@ tasks:
     options:
       runInCI: false
       persistent: true
+      # Run deps in order so "server" starts only after "build" has written
+      # .bin/pgrokd, otherwise it may launch a stale binary.
+      runDepsInParallel: false
     deps:
       - "build"
       - "server"
@@ -83,6 +86,9 @@ tasks:
     options:
       runInCI: false
       persistent: true
+      # Run deps in order so "server" starts only after "build-prod" has written
+      # .bin/pgrokd, otherwise it may launch a stale binary.
+      runDepsInParallel: false
     deps:
       - "build-prod"
       - "server"

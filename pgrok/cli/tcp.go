@@ -82,6 +82,7 @@ func actionTCP(ctx context.Context, cmd *cli.Command, logger *logx.Logger) error
 	)
 	logger.Info("Forward", "address", forwardAddr)
 
+	onReady := newReadyHook(logger)
 	cooldownAfter := time.Now().Add(time.Minute)
 	for failed := 0; ; failed++ {
 		err := tryConnect(
@@ -91,6 +92,7 @@ func actionTCP(ctx context.Context, cmd *cli.Command, logger *logx.Logger) error
 			forwardAddr,
 			cmp.Or(cmd.String("token"), config.Token),
 			"", // No subdomain as TCP doesn't use it
+			onReady,
 		)
 		if err != nil {
 			if time.Now().After(cooldownAfter) {

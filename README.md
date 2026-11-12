@@ -1,21 +1,17 @@
 ![pgrok banner](assets/banner.png)
 
 <div align="center">
-  <h3>Poor man's ngrok</h3>
+  <h3>Programmable Networking</h3>
   <a href="https://sourcegraph.com/github.com/pgrok/pgrok"><img src="https://img.shields.io/badge/view%20on-Sourcegraph-brightgreen.svg?style=for-the-badge&logo=sourcegraph" alt="Sourcegraph"></a>
 </div>
 
 ## What?
 
-The pgrok is a multi-tenant HTTP/TCP reverse tunnel solution through remote port forwarding from the SSH protocol.
+pgrok is a self-hosted, multi-tenant networking platform for exposing HTTP services and raw TCP connections through SSH reverse tunnels.
 
-This is intended for small teams that need to expose the local development environment to the public internet, and you need to bring your own domain name and SSO provider.
+Run it on your own infrastructure with your own domain and OIDC-compatible SSO provider. Users sign in through your team's SSO to obtain their tunnel credentials and stable HTTP subdomains.
 
-It gives stable subdomain for every user, and gated by your SSO through OIDC protocol.
-
-Think of this as a bare-bones alternative to the [ngrok's $65/user/month enterprise tier](https://ngrok.com/pricing) (at the time of founding this project, they have since changed pricing). Trying to put this behind a production system will blow up your SLA.
-
-For individuals and production systems, just buy ngrok, it is still my favorite.
+Use the pgrok CLI to create tunnels, choose predictable subdomains, and route HTTP requests to different local services by path—or connect with a standard SSH client.
 
 ## Why?
 
@@ -59,7 +55,7 @@ Before you get started, make sure you have the following:
 
 ### Set up the client (`pgrok`)
 
-1. Go to http://example.com, authenticate with your SSO to obtain the token and URL (e.g., `http://unknwon.example.com`).
+1. Go to http://example.com, authenticate with your SSO to obtain the token and URL (e.g., `http://unknwon.example.com`). The "Get started" section of the dashboard has the following commands ready to copy with your token and server address filled in.
 1. Download the latest version of the `pgrok`:
     - For Homebrew:
         ```sh
@@ -117,6 +113,10 @@ Following config options can be overridden through CLI flags for both `http` and
 - `--forward-addr, -f` -> `forward_addr`
 - `--token, -t` -> `token`
 
+#### QR code
+
+To open the tunnel on your phone right away, `pgrok` prints a QR code of the URL once the tunnel is up, for both `http` and `tcp` subcommands. It is printed again only when a reconnect gets a different URL, and only when stdout is a terminal.
+
 #### HTTP dynamic forwards
 
 Typical HTTP reverse tunnel solutions only support forwarding requests to a single address, `pgrok` can be configured to have dynamic forward rules when tunneling HTTP requests.
@@ -152,12 +152,12 @@ This goes live at `http://staging-unknwon.example.com`, forwarding to `http://lo
 Because the standard SSH protocol is used for tunneling, you may well just use the vanilla SSH client.
 
 1. Go to http://example.com, authenticate with your SSO to obtain the token and URL (e.g., `http://unknwon.example.com`).
-1. Launch the client by executing the `ssh -N -R 0::3000 example.com -p 2222` command:
+1. Launch the client by executing the `ssh -N -R 0:localhost:3000 example.com -p 2222` command:
     1. Enter the token as your password.
     1. Use the `-v` flag to turn on debug logging.
     1. Upon successful startup, you should see a log looks like:
         ```
-        Allocated port 22487 for remote forward to :3000
+        Allocated port 22487 for remote forward to localhost:3000
         ```
 1. Now visit the URL.
 
