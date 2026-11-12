@@ -246,7 +246,15 @@ func (db *DB) CreateOIDCTokens(ctx context.Context, access *OIDCAccessToken, ref
 // access tokens issued with them.
 func (db *DB) DeleteOIDCRefreshTokenFamily(ctx context.Context, familyID string) error {
 	return db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		err := tx.Where("refresh_token_id IN (?)",
+		// Wait for a rotation in progress to commit, so that the deletes below,
+		// which each read the latest committed rows, include the tokens it adds.
+		var ids []string
+		err := tx.Model(&OIDCRefreshToken{}).Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("family_id = ?", familyID).Pluck("id", &ids).Error
+		if err != nil {
+			return err
+		}
+		err = tx.Where("refresh_token_id IN (?)",
 			tx.Model(&OIDCRefreshToken{}).Select("id").Where("family_id = ?", familyID),
 		).Delete(&OIDCAccessToken{}).Error
 		if err != nil {
