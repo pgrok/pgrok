@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/urfave/cli/v3"
@@ -83,18 +84,48 @@ func oauth2Config(serverURL string) *oauth2.Config {
 }
 
 // savingTokenSource saves the credentials whenever the token is refreshed.
-// The server rotates refresh tokens, so the previous one stops working.
+// The server rotates refresh tokens, so the previous one stops working. Other
+// pgrok processes may share the credentials file, so it also picks up tokens
+// that they refreshed.
 type savingTokenSource struct {
-	mu     sync.Mutex
-	path   string
-	creds  *credentials
-	source oauth2.TokenSource
+	ctx   context.Context
+	mu    sync.Mutex
+	path  string
+	creds *credentials
+}
+
+// reload adopts the token in the credentials file when another process has
+// refreshed it, and reports whether it did.
+func (s *savingTokenSource) reload() bool {
+	creds, err := loadCredentials(s.path)
+	if err != nil || creds.ServerURL != s.creds.ServerURL || creds.Token.RefreshToken == s.creds.Token.RefreshToken {
+		return false
+	}
+	s.creds = creds
+	return true
+}
+
+func (s *savingTokenSource) refresh() (*oauth2.Token, error) {
+	return oauth2Config(s.creds.ServerURL).TokenSource(s.ctx, s.creds.Token).Token()
 }
 
 func (s *savingTokenSource) Token() (*oauth2.Token, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	token, err := s.source.Token()
+	s.reload()
+	token, err := s.refresh()
+	var retrieveErr *oauth2.RetrieveError
+	if errors.As(err, &retrieveErr) && retrieveErr.ErrorCode == "invalid_grant" {
+		// Another process may have rotated the refresh token first. Wait for it
+		// to save the new one.
+		for i := 0; i < 10; i++ {
+			time.Sleep(500 * time.Millisecond)
+			if s.reload() {
+				token, err = s.refresh()
+				break
+			}
+		}
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -123,11 +154,7 @@ func tokenFunc(ctx context.Context, staticToken, configPath string) (func() (str
 		}
 		return nil, errors.Wrapf(err, "load credentials from %q", path)
 	}
-	source := &savingTokenSource{
-		path:   path,
-		creds:  creds,
-		source: oauth2Config(creds.ServerURL).TokenSource(ctx, creds.Token),
-	}
+	source := &savingTokenSource{ctx: ctx, path: path, creds: creds}
 	return func() (string, error) {
 		token, err := source.Token()
 		if err != nil {
