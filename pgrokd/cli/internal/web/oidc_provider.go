@@ -147,36 +147,40 @@ func postOIDCProviderAuthRequest(db *database.DB) flamego.Handler {
 			return
 		}
 
-		redirectURL, err := decideOIDCProviderAuthRequest(c, db, req, body.Approve)
+		redirectURL, formPost, err := decideOIDCProviderAuthRequest(c, db, req, body.Approve)
 		if err != nil {
 			r.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 			return
 		}
-		r.JSON(http.StatusOK, map[string]string{"redirectURL": redirectURL})
+		resp := map[string]any{"redirectURL": redirectURL}
+		if formPost != nil {
+			resp["formPost"] = formPost
+		}
+		r.JSON(http.StatusOK, resp)
 	}
 }
 
-func decideOIDCProviderAuthRequest(c *Context, db *database.DB, req *database.OIDCAuthRequest, approve bool) (string, error) {
+func decideOIDCProviderAuthRequest(c *Context, db *database.DB, req *database.OIDCAuthRequest, approve bool) (redirectURL string, formPost url.Values, err error) {
 	ctx := c.Request().Context()
 	if approve {
 		authTime, ok := c.AuthTime()
 		if !ok || !signedInRecentlyEnough(req, authTime) {
-			return "", errors.New("please sign in again")
+			return "", nil, errors.New("please sign in again")
 		}
 		if err := db.CompleteOIDCAuthRequest(ctx, req.ID, c.Principal.ID, authTime); err != nil {
-			return "", errors.Wrap(err, "approve request")
+			return "", nil, errors.Wrap(err, "approve request")
 		}
-		return oidcprovider.CallbackURL(c.Config.ExternalURL, req.ID), nil
+		return oidcprovider.CallbackURL(c.Config.ExternalURL, req.ID), nil, nil
 	}
 
-	redirectURL, err := oidcprovider.DeniedRedirectURL(c.Config.ExternalURL, req)
+	redirectURL, formPost, err = oidcprovider.DeniedResponse(c.Config.ExternalURL, req)
 	if err != nil {
-		return "", errors.Wrap(err, "build redirect URL")
+		return "", nil, errors.Wrap(err, "build redirect URL")
 	}
 	if err = db.DeleteOIDCAuthRequest(ctx, req.ID); err != nil {
-		return "", errors.Wrap(err, "delete request")
+		return "", nil, errors.Wrap(err, "delete request")
 	}
-	return redirectURL, nil
+	return redirectURL, formPost, nil
 }
 
 // userCodeGuessLimiter limits how many wrong user codes each principal can

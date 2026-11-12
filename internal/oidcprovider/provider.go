@@ -21,6 +21,9 @@ import (
 // PathPrefix is the prefix of every provider endpoint other than discovery.
 const PathPrefix = "/oauth2/"
 
+// EndSessionPath is the provider's RP-initiated logout endpoint.
+const EndSessionPath = PathPrefix + "end_session"
+
 // New returns the OpenID Provider for the config, creating its keys on first
 // use.
 func New(ctx context.Context, config *conf.Config, db *database.DB) (*op.Provider, error) {
@@ -49,7 +52,7 @@ func New(ctx context.Context, config *conf.Config, db *database.DB) (*op.Provide
 			endpoint("token"),
 			endpoint("userinfo"),
 			endpoint("revoke"),
-			endpoint("end_session"),
+			op.NewEndpoint(EndSessionPath),
 			endpoint("keys"),
 		),
 		op.WithCustomIntrospectionEndpoint(endpoint("introspect")),
