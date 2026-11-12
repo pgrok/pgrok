@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -82,7 +83,13 @@ func getOIDCProviderLogin(db *database.DB, provider *op.Provider) flamego.Handle
 
 		authTime, ok := c.AuthTime()
 		if !c.Authenticated() || !ok || !signedInRecentlyEnough(req, authTime) {
-			c.Redirect("/-/oidc/auth?returnTo=" + url.QueryEscape(c.Request().URL.RequestURI()))
+			signIn := "/-/oidc/auth?returnTo=" + url.QueryEscape(c.Request().URL.RequestURI())
+			if req.MaxAge != nil {
+				// Without it, an identity provider with a live session of its own
+				// signs the user in again without asking.
+				signIn += "&maxAge=" + strconv.FormatUint(uint64(*req.MaxAge), 10)
+			}
+			c.Redirect(signIn)
 			return
 		}
 

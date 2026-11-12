@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -161,16 +162,23 @@ func getOIDCAuth(c *Context, r flamego.Render) {
 	nonce := strutil.MustRandomChars(10)
 	c.Session.Set("oidc::nonce", nonce)
 
-	c.Redirect(
-		fmt.Sprintf(p.Endpoint().AuthURL+"?client_id=%s&redirect_uri=%s&state=%s&nonce=%s&response_type=code&scope=%s&hd=%s",
-			c.Config.IdentityProvider.ClientID,
-			c.Config.ExternalURL+"/-/oidc/callback",
-			nonce,
-			nonce,
-			url.QueryEscape("openid profile email"),
-			c.Config.IdentityProvider.RequiredDomain,
-		),
+	authURL := fmt.Sprintf(p.Endpoint().AuthURL+"?client_id=%s&redirect_uri=%s&state=%s&nonce=%s&response_type=code&scope=%s&hd=%s",
+		c.Config.IdentityProvider.ClientID,
+		c.Config.ExternalURL+"/-/oidc/callback",
+		nonce,
+		nonce,
+		url.QueryEscape("openid profile email"),
+		c.Config.IdentityProvider.RequiredDomain,
 	)
+	// An OpenID Provider client asked for a sign-in no older than maxAge
+	// seconds, which the identity provider has to enforce for its own session.
+	if maxAge, err := strconv.ParseUint(c.Query("maxAge"), 10, 32); err == nil {
+		authURL += "&max_age=" + strconv.FormatUint(maxAge, 10)
+		if maxAge == 0 {
+			authURL += "&prompt=login"
+		}
+	}
+	c.Redirect(authURL)
 }
 
 // getOIDCCallback completes the OIDC flow: verifies the callback, upserts the
