@@ -12,9 +12,9 @@ import (
 
 // HostKey represents a host key for SSH.
 type HostKey struct {
-	Algorithm cryptoutil.KeyAlgorithm `gorm:"unique; not null"`
-	PEM       []byte                  `gorm:"not null"`
-	CreatedAt time.Time               `gorm:"not null"`
+	Algorithm cryptoutil.KeyAlgorithm
+	PEM       []byte
+	CreatedAt time.Time
 }
 
 var ErrHostKeyNotExists = errors.New("host key does not exist")
