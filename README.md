@@ -131,6 +131,8 @@ dynamic_forwards: |
 
 Then all requests prefixed with the path `/api` and `/hook` will be forwarded to `http://localhost:8080` and all the rest are forwarded to the `forward_addr` (`http://localhost:3000`).
 
+When prefixes overlap (e.g., `/api` and `/api/v2`), the longest matching prefix wins.
+
 #### Custom subdomain prefix
 
 By default, each user gets a single stable subdomain (e.g., `unknwon.example.com`), and when it is already taken `pgrok` falls back to a host prefixed with a server-generated UUID (e.g., `7fa4f0d0...-unknwon.example.com`). Use the `--subdomain, -s` flag of the `http` subcommand to choose that prefix yourself, so you get a deterministic URL and can run multiple tunnels under predictable hosts:
