@@ -160,7 +160,10 @@ func postOIDCProviderAuthRequest(db *database.DB) flamego.Handler {
 		}
 
 		redirectURL, formPost, err := decideOIDCProviderAuthRequest(c, db, req, body.Approve)
-		if err != nil {
+		if errors.Is(err, errSignInAgain) {
+			r.JSON(http.StatusUnauthorized, map[string]string{"error": err.Error()})
+			return
+		} else if err != nil {
 			r.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 			return
 		}
@@ -172,12 +175,16 @@ func postOIDCProviderAuthRequest(db *database.DB) flamego.Handler {
 	}
 }
 
+// errSignInAgain is returned when the user has to sign in again before
+// approving an authorization request.
+var errSignInAgain = errors.New("please sign in again")
+
 func decideOIDCProviderAuthRequest(c *Context, db *database.DB, req *database.OIDCAuthRequest, approve bool) (redirectURL string, formPost url.Values, err error) {
 	ctx := c.Request().Context()
 	if approve {
 		authTime, ok := c.AuthTime()
 		if !ok || !signedInRecentlyEnough(req, authTime) {
-			return "", nil, errors.New("please sign in again")
+			return "", nil, errSignInAgain
 		}
 		callbackURL, err := oidcprovider.ApproveAuthRequest(ctx, db, c.Config.ExternalURL, req.ID, c.Principal.ID, authTime)
 		if err != nil {

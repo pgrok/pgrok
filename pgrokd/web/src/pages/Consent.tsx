@@ -52,6 +52,11 @@ export default function ConsentPage() {
       document.body.append(form);
       form.submit();
     } catch (error_) {
+      if (isAxiosError(error_) && error_.response?.status === 401) {
+        // The sign-in is too old for the app now: sign in again and come back.
+        globalThis.location.assign(`/-/oidc-provider/login?authRequestID=${encodeURIComponent(data.id)}`);
+        return;
+      }
       setSubmitting(false);
       setError(
         isAxiosError(error_)
