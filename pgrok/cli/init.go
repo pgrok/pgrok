@@ -37,11 +37,11 @@ func commandInit(homeDir string, logger *logx.Logger) *cli.Command {
 				},
 			},
 			&cli.StringFlag{
-				Name:     "token",
-				Usage:    "The authentication token",
-				Required: true,
-				Aliases:  []string{"t"},
+				Name:    "token",
+				Usage:   `The authentication token, not needed after "pgrok login"`,
+				Aliases: []string{"t"},
 			},
+			serverURLFlag(),
 		),
 	}
 }
@@ -73,12 +73,14 @@ func deriveHTTPForwardAddress(addr string) string {
 }
 
 func actionInit(ctx context.Context, cmd *cli.Command, logger *logx.Logger) error {
-	const configTemplate = `# The address of the remote SSH server.
+	const configTemplate = `# The URL of the pgrokd web server, used by "pgrok login".
+server_url: "%s"
+# The address of the remote SSH server.
 remote_addr: "%s"
 # The address to forward requests to.
 forward_addr: "%s"
 
-# The authentication token.
+# The authentication token. Leave empty to use the credentials saved by "pgrok login".
 token: "%s"
 
 # Dynamic forward rules and use "forward_addr" as catch-all.
@@ -86,6 +88,7 @@ token: "%s"
 #  /api http://localhost:8080`
 	config := fmt.Sprintf(
 		configTemplate,
+		cmd.String("server-url"),
 		cmd.String("remote-addr"),
 		cmd.String("forward-addr"),
 		cmd.String("token"),

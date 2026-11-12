@@ -106,14 +106,19 @@ func actionHTTP(ctx context.Context, cmd *cli.Command, logger *logx.Logger) erro
 	logger.Debug("Capture server is running on", "url", s.URL)
 
 	surl, _ := url.Parse(s.URL)
+	token, err := tokenFunc(ctx, cmp.Or(cmd.String("token"), config.Token), configPath)
+	if err != nil {
+		logger.FatalContext(ctx, "Failed to get token", "error", err)
+	}
 	cooldownAfter := time.Now().Add(time.Minute)
 	for failed := 0; ; failed++ {
-		err := tryConnect(
+		err := connect(
+			ctx,
 			logger,
+			token,
 			protocolHTTP,
 			cmp.Or(cmd.String("remote-addr"), config.RemoteAddr),
 			surl.Host,
-			cmp.Or(cmd.String("token"), config.Token),
 			cmd.String("subdomain"),
 		)
 		if err != nil {
@@ -135,6 +140,7 @@ func actionHTTP(ctx context.Context, cmd *cli.Command, logger *logx.Logger) erro
 }
 
 type Config struct {
+	ServerURL       string `yaml:"server_url"`
 	RemoteAddr      string `yaml:"remote_addr"`
 	ForwardAddr     string `yaml:"forward_addr"`
 	Token           string `yaml:"token"`
@@ -159,6 +165,19 @@ const (
 	protocolHTTP string = "http"
 	protocolTCP  string = "tcp"
 )
+
+// connect gets a token and tries to connect. A token that can no longer be
+// refreshed is fatal, because retrying cannot fix it.
+func connect(ctx context.Context, logger *logx.Logger, token func() (string, error), protocol, remoteAddr, forwardAddr, subdomain string) error {
+	t, err := token()
+	if err != nil {
+		if errors.Is(err, errLoginExpired) {
+			logger.FatalContext(ctx, "Failed to get token", "error", err)
+		}
+		return errors.Wrap(err, "get token")
+	}
+	return tryConnect(logger, protocol, remoteAddr, forwardAddr, t, subdomain)
+}
 
 func tryConnect(logger *logx.Logger, protocol, remoteAddr, forwardAddr, token, subdomain string) error {
 	client, err := ssh.Dial(

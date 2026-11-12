@@ -5,6 +5,7 @@ package oidcprovider
 import (
 	"context"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -101,4 +102,26 @@ func DeleteExpiredRecords(ctx context.Context, logger *logx.Logger, db *database
 		case <-ticker.C:
 		}
 	}
+}
+
+// PrincipalIDFromAccessToken returns the principal of an unexpired access token
+// that the provider issued to the pgrok CLI. Tokens of other clients are
+// rejected, so that apps the user signed in to cannot open tunnels.
+func PrincipalIDFromAccessToken(ctx context.Context, provider *op.Provider, db *database.DB, accessToken string) (int64, error) {
+	tokenIDSubject, err := provider.Crypto().Decrypt(accessToken)
+	if err != nil {
+		return 0, errors.New("invalid access token")
+	}
+	tokenID, subject, ok := strings.Cut(tokenIDSubject, ":")
+	if !ok {
+		return 0, errors.New("invalid access token")
+	}
+	token, err := db.GetOIDCAccessToken(ctx, tokenID)
+	if err != nil {
+		return 0, errors.Wrap(err, "get access token")
+	}
+	if token.Subject != subject || token.ClientID != CLIClientID {
+		return 0, errors.New("access token was not issued to the pgrok CLI")
+	}
+	return strconv.ParseInt(token.Subject, 10, 64)
 }

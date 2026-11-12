@@ -9,6 +9,7 @@ import (
 
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/ssh"
+	"gorm.io/gorm"
 	"unknwon.dev/x/logx"
 
 	"github.com/pgrok/pgrok/internal/conf"
@@ -18,24 +19,37 @@ import (
 )
 
 // Start starts a SSH server listening on the given port. It returns when ctx is
-// canceled or the listener is closed.
+// canceled or the listener is closed. Clients authenticate with the password
+// set to either a principal's token or an OAuth access token, which
+// principalIDFromAccessToken resolves.
 func Start(
 	ctx context.Context,
 	logger *logx.Logger,
 	port int,
 	proxy conf.Proxy,
 	db *database.DB,
+	principalIDFromAccessToken func(ctx context.Context, accessToken string) (int64, error),
 	proxies *reverseproxy.Cluster,
 ) error {
 	config := &ssh.ServerConfig{
 		PasswordCallback: func(conn ssh.ConnMetadata, token []byte) (*ssh.Permissions, error) {
-			principal, err := db.GetPrincipalByToken(context.Background(), string(token))
-			if err != nil {
+			ctx := context.Background()
+			var principalID int64
+			principal, err := db.GetPrincipalByToken(ctx, string(token))
+			if err == nil {
+				principalID = principal.ID
+			} else if errors.Is(err, gorm.ErrRecordNotFound) {
+				principalID, err = principalIDFromAccessToken(ctx, string(token))
+				if err != nil {
+					logger.Debug("Rejected token", "remote", conn.RemoteAddr(), "error", err)
+					return nil, errors.New("invalid token")
+				}
+			} else {
 				return nil, err
 			}
 			return &ssh.Permissions{
 				Extensions: map[string]string{
-					"principal-id": strconv.FormatInt(principal.ID, 10),
+					"principal-id": strconv.FormatInt(principalID, 10),
 				},
 			}, nil
 		},

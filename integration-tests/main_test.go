@@ -3,6 +3,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"flag"
@@ -13,6 +14,7 @@ import (
 	neturl "net/url"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -248,11 +250,6 @@ func setupPgrok(ctx context.Context, protocol string, port int) (endpoint string
 }
 
 func setupPgrokWithSubdomain(ctx context.Context, protocol string, port int, subdomain string) (endpoint string, shutdown func() error, _ error) {
-	err := run.Cmd(ctx, "go", "build", "-o", "../.bin/pgrok", "../pgrok/cli").Run().Wait()
-	if err != nil {
-		return "", nil, errors.Wrap(err, "go build")
-	}
-
 	args := []string{
 		protocol,
 		"--config", "pgrok.yml",
@@ -266,6 +263,17 @@ func setupPgrokWithSubdomain(ctx context.Context, protocol string, port int, sub
 	}
 	if port > 0 {
 		args = append(args, strconv.Itoa(port))
+	}
+
+	return startPgrok(ctx, protocol, args...)
+}
+
+// startPgrok builds and starts pgrok with the arguments, and returns the
+// tunnel endpoint once it is ready.
+func startPgrok(ctx context.Context, protocol string, args ...string) (endpoint string, shutdown func() error, _ error) {
+	err := run.Cmd(ctx, "go", "build", "-o", "../.bin/pgrok", "../pgrok/cli").Run().Wait()
+	if err != nil {
+		return "", nil, errors.Wrap(err, "go build")
 	}
 
 	cmd := exec.Command("../.bin/pgrok", args...)
@@ -613,4 +621,73 @@ func TestOIDCProviderDeviceAuthorization(t *testing.T) {
 		require.ErrorAs(t, err, &retrieveErr)
 		assert.Equal(t, "access_denied", retrieveErr.ErrorCode)
 	})
+}
+
+// TestCLILogin signs the CLI in with "pgrok login", opens a tunnel with the saved
+// credentials instead of a token, and signs out with "pgrok logout".
+func TestCLILogin(t *testing.T) {
+	ctx := context.Background()
+	err := run.Cmd(ctx, "go", "build", "-o", "../.bin/pgrok", "../pgrok/cli").Run().Wait()
+	require.NoError(t, err)
+
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "pgrok.yml")
+	err = os.WriteFile(configPath, []byte(`server_url: "http://localhost:3320"
+remote_addr: "localhost:2222"
+forward_addr: "http://localhost:9833"
+`), 0o600)
+	require.NoError(t, err)
+
+	// Log in, approving the user code that the CLI prints.
+	login := exec.Command("../.bin/pgrok", "login", "--config", configPath)
+	stderr, err := login.StderrPipe()
+	require.NoError(t, err)
+	require.NoError(t, login.Start())
+	scanner := bufio.NewScanner(stderr)
+	var userCode string
+	for userCode == "" && scanner.Scan() {
+		fmt.Println("[pgrok-login]", scanner.Text())
+		if _, after, ok := strings.Cut(scanner.Text(), "user_code="); ok {
+			userCode = strings.TrimSpace(after)
+		}
+	}
+	require.NotEmpty(t, userCode)
+	decideDeviceAuthorization(t, signIn(t), userCode, true)
+	go func() {
+		for scanner.Scan() {
+			fmt.Println("[pgrok-login]", scanner.Text())
+		}
+	}()
+	require.NoError(t, login.Wait())
+
+	credentialsPath := filepath.Join(dir, "credentials.json")
+	info, err := os.Stat(credentialsPath)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
+
+	// Open a tunnel with the saved credentials.
+	endpoint, shutdown, err := startPgrok(ctx, "http", "http", "--config", configPath)
+	require.NoError(t, err)
+	body, err := run.Cmd(ctx, "curl", "--silent", fmt.Sprintf("http://%s/.well-known/openid-configuration", endpoint)).Run().String()
+	require.NoError(t, err)
+	assert.Contains(t, body, `"issuer": "http://localhost:9833",`)
+	require.NoError(t, shutdown())
+
+	// Log out, which revokes the refresh token on the server.
+	p, err := os.ReadFile(credentialsPath)
+	require.NoError(t, err)
+	var creds struct {
+		Token *oauth2.Token `json:"token"`
+	}
+	require.NoError(t, json.Unmarshal(p, &creds))
+	err = run.Cmd(ctx, "../.bin/pgrok", "logout", "--config", configPath).Run().Wait()
+	require.NoError(t, err)
+	assert.NoFileExists(t, credentialsPath)
+
+	config := oauth2.Config{
+		ClientID: "pgrok-cli",
+		Endpoint: oauth2.Endpoint{TokenURL: "http://localhost:3320/oauth2/token", AuthStyle: oauth2.AuthStyleInParams},
+	}
+	_, err = config.TokenSource(ctx, &oauth2.Token{RefreshToken: creds.Token.RefreshToken}).Token()
+	assert.Error(t, err, "the refresh token is revoked")
 }

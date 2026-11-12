@@ -52,7 +52,12 @@ func main() {
 		logger.FatalContext(ctx, "Failed to connect to database", "error", err)
 	}
 
-	webServer, err := web.NewServer(logger.Scoped("web"), config, db)
+	provider, err := oidcprovider.New(ctx, config, db)
+	if err != nil {
+		logger.FatalContext(ctx, "Failed to set up OpenID Provider", "error", err)
+	}
+
+	webServer, err := web.NewServer(logger.Scoped("web"), config, db, provider)
 	if err != nil {
 		logger.FatalContext(ctx, "Failed to set up web server", "error", err)
 	}
@@ -65,7 +70,7 @@ func main() {
 		oidcprovider.DeleteExpiredRecords(ctx, logger.Scoped("oidc-provider"), db, time.Hour)
 	})
 	routines.Go(func() {
-		if err := runSSHServer(ctx, logger.Scoped("sshd"), config.SSHD.Port, config.Proxy, db, proxies); err != nil && !isBenignShutdown(err, ctx) {
+		if err := runSSHServer(ctx, logger.Scoped("sshd"), config.SSHD.Port, config.Proxy, db, provider, proxies); err != nil && !isBenignShutdown(err, ctx) {
 			logger.ErrorContext(ctx, "SSH server exited unexpectedly", "error", err)
 			stop()
 		}
