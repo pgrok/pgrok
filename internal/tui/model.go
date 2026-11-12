@@ -16,6 +16,7 @@ const (
 	tabOverview = "Overview"
 	tabRequests = "Requests"
 	tabTunnels  = "Tunnels"
+	tabFlow     = "Flow"
 	tabLogs     = "Logs"
 )
 
@@ -60,6 +61,12 @@ type Model struct {
 
 	flash      string
 	flashUntil time.Time
+
+	// The Flow tab animates at its own frame rate while packets move.
+	fnow      time.Time
+	animating bool
+	tcpSeen   map[*Conn]tcpSeen
+	tcpPk     []tcpPacket
 }
 
 type tickMsg time.Time
@@ -99,6 +106,7 @@ func New(hubs []*Hub, logs *Logs) Model {
 		follow:     true,
 		throughput: make([][]float64, len(hubs)),
 		lastBytes:  make([]int64, len(hubs)),
+		tcpSeen:    map[*Conn]tcpSeen{},
 		spin: spinner.New(
 			spinner.WithSpinner(spinner.MiniDot),
 			spinner.WithStyle(lipgloss.NewStyle().Foreground(lipgloss.Color(cPeach))),
@@ -142,6 +150,7 @@ func (m Model) tabs() []string {
 	if m.snap.Info.Protocol == "http" {
 		tabs = append(tabs, tabRequests)
 	}
+	tabs = append(tabs, tabFlow)
 	if m.multi() {
 		tabs = append(tabs, tabTunnels)
 	}
@@ -175,6 +184,10 @@ func (m Model) Init() tea.Cmd {
 // Update implements tea.Model.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	nm, cmd, dirty := m.update(msg)
+	if nm.tab == tabFlow && !nm.animating && nm.flowBusy(nm.now) {
+		nm.animating = true
+		cmd = tea.Batch(cmd, frame())
+	}
 	if dirty {
 		nm.out = nm.render()
 	}
@@ -207,6 +220,9 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd, bool) {
 		}
 		m.now = now
 		m.refresh()
+		if m.tab == tabFlow {
+			m = m.flowSample(now)
+		}
 		if newSecond {
 			for i, s := range m.snaps {
 				total := s.BytesIn + s.BytesOut
@@ -235,6 +251,23 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd, bool) {
 		var cmd tea.Cmd
 		m.spin, cmd = m.spin.Update(msg)
 		return m, cmd, true
+
+	case frameMsg:
+		now := time.Time(msg)
+		if m.tab != tabFlow {
+			m.animating = false
+			return m, nil, false
+		}
+		m.fnow = now
+		if m.stale() {
+			m.refresh()
+		}
+		m = m.flowSample(now)
+		if !m.flowBusy(now) {
+			m.animating = false
+			return m, nil, true
+		}
+		return m, frame(), true
 
 	case replayDoneMsg:
 		if msg.err != nil {
@@ -368,7 +401,7 @@ func (m Model) onKey(k tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 		m.tab = tabs[(idx+1)%len(tabs)]
 	case "shift+tab":
 		m.tab = tabs[(idx+len(tabs)-1)%len(tabs)]
-	case "1", "2", "3", "4":
+	case "1", "2", "3", "4", "5":
 		if i, _ := strconv.Atoi(key); i <= len(tabs) {
 			m.tab = tabs[i-1]
 		}
