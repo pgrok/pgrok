@@ -4,6 +4,7 @@ import (
 	"crypto/subtle"
 	"net/url"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -52,6 +53,12 @@ func newClients(externalURL string, configs []conf.OIDCClient) (map[string]*Clie
 	for _, c := range configs {
 		if _, ok := clients[c.ID]; ok {
 			return nil, errors.Errorf("client ID %q is reserved", c.ID)
+		}
+		// Client credentials tokens have the client ID as their subject, so it
+		// must not look like a user's subject, which is the principal ID.
+		// Opaque access tokens join the token ID and subject with a colon.
+		if strings.Trim(c.ID, "0123456789") == "" || strings.Contains(c.ID, ":") {
+			return nil, errors.Errorf("client ID %q must not be all digits or contain a colon", c.ID)
 		}
 
 		client := &Client{
