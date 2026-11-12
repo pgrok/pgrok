@@ -54,14 +54,6 @@ func commandHTTP(homeDir string, logger *logx.Logger) *cli.Command {
 				Usage:   "specify a custom subdomain prefix for a deterministic tunnel URL",
 				Aliases: []string{"s"},
 			},
-			&cli.BoolFlag{
-				Name:  "qr",
-				Usage: "Print a QR code of the URL on the first successful connection",
-			},
-			&cli.BoolFlag{
-				Name:  "copy",
-				Usage: "Copy the URL to the clipboard on the first successful connection",
-			},
 		),
 	}
 }
@@ -114,7 +106,7 @@ func actionHTTP(ctx context.Context, cmd *cli.Command, logger *logx.Logger) erro
 	logger.Debug("Capture server is running on", "url", s.URL)
 
 	surl, _ := url.Parse(s.URL)
-	onReady := newReadyHook(cmd, config, logger)
+	onReady := newReadyHook(logger)
 	cooldownAfter := time.Now().Add(time.Minute)
 	for failed := 0; ; failed++ {
 		err := tryConnect(
@@ -149,8 +141,6 @@ type Config struct {
 	ForwardAddr     string `yaml:"forward_addr"`
 	Token           string `yaml:"token"`
 	DynamicForwards string `yaml:"dynamic_forwards"`
-	QR              bool   `yaml:"qr"`
-	Copy            bool   `yaml:"copy"`
 }
 
 func loadConfig(configPath string) (*Config, error) {
@@ -173,7 +163,8 @@ const (
 )
 
 // tryConnect establishes the tunnel and blocks until it fails. The onReady
-// callback is invoked with the public URL every time the tunnel is up.
+// callback is invoked with the public URL reported by the server (which may be
+// empty) every time the tunnel is up.
 func tryConnect(logger *logx.Logger, protocol, remoteAddr, forwardAddr, token, subdomain string, onReady func(hostURL string)) error {
 	client, err := ssh.Dial(
 		"tcp",

@@ -5,12 +5,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"unknwon.dev/x/logx"
 )
 
-func TestOnFirstReady(t *testing.T) {
+func TestOnNewURL(t *testing.T) {
 	var buf bytes.Buffer
-	onReady := onFirstReady(logx.NewNoopLogger(), &buf, true, false)
+	onReady := onNewURL(&buf)
 
 	// No URL from the server, nothing to print yet.
 	onReady("")
@@ -20,7 +19,11 @@ func TestOnFirstReady(t *testing.T) {
 	first := buf.String()
 	assert.NotEmpty(t, first)
 
-	// Reconnects must not print the QR code again.
+	// Reconnects with the same URL must not print the QR code again.
 	onReady("http://unknwon.example.com")
 	assert.Equal(t, first, buf.String())
+
+	// Reconnects with a different URL print the new QR code.
+	onReady("http://other.example.com")
+	assert.Greater(t, buf.Len(), len(first))
 }

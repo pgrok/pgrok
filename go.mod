@@ -6,7 +6,6 @@ require (
 	charm.land/lipgloss/v2 v2.0.1
 	charm.land/log/v2 v2.0.0
 	github.com/adrg/xdg v0.5.3
-	github.com/atotto/clipboard v0.1.4
 	github.com/coreos/go-oidc v2.5.0+incompatible
 	github.com/flamego/flamego v1.9.7
 	github.com/flamego/session v1.6.5

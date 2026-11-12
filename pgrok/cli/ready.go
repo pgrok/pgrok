@@ -3,60 +3,44 @@ package main
 import (
 	"io"
 	"os"
-	"sync"
 
-	"github.com/atotto/clipboard"
 	"github.com/mdp/qrterminal/v3"
-	"github.com/urfave/cli/v3"
 	"golang.org/x/term"
 	"unknwon.dev/x/logx"
 )
 
 // newReadyHook returns the callback for tryConnect to invoke whenever the
-// tunnel is up, which prints the QR code and/or copies the URL to the clipboard
-// as requested by the "--qr" and "--copy" flags (or the config file).
-func newReadyHook(cmd *cli.Command, config *Config, logger *logx.Logger) func(hostURL string) {
-	printQR := config.QR
-	if cmd.IsSet("qr") {
-		printQR = cmd.Bool("qr")
-	}
-	if printQR && !term.IsTerminal(int(os.Stdout.Fd())) {
+// tunnel is up, which prints the QR code of the URL when stdout is a terminal.
+func newReadyHook(logger *logx.Logger) func(hostURL string) {
+	if !term.IsTerminal(int(os.Stdout.Fd())) {
 		logger.Debug("Skipped printing QR code because stdout is not a terminal")
-		printQR = false
+		return func(string) {}
 	}
-
-	copyURL := config.Copy
-	if cmd.IsSet("copy") {
-		copyURL = cmd.Bool("copy")
-	}
-	return onFirstReady(logger, os.Stdout, printQR, copyURL)
+	return onNewURL(os.Stdout)
 }
 
-// onFirstReady returns a callback that only acts on the first call with a
-// non-empty host URL, so reconnects do not print the QR code or overwrite the
-// clipboard again.
-func onFirstReady(logger *logx.Logger, w io.Writer, printQR, copyURL bool) func(hostURL string) {
-	var once sync.Once
+// onNewURL returns a callback that prints the QR code of a non-empty host URL
+// only when it differs from the last printed one, so reconnects that keep the
+// same URL do not print it again.
+func onNewURL(w io.Writer) func(hostURL string) {
+	var last string
 	return func(hostURL string) {
-		if hostURL == "" {
+		if hostURL == "" || hostURL == last {
 			return
 		}
-		once.Do(func() {
-			if printQR {
-				qrterminal.GenerateWithConfig(hostURL, qrterminal.Config{
-					Level:      qrterminal.L,
-					Writer:     w,
-					HalfBlocks: true,
-					QuietZone:  2,
-				})
-			}
-			if copyURL {
-				if err := clipboard.WriteAll(hostURL); err != nil {
-					logger.Warn("Failed to copy URL to clipboard", "error", err)
-				} else {
-					logger.Info("📋 Copied URL to clipboard", "url", hostURL)
-				}
-			}
+		last = hostURL
+		// Force white on black so the QR code scans the same on light and dark
+		// terminal themes.
+		colored := func(s string) string { return "\x1b[97;40m" + s + "\x1b[0m" }
+		qrterminal.GenerateWithConfig(hostURL, qrterminal.Config{
+			Level:          qrterminal.L,
+			Writer:         w,
+			HalfBlocks:     true,
+			BlackChar:      colored(qrterminal.BLACK_BLACK),
+			BlackWhiteChar: colored(qrterminal.BLACK_WHITE),
+			WhiteChar:      colored(qrterminal.WHITE_WHITE),
+			WhiteBlackChar: colored(qrterminal.WHITE_BLACK),
+			QuietZone:      2,
 		})
 	}
 }
