@@ -77,10 +77,15 @@ func NewServer(logger *logx.Logger, config *conf.Config, db *database.DB) (*http
 	}
 	// The provider serves RP-initiated logout, which must also end the web
 	// session that signed the user in, so the request goes through the session
-	// middleware first.
+	// middleware first. Only a logout that proves which user it is for, with an
+	// id_token_hint, ends the session, so that other sites cannot sign users out.
 	endSession := func(c *Context) {
 		r := c.Request().Request
-		ctx := oidcprovider.WithEndWebSession(r.Context(), func() { signOut(c) })
+		ctx := oidcprovider.WithEndWebSession(r.Context(), func(subject string) {
+			if c.Principal != nil && subject == oidcprovider.Subject(c.Principal.ID) {
+				signOut(c)
+			}
+		})
 		provider.ServeHTTP(c.ResponseWriter(), r.WithContext(ctx))
 	}
 	f.Combo(oidcprovider.EndSessionPath).Get(endSession).Post(endSession)
