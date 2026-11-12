@@ -610,6 +610,40 @@ func TestOIDCProviderDeviceAuthorization(t *testing.T) {
 		assert.NotEqual(t, token.AccessToken, refreshed.AccessToken)
 	})
 
+	t.Run("refresh keeps the grant's scopes", func(t *testing.T) {
+		config := config
+		config.Scopes = []string{oidc.ScopeOpenID, "profile", "offline_access"}
+		auth, err := config.DeviceAuth(ctx)
+		require.NoError(t, err)
+		decideDeviceAuthorization(t, browser, auth.UserCode, true)
+		token, err := config.DeviceAccessToken(ctx, auth)
+		require.NoError(t, err)
+
+		refresh := func(refreshToken, scope string) (newRefreshToken, grantedScope string) {
+			resp, err := http.PostForm(config.Endpoint.TokenURL, neturl.Values{
+				"client_id":     {config.ClientID},
+				"grant_type":    {"refresh_token"},
+				"refresh_token": {refreshToken},
+				"scope":         {scope},
+			})
+			require.NoError(t, err)
+			defer func() { _ = resp.Body.Close() }()
+			var body struct {
+				RefreshToken string `json:"refresh_token"`
+				Scope        string `json:"scope"`
+			}
+			require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			return body.RefreshToken, body.Scope
+		}
+		// Narrowing the access token's scopes does not narrow the grant
+		// (RFC 6749, section 6).
+		refreshToken, scope := refresh(token.RefreshToken, "openid offline_access")
+		assert.Equal(t, "openid offline_access", scope)
+		_, scope = refresh(refreshToken, "openid profile offline_access")
+		assert.Equal(t, "openid profile offline_access", scope)
+	})
+
 	t.Run("deny", func(t *testing.T) {
 		auth, err := config.DeviceAuth(ctx)
 		require.NoError(t, err)
