@@ -10,8 +10,9 @@ import (
 )
 
 func getUserInfo(c *Context, r flamego.Render) {
-	// Clients reach the SSH server at the host of the external URL, the same
-	// address the docs tell users to pass to "pgrok init --remote-addr".
+	// Assume clients reach the SSH server at the host of the external URL on
+	// sshd.port, matching the documented setups (e.g. "external_url:
+	// http://example.com" with "pgrok init --remote-addr example.com:2222").
 	var sshHost string
 	if u, err := url.Parse(c.Config.ExternalURL); err == nil {
 		sshHost = u.Hostname()

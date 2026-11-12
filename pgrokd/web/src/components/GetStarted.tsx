@@ -1,6 +1,6 @@
-import { Card } from "@/components/retroui/Card";
 import { Tabs } from "@base-ui/react/tabs";
 import { Fragment, useState } from "react";
+import { Card } from "@/components/retroui/Card";
 import useUser from "../hooks/useUser";
 import CopyButton from "./CopyButton";
 

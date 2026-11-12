@@ -1,5 +1,5 @@
-import { Button } from "@/components/retroui/Button";
 import { useState } from "react";
+import { Button } from "@/components/retroui/Button";
 
 export default function CopyButton({ value, label = "Copy" }: { value: string; label?: string }) {
   const [copied, setCopied] = useState(false);
