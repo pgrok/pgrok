@@ -266,7 +266,12 @@ func postOIDCProviderDeviceAuthorization(db *database.DB, limiter *userCodeGuess
 		if auth == nil {
 			return
 		}
-		err := db.DecideOIDCDeviceAuthorization(c.Request().Context(), auth.UserCode, oidcprovider.Subject(c.Principal.ID), body.Approve)
+		authTime, ok := c.AuthTime()
+		if !ok {
+			r.JSON(http.StatusUnauthorized, map[string]string{"error": "Please sign out and sign in again."})
+			return
+		}
+		err := db.DecideOIDCDeviceAuthorization(c.Request().Context(), auth.UserCode, oidcprovider.Subject(c.Principal.ID), authTime, body.Approve)
 		if err != nil {
 			r.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 			return

@@ -354,15 +354,15 @@ func (db *DB) GetOIDCDeviceAuthorizationByUserCode(ctx context.Context, userCode
 }
 
 // DecideOIDCDeviceAuthorization records the user's decision on the device
-// authorization with the given user code. The subject is ignored when the
-// authorization is denied.
-func (db *DB) DecideOIDCDeviceAuthorization(ctx context.Context, userCode, subject string, approved bool) error {
+// authorization with the given user code. The subject, who signed in at
+// authTime, is ignored when the authorization is denied.
+func (db *DB) DecideOIDCDeviceAuthorization(ctx context.Context, userCode, subject string, authTime time.Time, approved bool) error {
 	updates := map[string]any{"denied": true}
 	if approved {
 		updates = map[string]any{
 			"done":      true,
 			"subject":   subject,
-			"auth_time": time.Now(),
+			"auth_time": authTime,
 		}
 	}
 	result := db.WithContext(ctx).Model(&OIDCDeviceAuthorization{}).
