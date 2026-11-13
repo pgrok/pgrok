@@ -368,6 +368,11 @@ func TestHTTP(t *testing.T) {
 	body, err = run.Cmd(ctx, "curl", "--silent", fmt.Sprintf("%s/echo?q=chickendinner", url)).Run().String()
 	require.NoError(t, err)
 	assert.Contains(t, body, "chickendinner")
+
+	// Proxied requests are counted by the principal's subdomain
+	body, err = run.Cmd(ctx, "curl", "--silent", "http://localhost:3390/metrics").Run().String()
+	require.NoError(t, err)
+	assert.Contains(t, body, `pgrokd_http_requests_total{code="2xx",method="GET",subdomain="unknwon"}`)
 }
 
 func TestMultipleHTTP(t *testing.T) {
@@ -431,6 +436,10 @@ func TestTCP(t *testing.T) {
 	body, err := run.Cmd(ctx, "curl", "--silent", fmt.Sprintf("http://%s/.well-known/openid-configuration", endpoint)).Run().String()
 	require.NoError(t, err)
 	assert.Contains(t, body, `"issuer": "http://localhost:9833",`)
+
+	body, err = run.Cmd(ctx, "curl", "--silent", "http://localhost:3390/metrics").Run().String()
+	require.NoError(t, err)
+	assert.Contains(t, body, `pgrokd_tcp_tunnel_bytes_total{direction="out",subdomain="unknwon"}`)
 }
 
 func TestTokenRotation(t *testing.T) {

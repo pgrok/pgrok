@@ -17,6 +17,10 @@ type Config struct {
 	SSHD  struct {
 		Port int `yaml:"port"`
 	} `yaml:"sshd"`
+	Metrics struct {
+		Host string `yaml:"host"`
+		Port int    `yaml:"port"`
+	} `yaml:"metrics"`
 	Database         *Database         `yaml:"database"`
 	IdentityProvider *IdentityProvider `yaml:"identity_provider"`
 }
@@ -63,6 +67,10 @@ func Load(configPath string) (*Config, error) {
 	}
 
 	var config Config
+
+	if config.Metrics.Host == "" {
+		config.Metrics.Host = "127.0.0.1"
+	}
 
 	if config.Proxy.TCP.PortStart <= 0 {
 		config.Proxy.TCP.PortStart = 10000

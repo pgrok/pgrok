@@ -14,6 +14,7 @@ import (
 	"github.com/pgrok/pgrok/internal/conf"
 	"github.com/pgrok/pgrok/internal/cryptoutil"
 	"github.com/pgrok/pgrok/internal/database"
+	"github.com/pgrok/pgrok/internal/metrics"
 	"github.com/pgrok/pgrok/internal/reverseproxy"
 )
 
@@ -31,6 +32,7 @@ func Start(
 		PasswordCallback: func(conn ssh.ConnMetadata, token []byte) (*ssh.Permissions, error) {
 			principal, err := db.GetPrincipalByToken(context.Background(), string(token))
 			if err != nil {
+				metrics.SSHAuthFailuresTotal.Inc()
 				return nil, err
 			}
 			return &ssh.Permissions{
@@ -93,6 +95,8 @@ func Start(
 				}
 				return
 			}
+			metrics.SSHConnectionsActive.Inc()
+			defer metrics.SSHConnectionsActive.Dec()
 			logger.Debug("Serving connection",
 				"remote", serverConn.RemoteAddr(),
 				"clientVersion", string(serverConn.ClientVersion()),

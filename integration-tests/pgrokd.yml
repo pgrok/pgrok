@@ -7,6 +7,8 @@ proxy:
   domain: "localhost:3000"
 sshd:
   port: 2222
+metrics:
+  port: 3390
 database:
   host: "localhost"
   port: 5432
