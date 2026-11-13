@@ -87,6 +87,18 @@ As a special case, the first argument of the `pgrok http` can be used to specify
 pgrok http 8080
 ```
 
+#### Terminal UI
+
+When run in a terminal, `pgrok http`, `pgrok tcp` and `pgrok start` show a full-screen terminal UI with the connection status, live requests (or TCP connections), metrics and logs:
+
+- **Overview**: the forwarding URL, dynamic forwards, the request inspector's URL, requests per second, latency percentiles, and the latest requests.
+- **Requests** (`http` only): filter with terms like `status:>=400`, `method:POST` or `/api`, then press `enter` to inspect the headers, body and upstream timing (connect, send, wait, response) of a request and response, `r` to replay it to the local address, and `c` to copy it as a curl command.
+- **Tunnels** (`pgrok start` with more than one tunnel): every tunnel with its status and traffic; press `enter` to show one on the Overview and Requests tabs.
+- **Logs**: the client's log lines, filterable by level.
+- Press `s` to show a QR code of the public URL, `R` to reconnect right away while offline, `?` for all shortcuts, and `q` to quit.
+
+Use `--tui=false` to print plain log lines instead. The terminal UI is also skipped when stdin or stdout is not a terminal, e.g. when the output is piped to a file.
+
 #### Raw TCP tunnels
 
 > [!IMPORTANT]

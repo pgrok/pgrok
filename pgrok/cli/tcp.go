@@ -8,6 +8,8 @@ import (
 
 	"github.com/urfave/cli/v3"
 	"unknwon.dev/x/logx"
+
+	"github.com/pgrok/pgrok/internal/tui"
 )
 
 func commandTCP(homeDir string, logger *logx.Logger) *cli.Command {
@@ -37,6 +39,7 @@ func commandTCP(homeDir string, logger *logx.Logger) *cli.Command {
 				Usage:   "The authentication token",
 				Aliases: []string{"t"},
 			},
+			tuiFlag,
 		),
 	}
 }
@@ -78,12 +81,17 @@ func actionTCP(ctx context.Context, cmd *cli.Command, logger *logx.Logger) error
 		cmd.String("forward-addr"),
 		config.ForwardAddr,
 	)
-	err = runTunnel(logger, tunnel{
+	t := tunnel{
 		protocol:    protocolTCP,
 		remoteAddr:  cmp.Or(cmd.String("remote-addr"), config.RemoteAddr),
 		forwardAddr: forwardAddr,
 		token:       cmp.Or(cmd.String("token"), config.Token),
+	}
+	err = runWithTUI(cmd, logger, []tui.Info{tunnelInfo("", configPath, t)}, func(hubs []*tui.Hub) error {
+		return runTunnel(logger, t, hubs[0])
 	})
-	fatalTunnelError(ctx, logger, err)
+	if err != nil {
+		fatalTunnelError(ctx, logger, err)
+	}
 	return nil
 }

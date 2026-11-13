@@ -8,6 +8,8 @@ import (
 	"github.com/pkg/errors"
 	"github.com/urfave/cli/v3"
 	"unknwon.dev/x/logx"
+
+	"github.com/pgrok/pgrok/internal/tui"
 )
 
 func commandStart(homeDir string, logger *logx.Logger) *cli.Command {
@@ -34,6 +36,7 @@ func commandStart(homeDir string, logger *logx.Logger) *cli.Command {
 				Usage:   "The authentication token",
 				Aliases: []string{"t"},
 			},
+			tuiFlag,
 		),
 	}
 }
@@ -75,12 +78,9 @@ func actionStart(ctx context.Context, cmd *cli.Command, logger *logx.Logger) err
 		}
 	}
 
-	type tunnelError struct {
-		name string
-		err  error
-	}
-	errs := make(chan tunnelError)
-	for _, name := range names {
+	tunnels := make([]tunnel, len(names))
+	infos := make([]tui.Info, len(names))
+	for i, name := range names {
 		c := config.Tunnels[name]
 		t := tunnel{
 			protocol:   c.Protocol,
@@ -94,15 +94,36 @@ func actionStart(ctx context.Context, cmd *cli.Command, logger *logx.Logger) err
 		} else {
 			t.forwardAddr = deriveTCPForwardAddress(c.ForwardAddr)
 		}
-		go func() {
-			// Each tunnel reconnects on its own, so runTunnel only returns on
-			// unrecoverable errors, e.g. the token is rejected.
-			errs <- tunnelError{name: name, err: runTunnel(logger.Scoped(name), t)}
-		}()
+		tunnels[i], infos[i] = t, tunnelInfo(name, configPath, t)
 	}
 
-	// Stop the whole command on the first fatal error.
-	e := <-errs
-	fatalTunnelError(ctx, logger.Scoped(e.name), e.err)
+	err = runWithTUI(cmd, logger, infos, func(hubs []*tui.Hub) error {
+		errs := make(chan *tunnelError)
+		for i, name := range names {
+			go func() {
+				// Each tunnel reconnects on its own, so runTunnel only returns
+				// on unrecoverable errors, e.g. the token is rejected.
+				errs <- &tunnelError{name: name, err: runTunnel(logger.Scoped(name), tunnels[i], hubs[i])}
+			}()
+		}
+		// Stop the whole command on the first fatal error.
+		return <-errs
+	})
+	var te *tunnelError
+	switch {
+	case errors.As(err, &te):
+		fatalTunnelError(ctx, logger.Scoped(te.name), te.err)
+	case err != nil:
+		fatalTunnelError(ctx, logger, err)
+	}
 	return nil
 }
+
+// tunnelError is the unrecoverable error of the named tunnel.
+type tunnelError struct {
+	name string
+	err  error
+}
+
+func (e *tunnelError) Error() string { return e.name + ": " + e.err.Error() }
+func (e *tunnelError) Unwrap() error { return e.err }
