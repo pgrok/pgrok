@@ -172,6 +172,27 @@ This goes live at `http://staging-unknwon.example.com`, forwarding to `http://lo
 - The resulting URL is deterministic: if the prefixed host is already in use, the client fails with an error instead of falling back to a randomized one.
 - This flag only applies to HTTP tunnels. It has no effect on `pgrok tcp`.
 
+#### Access control
+
+HTTP tunnels are public by default. Use the following flags of the `http` subcommand (or the matching keys in `pgrok.yml`) to restrict who can access a tunnel:
+
+| Flag | Config key | Effect |
+| --- | --- | --- |
+| `--basic-auth user:password` | `basic_auth: "user:password"` | Visitors must provide the HTTP basic auth credentials. |
+| `--allow-ip <IP or CIDR>` (repeatable) | `allow_ips: ["203.0.113.0/24"]` | Only visitors from the listed IP addresses or CIDRs are allowed, others get `403 Forbidden`. |
+| `--auth sso` | `auth: "sso"` | Visitors must sign in with the SSO of the server, i.e. anyone who can sign in to the pgrokd web UI (respecting `required_domain` and `allowed_emails`). |
+
+```
+pgrok http --auth sso --allow-ip 203.0.113.0/24 3000
+```
+
+- The IP allowlist can be combined with either basic auth or SSO, but basic auth and SSO cannot be used together. Invalid values are rejected by the server.
+- The server strips the basic auth `Authorization` header and its own SSO cookie before forwarding requests to your local endpoints.
+- Prefer `basic_auth` in `pgrok.yml` over the `--basic-auth` flag to keep the password out of your shell history.
+- SSO tunnels reserve the path `/_pgrok/sso/callback`, and visitors are signed out of SSO tunnels when the server restarts (signing in again is automatic while their web UI session is valid). Non-`GET` requests without a valid SSO sign-in get `401 Unauthorized`.
+- The IP allowlist relies on the server admin configuring [`proxy.trusted_proxies`](./docs/admin/https.md#ip-allowlists-behind-reverse-proxies) when pgrokd runs behind a reverse proxy like Caddy.
+- These options only apply to HTTP tunnels, `pgrok tcp` fails when they are set in `pgrok.yml`. The client also refuses to connect to a server that does not support access control, instead of opening a public tunnel.
+
 ### Vanilla SSH
 
 Because the standard SSH protocol is used for tunneling, you may well just use the vanilla SSH client.
@@ -185,6 +206,8 @@ Because the standard SSH protocol is used for tunneling, you may well just use t
         Allocated port 22487 for remote forward to localhost:3000
         ```
 1. Now visit the URL.
+
+Tunnels created with the vanilla SSH client are always public, see [access control](#access-control).
 
 ## Explain it to me
 

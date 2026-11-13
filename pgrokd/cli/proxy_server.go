@@ -8,15 +8,19 @@ import (
 	"unknwon.dev/x/logx"
 
 	"github.com/pgrok/pgrok/internal/reverseproxy"
+	"github.com/pgrok/pgrok/internal/tunnelauth"
 )
 
-func newProxyServer(logger *logx.Logger, port int, proxies *reverseproxy.Cluster) *http.Server {
+func newProxyServer(logger *logx.Logger, port int, proxies *reverseproxy.Cluster, guard *tunnelauth.Guard) *http.Server {
 	f := flamego.New()
 	f.Use(flamego.Recovery())
 	f.Any("/{**}", func(w http.ResponseWriter, r *http.Request) {
 		proxy, ok := proxies.Get(r.Host)
 		if !ok {
 			proxies.ServeNoTunnel(w, r)
+			return
+		}
+		if !guard.Authorize(w, r, proxy.Policy) {
 			return
 		}
 		proxy.ServeHTTP(w, r)

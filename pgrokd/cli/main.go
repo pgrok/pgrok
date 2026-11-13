@@ -18,6 +18,7 @@ import (
 	"github.com/pgrok/pgrok/internal/conf"
 	"github.com/pgrok/pgrok/internal/database"
 	"github.com/pgrok/pgrok/internal/reverseproxy"
+	"github.com/pgrok/pgrok/internal/tunnelauth"
 	"github.com/pgrok/pgrok/pgrokd/cli/internal/web"
 )
 
@@ -51,13 +52,19 @@ func main() {
 		logger.FatalContext(ctx, "Failed to connect to database", "error", err)
 	}
 
-	webServer, err := web.NewServer(logger.Scoped("web"), config, db)
+	trustedProxies, err := tunnelauth.ParsePrefixes(config.Proxy.TrustedProxies)
+	if err != nil {
+		logger.FatalContext(ctx, "Failed to parse proxy.trusted_proxies", "error", err)
+	}
+	guard := tunnelauth.NewGuard(trustedProxies, config.ExternalURL, config.Proxy.Scheme == "https")
+	proxies := reverseproxy.NewCluster(logger.Scoped("proxy"), config.ExternalURL)
+
+	webServer, err := web.NewServer(logger.Scoped("web"), config, db, proxies, guard)
 	if err != nil {
 		logger.FatalContext(ctx, "Failed to set up web server", "error", err)
 	}
 
-	proxies := reverseproxy.NewCluster(logger.Scoped("proxy"), config.ExternalURL)
-	proxyServer := newProxyServer(logger.Scoped("proxy"), config.Proxy.Port, proxies)
+	proxyServer := newProxyServer(logger.Scoped("proxy"), config.Proxy.Port, proxies, guard)
 
 	var routines conc.WaitGroup
 	routines.Go(func() {

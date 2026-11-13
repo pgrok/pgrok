@@ -8,8 +8,10 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/cookiejar"
+	neturl "net/url"
 	"os"
 	"os/exec"
 	"strconv"
@@ -250,11 +252,11 @@ func kill(pid int) error {
 	return errors.New("cannot kill the process after 10 tries")
 }
 
-func setupPgrok(ctx context.Context, protocol string, port int) (endpoint string, shutdown func() error, _ error) {
-	return setupPgrokWithSubdomain(ctx, protocol, port, "")
+func setupPgrok(ctx context.Context, protocol string, port int, extraArgs ...string) (endpoint string, shutdown func() error, _ error) {
+	return setupPgrokWithSubdomain(ctx, protocol, port, "", extraArgs...)
 }
 
-func setupPgrokWithSubdomain(ctx context.Context, protocol string, port int, subdomain string) (endpoint string, shutdown func() error, _ error) {
+func setupPgrokWithSubdomain(ctx context.Context, protocol string, port int, subdomain string, extraArgs ...string) (endpoint string, shutdown func() error, _ error) {
 	err := run.Cmd(ctx, "go", "build", "-o", "../.bin/pgrok", "../pgrok/cli").Run().Wait()
 	if err != nil {
 		return "", nil, errors.Wrap(err, "go build")
@@ -271,6 +273,7 @@ func setupPgrokWithSubdomain(ctx context.Context, protocol string, port int, sub
 	if subdomain != "" {
 		args = append(args, "--subdomain", subdomain)
 	}
+	args = append(args, extraArgs...)
 	if port > 0 {
 		args = append(args, strconv.Itoa(port))
 	}
@@ -529,4 +532,160 @@ func TestErrorPages(t *testing.T) {
 		assert.Contains(t, body, "the local service at the other end is not responding")
 		assert.NotContains(t, body, "dial tcp")
 	})
+}
+
+// newHTTPClient returns an HTTP client that resolves "*.localhost" to the
+// loopback address like browsers do.
+func newHTTPClient(jar http.CookieJar) *http.Client {
+	dialer := &net.Dialer{}
+	return &http.Client{
+		Jar: jar,
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+				host, port, err := net.SplitHostPort(addr)
+				if err == nil && strings.HasSuffix(host, ".localhost") {
+					addr = net.JoinHostPort("127.0.0.1", port)
+				}
+				return dialer.DialContext(ctx, network, addr)
+			},
+		},
+	}
+}
+
+func doRequest(t *testing.T, client *http.Client, method, url string, header http.Header) (*http.Response, string) {
+	t.Helper()
+	req, err := http.NewRequest(method, url, nil)
+	require.NoError(t, err)
+	for k, vs := range header {
+		for _, v := range vs {
+			req.Header.Add(k, v)
+		}
+	}
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	return resp, string(body)
+}
+
+func TestBasicAuth(t *testing.T) {
+	ctx := context.Background()
+
+	shutdownEchoServer, err := setupEchoServer(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, shutdownEchoServer()) })
+
+	endpoint, shutdownPgrok, err := setupPgrok(ctx, "http", 0, "--basic-auth", "alice:s3cret")
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, shutdownPgrok()) })
+
+	client := newHTTPClient(nil)
+	resp, _ := doRequest(t, client, http.MethodGet, "http://"+endpoint+"/echo?q=chickendinner", nil)
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+	assert.Contains(t, resp.Header.Get("WWW-Authenticate"), "Basic")
+
+	wrong := http.Header{"Authorization": {"Basic YWxpY2U6d3Jvbmc="}} // alice:wrong
+	resp, _ = doRequest(t, client, http.MethodGet, "http://"+endpoint+"/echo?q=chickendinner", wrong)
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+
+	right := http.Header{"Authorization": {"Basic YWxpY2U6czNjcmV0"}} // alice:s3cret
+	resp, body := doRequest(t, client, http.MethodGet, "http://"+endpoint+"/echo?q=chickendinner", right)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Contains(t, body, "chickendinner")
+
+	// The credentials of the tunnel are not forwarded to the upstream.
+	resp, body = doRequest(t, client, http.MethodGet, "http://"+endpoint+"/echo/headers", right)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.NotContains(t, body, "Authorization")
+}
+
+func TestAllowIP(t *testing.T) {
+	ctx := context.Background()
+
+	shutdownEchoServer, err := setupEchoServer(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, shutdownEchoServer()) })
+
+	endpoint, shutdownPgrok, err := setupPgrok(ctx, "http", 0, "--allow-ip", "203.0.113.0/24", "--allow-ip", "198.51.100.7")
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, shutdownPgrok()) })
+
+	// The pgrokd trusts X-Forwarded-For from 127.0.0.1 like being behind Caddy.
+	client := newHTTPClient(nil)
+	for _, test := range []struct {
+		xForwardedFor string
+		wantStatus    int
+	}{
+		{"", http.StatusForbidden},                       // 127.0.0.1 is not allowed
+		{"203.0.113.9", http.StatusOK},                   // in the CIDR
+		{"198.51.100.7", http.StatusOK},                  // the single IP
+		{"203.0.113.9, 192.0.2.1", http.StatusForbidden}, // the visitor forged the leftmost hop
+		{"192.0.2.1", http.StatusForbidden},              // not allowed
+	} {
+		header := http.Header{}
+		if test.xForwardedFor != "" {
+			header.Set("X-Forwarded-For", test.xForwardedFor)
+		}
+		resp, body := doRequest(t, client, http.MethodGet, "http://"+endpoint+"/echo?q=chickendinner", header)
+		assert.Equal(t, test.wantStatus, resp.StatusCode, "X-Forwarded-For: %q", test.xForwardedFor)
+		if test.wantStatus == http.StatusOK {
+			assert.Contains(t, body, "chickendinner")
+		}
+	}
+}
+
+func TestSSO(t *testing.T) {
+	ctx := context.Background()
+
+	shutdownEchoServer, err := setupEchoServer(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, shutdownEchoServer()) })
+
+	endpoint, shutdownPgrok, err := setupPgrok(ctx, "http", 0, "--auth", "sso")
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, shutdownPgrok()) })
+
+	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
+	require.NoError(t, err)
+	client := newHTTPClient(jar)
+	noRedirectClient := newHTTPClient(nil)
+	noRedirectClient.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+
+	// Unauthenticated browsers are redirected to the web server, others are denied.
+	resp, _ := doRequest(t, noRedirectClient, http.MethodGet, "http://"+endpoint+"/echo?q=chickendinner", nil)
+	assert.Equal(t, http.StatusFound, resp.StatusCode)
+	assert.True(t, strings.HasPrefix(resp.Header.Get("Location"), "http://localhost:3320/-/tunnel-auth?"), resp.Header.Get("Location"))
+	resp, _ = doRequest(t, noRedirectClient, http.MethodPost, "http://"+endpoint+"/echo?q=chickendinner", nil)
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+
+	// The web server only redirects to active tunnels requiring SSO.
+	resp, _ = doRequest(t, client, http.MethodGet, "http://localhost:3320/-/tunnel-auth?host=evil.example.com&path=/", nil)
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+
+	// The redirect handoff signs in with the identity provider and lands on the upstream.
+	var callbackURL string
+	client.CheckRedirect = func(req *http.Request, _ []*http.Request) error {
+		if req.URL.Path == "/_pgrok/sso/callback" {
+			callbackURL = req.URL.String()
+		}
+		return nil
+	}
+	resp, body := doRequest(t, client, http.MethodGet, "http://"+endpoint+"/echo?q=chickendinner", nil)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Contains(t, body, "chickendinner")
+	require.NotEmpty(t, callbackURL)
+
+	// The cookie of pgrok is not forwarded to the upstream, but others are.
+	tunnelURL, err := neturl.Parse("http://" + endpoint)
+	require.NoError(t, err)
+	jar.SetCookies(tunnelURL, []*http.Cookie{{Name: "app", Value: "1"}})
+	resp, body = doRequest(t, client, http.MethodGet, "http://"+endpoint+"/echo/headers", nil)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Contains(t, body, "app=1")
+	assert.NotContains(t, body, "_pgrok_sso")
+
+	// The ticket is single-use.
+	resp, _ = doRequest(t, noRedirectClient, http.MethodGet, callbackURL, nil)
+	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
 }

@@ -60,7 +60,7 @@ func TestCluster_ErrorPages(t *testing.T) {
 		require.NoError(t, l.Close())
 
 		c := NewCluster(logx.NewNoopLogger(), "https://pgrok.example.com")
-		_, err = c.Set(host, "alt-"+host, forward)
+		_, err = c.Set(host, "alt-"+host, forward, nil)
 		require.NoError(t, err)
 
 		w := serve(c, browserAccept)
@@ -84,7 +84,7 @@ func TestCluster_ErrorPages(t *testing.T) {
 		defer client.Close()
 
 		c := NewCluster(logx.NewNoopLogger(), "https://pgrok.example.com")
-		_, err := c.Set(host, "alt-"+host, client.Listener.Addr().String())
+		_, err := c.Set(host, "alt-"+host, client.Listener.Addr().String(), nil)
 		require.NoError(t, err)
 
 		w := serve(c, browserAccept)
@@ -101,7 +101,7 @@ func TestCluster_ErrorPages(t *testing.T) {
 		defer upstream.Close()
 
 		c := NewCluster(logx.NewNoopLogger(), "https://pgrok.example.com")
-		_, err := c.Set(host, "alt-"+host, upstream.Listener.Addr().String())
+		_, err := c.Set(host, "alt-"+host, upstream.Listener.Addr().String(), nil)
 		require.NoError(t, err)
 
 		w := serve(c, browserAccept)

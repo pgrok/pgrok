@@ -22,6 +22,7 @@ import (
 	"github.com/pgrok/pgrok/internal/conf"
 	"github.com/pgrok/pgrok/internal/database"
 	"github.com/pgrok/pgrok/internal/reverseproxy"
+	"github.com/pgrok/pgrok/internal/tunnelauth"
 )
 
 // Client is a SSH client that has established a connection.
@@ -32,7 +33,8 @@ type Client struct {
 	principal   *database.Principal
 	protocol    string
 	host        string
-	customHost  bool // whether host carries a client-requested subdomain prefix
+	customHost  bool               // whether host carries a client-requested subdomain prefix
+	policy      *tunnelauth.Policy // the access policy requested by the client, nil means public
 	ready       context.Context
 	signalReady context.CancelCauseFunc
 }
@@ -50,6 +52,10 @@ func (c *Client) handleHint(req *ssh.Request) {
 	var payload struct {
 		Protocol  string `json:"protocol"`
 		Subdomain string `json:"subdomain,omitempty"`
+		// Optional access control of HTTP tunnels.
+		BasicAuth string   `json:"basic_auth,omitempty"`
+		AllowIPs  []string `json:"allow_ips,omitempty"`
+		Auth      string   `json:"auth,omitempty"`
 	}
 	err := json.Unmarshal(req.Payload, &payload)
 	if err != nil {
@@ -84,8 +90,20 @@ func (c *Client) handleHint(req *ssh.Request) {
 		c.host = payload.Subdomain + "-" + c.host
 		c.customHost = true
 	}
+	policy, err := tunnelauth.NewPolicy(payload.BasicAuth, payload.AllowIPs, payload.Auth)
+	if err != nil {
+		_ = req.Reply(false, []byte(err.Error()))
+		return
+	}
+	if policy != nil && payload.Protocol != "http" {
+		_ = req.Reply(false, []byte("access control is only supported for http"))
+		return
+	}
+	c.policy = policy
 	c.protocol = payload.Protocol
-	_ = req.Reply(true, nil)
+	// Acknowledge the support of access control so that clients can refuse to
+	// open an unprotected tunnel on servers that silently ignore the options.
+	_ = req.Reply(true, []byte(`{"access_control":true}`))
 }
 
 func (c *Client) handleTCPIPForward(
@@ -252,7 +270,7 @@ func (c *Client) handleTCPIPForward(
 			id := uuid.New()
 			alternative = hex.EncodeToString(id[:]) + "-" + c.host
 		}
-		host, err := proxies.Set(c.host, alternative, listener.Addr().String())
+		host, err := proxies.Set(c.host, alternative, listener.Addr().String(), c.policy)
 		if err != nil {
 			if c.customHost {
 				err = errors.Errorf("requested subdomain %q is already in use", c.host)

@@ -18,12 +18,14 @@ import (
 
 	"github.com/pgrok/pgrok/internal/conf"
 	"github.com/pgrok/pgrok/internal/database"
+	"github.com/pgrok/pgrok/internal/reverseproxy"
 	"github.com/pgrok/pgrok/internal/strutil"
+	"github.com/pgrok/pgrok/internal/tunnelauth"
 	"github.com/pgrok/pgrok/internal/userutil"
 )
 
 // NewServer constructs the HTTP server that serves the web UI and the JSON API.
-func NewServer(logger *logx.Logger, config *conf.Config, db *database.DB) (*http.Server, error) {
+func NewServer(logger *logx.Logger, config *conf.Config, db *database.DB, proxies *reverseproxy.Cluster, guard *tunnelauth.Guard) (*http.Server, error) {
 	f := flamego.New()
 	f.Use(flamego.Logger())
 	f.Use(flamego.Recovery())
@@ -69,6 +71,7 @@ func NewServer(logger *logx.Logger, config *conf.Config, db *database.DB) (*http
 		f.Get("/oidc/auth", getOIDCAuth)
 		f.Get("/oidc/callback", getOIDCCallback(logger, db))
 		f.Get("/sign-out", getSignOut)
+		f.Get("/tunnel-auth", getTunnelAuth(proxies, guard))
 	})
 
 	address := fmt.Sprintf("0.0.0.0:%d", config.Web.Port)
@@ -192,7 +195,38 @@ func getOIDCCallback(logger *logx.Logger, db *database.DB) flamego.Handler {
 		}
 
 		c.Session.Set("userID", principal.ID)
-		c.Redirect("/")
+
+		// Resume the SSO handoff of a tunnel if the sign in was started by it.
+		next, _ := c.Session.Get("oidc::next").(string)
+		c.Session.Delete("oidc::next")
+		if !strings.HasPrefix(next, "/-/tunnel-auth?") {
+			next = "/"
+		}
+		c.Redirect(next)
+	}
+}
+
+// getTunnelAuth is the web server side of the SSO handoff for tunnels that
+// require SSO: it signs in the visitor if needed, then redirects back to the
+// tunnel host with a single-use ticket. It only redirects to active tunnels
+// requiring SSO on this server to not be an open redirect.
+func getTunnelAuth(proxies *reverseproxy.Cluster, guard *tunnelauth.Guard) flamego.Handler {
+	return func(c *Context, r flamego.Render) {
+		host := c.Query("host")
+		proxy, ok := proxies.Get(host)
+		if !ok || !proxy.Policy.SSO() {
+			r.PlainText(http.StatusBadRequest, "No tunnel requiring SSO is available for the host: "+host)
+			return
+		}
+
+		if !c.Authenticated() {
+			c.Session.Set("oidc::next", c.Request().URL.RequestURI())
+			c.Redirect("/-/oidc/auth")
+			return
+		}
+
+		ticket := guard.IssueTicket(host, c.Query("path"))
+		c.Redirect(c.Config.Proxy.Scheme + "://" + host + tunnelauth.CallbackPath + "?ticket=" + url.QueryEscape(ticket))
 	}
 }
 

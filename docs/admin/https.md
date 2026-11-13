@@ -62,6 +62,19 @@ example.com {
 
 _Credit: [Wildcard Certificates in Caddy Server](https://reinhardt.dev/posts/caddy-server-wildcards/)_
 
+## IP allowlists behind reverse proxies
+
+Clients can restrict their HTTP tunnels to visitors from specific IP addresses (`pgrok http --allow-ip`). Behind Caddy, pgrokd sees every request as coming from Caddy, so it needs to know which peers are trusted to report the visitor IP in the `X-Forwarded-For` header. Set `proxy.trusted_proxies` in `pgrokd.yml` to the addresses Caddy connects from:
+
+```yaml
+proxy:
+  trusted_proxies: ["127.0.0.1/32", "::1/128"]
+```
+
+- When pgrokd runs in Docker, Caddy connects from the Docker network gateway (e.g. `172.17.0.1/32`) instead of the loopback address.
+- pgrokd uses the rightmost address in `X-Forwarded-For` that is not a trusted proxy, so visitors cannot forge their IP address. Without `trusted_proxies`, the header is ignored and the direct peer address is used, which means allowlisted tunnels deny everyone when pgrokd is behind a reverse proxy.
+- With Cloudflare proxied DNS in front of Caddy (both approaches above), the direct peer of Caddy is a Cloudflare edge server. Add the [Cloudflare IP ranges](https://www.cloudflare.com/ips/) to both the [`trusted_proxies` of Caddy](https://caddyserver.com/docs/caddyfile/options#trusted-proxies) and `proxy.trusted_proxies` of pgrokd, otherwise the visitor IP would be a Cloudflare address.
+
 ## Other resources
 
 - [Configuring Caddy with Wildcard Subdomains](https://sirfitz.medium.com/configuring-caddy-with-wildcard-subdomains-eadcd7ad9cff) through DigitalOcean DNS
