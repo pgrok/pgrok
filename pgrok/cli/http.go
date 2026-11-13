@@ -29,6 +29,8 @@ func commandHTTP(homeDir string, logger *logx.Logger) *cli.Command {
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			return actionHTTP(ctx, cmd, logger)
 		},
+		// Header values may contain commas, e.g., "Accept: text/html, */*".
+		DisableSliceFlagSeparator: true,
 		Flags: append(
 			commonFlags(homeDir, logger),
 			&cli.StringFlag{
@@ -53,6 +55,18 @@ func commandHTTP(homeDir string, logger *logx.Logger) *cli.Command {
 				Name:    "subdomain",
 				Usage:   "specify a custom subdomain prefix for a deterministic tunnel URL",
 				Aliases: []string{"s"},
+			},
+			&cli.StringFlag{
+				Name:  "host-header",
+				Usage: `The Host header to forward requests with, "rewrite" to use the host of the forward address`,
+			},
+			&cli.StringSliceFlag{
+				Name:  "request-header",
+				Usage: `A header in the form of "Name: value" to set on forwarded requests, can be repeated`,
+			},
+			&cli.StringSliceFlag{
+				Name:  "remove-request-header",
+				Usage: "The name of a header to remove from forwarded requests, can be repeated",
 			},
 		),
 	}
@@ -97,7 +111,16 @@ func actionHTTP(ctx context.Context, cmd *cli.Command, logger *logx.Logger) erro
 		)
 		logger.Debug("Added dynamic forward rule", "pathPrefix", fields[0], "forwardTo", fields[1])
 	}
-	forwardHandler, err := dynamicforward.New(logger, defaultForwardAddr, dynamicForwards...)
+	forwardHandler, err := dynamicforward.New(
+		logger,
+		defaultForwardAddr,
+		dynamicforward.Options{
+			HostHeader:           cmp.Or(cmd.String("host-header"), config.HostHeader),
+			RequestHeaders:       append(config.RequestHeaders, cmd.StringSlice("request-header")...),
+			RemoveRequestHeaders: append(config.RemoveRequestHeaders, cmd.StringSlice("remove-request-header")...),
+		},
+		dynamicForwards...,
+	)
 	if err != nil {
 		logger.FatalContext(ctx, "Failed to create forward handler", "error", err)
 	}
@@ -110,6 +133,7 @@ func actionHTTP(ctx context.Context, cmd *cli.Command, logger *logx.Logger) erro
 	if err != nil {
 		logger.FatalContext(ctx, "Failed to get token", "error", err)
 	}
+	onReady := newReadyHook(logger)
 	cooldownAfter := time.Now().Add(time.Minute)
 	for failed := 0; ; failed++ {
 		err := connect(
@@ -120,6 +144,7 @@ func actionHTTP(ctx context.Context, cmd *cli.Command, logger *logx.Logger) erro
 			cmp.Or(cmd.String("remote-addr"), config.RemoteAddr),
 			surl.Host,
 			cmd.String("subdomain"),
+			onReady,
 		)
 		if err != nil {
 			if time.Now().After(cooldownAfter) {
@@ -145,6 +170,10 @@ type Config struct {
 	ForwardAddr     string `yaml:"forward_addr"`
 	Token           string `yaml:"token"`
 	DynamicForwards string `yaml:"dynamic_forwards"`
+
+	HostHeader           string   `yaml:"host_header"`
+	RequestHeaders       []string `yaml:"request_headers"`
+	RemoveRequestHeaders []string `yaml:"remove_request_headers"`
 }
 
 func loadConfig(configPath string) (*Config, error) {
@@ -168,7 +197,7 @@ const (
 
 // connect gets a token and tries to connect. A token that can no longer be
 // refreshed is fatal, because retrying cannot fix it.
-func connect(ctx context.Context, logger *logx.Logger, token func() (string, error), protocol, remoteAddr, forwardAddr, subdomain string) error {
+func connect(ctx context.Context, logger *logx.Logger, token func() (string, error), protocol, remoteAddr, forwardAddr, subdomain string, onReady func(hostURL string)) error {
 	t, err := token()
 	if err != nil {
 		if errors.Is(err, errLoginExpired) {
@@ -176,10 +205,13 @@ func connect(ctx context.Context, logger *logx.Logger, token func() (string, err
 		}
 		return errors.Wrap(err, "get token")
 	}
-	return tryConnect(logger, protocol, remoteAddr, forwardAddr, t, subdomain)
+	return tryConnect(logger, protocol, remoteAddr, forwardAddr, t, subdomain, onReady)
 }
 
-func tryConnect(logger *logx.Logger, protocol, remoteAddr, forwardAddr, token, subdomain string) error {
+// tryConnect establishes the tunnel and blocks until it fails. The onReady
+// callback is invoked with the public URL reported by the server (which may be
+// empty) every time the tunnel is up.
+func tryConnect(logger *logx.Logger, protocol, remoteAddr, forwardAddr, token, subdomain string, onReady func(hostURL string)) error {
 	client, err := ssh.Dial(
 		"tcp",
 		remoteAddr,
@@ -234,6 +266,7 @@ func tryConnect(logger *logx.Logger, protocol, remoteAddr, forwardAddr, token, s
 		message = fmt.Sprintf("🎉 You're ready to go live at %s!", serverInfo.HostURL)
 	}
 	logger.Info(message, "remote", remoteAddr)
+	onReady(serverInfo.HostURL)
 	for {
 		remote, err := remoteListener.Accept()
 		if err != nil {

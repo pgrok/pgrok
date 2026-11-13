@@ -86,6 +86,7 @@ func actionTCP(ctx context.Context, cmd *cli.Command, logger *logx.Logger) error
 	if err != nil {
 		logger.FatalContext(ctx, "Failed to get token", "error", err)
 	}
+	onReady := newReadyHook(logger)
 	cooldownAfter := time.Now().Add(time.Minute)
 	for failed := 0; ; failed++ {
 		err := connect(
@@ -96,6 +97,7 @@ func actionTCP(ctx context.Context, cmd *cli.Command, logger *logx.Logger) error
 			cmp.Or(cmd.String("remote-addr"), config.RemoteAddr),
 			forwardAddr,
 			"", // No subdomain as TCP doesn't use it
+			onReady,
 		)
 		if err != nil {
 			if time.Now().After(cooldownAfter) {

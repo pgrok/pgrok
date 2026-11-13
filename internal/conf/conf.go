@@ -78,7 +78,8 @@ type IdentityProvider struct {
 		DisplayName string `yaml:"display_name"`
 		Email       string `yaml:"email"`
 	} `yaml:"field_mapping"`
-	RequiredDomain string `yaml:"required_domain"`
+	RequiredDomain string   `yaml:"required_domain"`
+	AllowedEmails  []string `yaml:"allowed_emails"`
 }
 
 // Load returns the config loaded from the given path.
@@ -108,6 +109,9 @@ func Load(configPath string) (*Config, error) {
 	if idp := config.IdentityProvider; idp != nil {
 		if idp.RequiredDomain != "" && idp.FieldMapping.Email == "" {
 			return nil, errors.New("cannot require email domain without field mapping for email")
+		}
+		if len(idp.AllowedEmails) > 0 && idp.FieldMapping.Email == "" {
+			return nil, errors.New("cannot allow emails without field mapping for email")
 		}
 	}
 

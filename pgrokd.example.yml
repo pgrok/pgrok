@@ -48,6 +48,11 @@ identity_provider:
     email: "email"
 #  # The required domain name, "field_mapping.email" is required to set for this to work.
 #  required_domain: "example.com"
+#  # Only these emails may sign in (case-insensitive), "field_mapping.email" is required to set for this to work.
+#  # When "required_domain" is also set, both must match.
+#  allowed_emails:
+#    - "alice@example.com"
+#    - "bob@example.com"
 
 # Settings for pgrokd as an OpenID Provider, with "external_url" as its issuer.
 # Discovery is served at "<external_url>/.well-known/openid-configuration". The

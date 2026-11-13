@@ -24,6 +24,8 @@ identity_provider:
     display_name: "name"
     email: "email"
   required_domain: "example.com"
+  allowed_emails:
+    - "Unknwon@Example.com"
 oidc_provider:
   clients:
     - id: "integration"

@@ -3,49 +3,58 @@ package database
 import (
 	"context"
 	"time"
+
+	"github.com/pgrok/pgrok/internal/cryptoutil"
+	"github.com/pgrok/pgrok/internal/strutil"
 )
 
 // Principal represents a user.
 type Principal struct {
-	ID          int64  `gorm:"primaryKey"`
-	Identifier  string `gorm:"unique;not null"`
-	DisplayName string `gorm:"not null"`
-	Token       string `gorm:"unique;not null"`
-	Subdomain   string `gorm:"unique;not null"`
+	ID          int64
+	Identifier  string
+	DisplayName string
+	Token       string
+	Subdomain   string
 	LastTCPPort int
-	CreatedAt   time.Time `gorm:"not null"`
-	UpdatedAt   time.Time `gorm:"not null"`
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 func (*Principal) TableName() string {
-	return "principles"
+	return "principals"
 }
 
 type UpsertPrincipalOptions struct {
 	Identifier  string
 	DisplayName string
-	Token       string
 	Subdomain   string
 }
 
-// UpsertPrincipal upserts a principle with given options.
+// newPrincipalToken generates a new random tunnel token.
+func newPrincipalToken() string {
+	return cryptoutil.SHA1(strutil.MustRandomChars(10))
+}
+
+// UpsertPrincipal returns the principal with given identifier, creating it with
+// given options and a freshly generated token if it does not exist. An existing
+// principal is returned as is.
 func (db *DB) UpsertPrincipal(ctx context.Context, opts UpsertPrincipalOptions) (*Principal, error) {
 	p := &Principal{
 		Identifier:  opts.Identifier,
 		DisplayName: opts.DisplayName,
-		Token:       opts.Token,
+		Token:       newPrincipalToken(),
 		Subdomain:   opts.Subdomain,
 	}
 	return p, db.WithContext(ctx).Where("identifier = ?", opts.Identifier).FirstOrCreate(p).Error
 }
 
-// GetPrincipalByID returns a principle with given id.
+// GetPrincipalByID returns a principal with given id.
 func (db *DB) GetPrincipalByID(ctx context.Context, id int64) (*Principal, error) {
 	var p Principal
 	return &p, db.WithContext(ctx).Where("id = ?", id).First(&p).Error
 }
 
-// GetPrincipalByToken returns a principle with given token.
+// GetPrincipalByToken returns a principal with given token.
 func (db *DB) GetPrincipalByToken(ctx context.Context, token string) (*Principal, error) {
 	var p Principal
 	return &p, db.WithContext(ctx).Where("token = ?", token).First(&p).Error
@@ -54,4 +63,12 @@ func (db *DB) GetPrincipalByToken(ctx context.Context, token string) (*Principal
 // UpdatePrincipalLastTCPPort updates the last TCP port of the principal.
 func (db *DB) UpdatePrincipalLastTCPPort(ctx context.Context, id int64, port int) error {
 	return db.WithContext(ctx).Model(&Principal{}).Where("id = ?", id).Update("last_tcp_port", port).Error
+}
+
+// RegeneratePrincipalToken replaces the token of the principal with a freshly
+// generated one and returns the new token. The old token stops authenticating
+// new connections immediately.
+func (db *DB) RegeneratePrincipalToken(ctx context.Context, id int64) (string, error) {
+	token := newPrincipalToken()
+	return token, db.WithContext(ctx).Model(&Principal{}).Where("id = ?", id).Update("token", token).Error
 }

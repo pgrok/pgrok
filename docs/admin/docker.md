@@ -45,6 +45,11 @@ Image versions:
         email: "email"
     # # The required domain name, "field_mapping.email" is required to set for this to work.
     #  required_domain: "example.com"
+    # # Only these emails may sign in (case-insensitive), "field_mapping.email" is required to set for this to work.
+    # # When "required_domain" is also set, both must match.
+    #  allowed_emails:
+    #    - "alice@example.com"
+    #    - "bob@example.com"
     ```
 1. Start a Docker container.
    1. To only allow HTTP tunneling:
@@ -120,6 +125,11 @@ docker run ...
         email: "email"
     # # The required domain name, "field_mapping.email" is required to set for this to work.
     #  required_domain: "example.com"
+    # # Only these emails may sign in (case-insensitive), "field_mapping.email" is required to set for this to work.
+    # # When "required_domain" is also set, both must match.
+    #  allowed_emails:
+    #    - "alice@example.com"
+    #    - "bob@example.com"
     ```
 1. Start the cluster:
     ```sh

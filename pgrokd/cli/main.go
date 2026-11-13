@@ -47,7 +47,7 @@ func main() {
 		)
 	}
 
-	db, err := database.New(logger.Scoped("database"), config.Database)
+	db, err := database.New(ctx, logger.Scoped("database"), config.Database)
 	if err != nil {
 		logger.FatalContext(ctx, "Failed to connect to database", "error", err)
 	}
@@ -62,7 +62,7 @@ func main() {
 		logger.FatalContext(ctx, "Failed to set up web server", "error", err)
 	}
 
-	proxies := reverseproxy.NewCluster()
+	proxies := reverseproxy.NewCluster(logger.Scoped("proxy"), config.ExternalURL)
 	proxyServer := newProxyServer(logger.Scoped("proxy"), config.Proxy.Port, proxies)
 
 	var routines conc.WaitGroup
