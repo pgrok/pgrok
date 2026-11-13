@@ -41,6 +41,8 @@ func (m Model) render() string {
 			body = m.viewLogs(bodyH)
 		case m.tab == tabTunnels:
 			body = m.viewTunnels(bodyH)
+		case m.tab == tabFlow:
+			body = m.viewFlow(bodyH)
 		default:
 			body = m.viewOverview(bodyH)
 		}
@@ -167,7 +169,7 @@ func (m Model) statusOf(s Snapshot) string {
 func (m Model) header() string {
 	s := m.snap
 	left := " " + wordmark() + " " + muted(s.Info.Version) + "   "
-	if m.multi() && m.tab == tabTunnels && !m.detail {
+	if m.multi() && (m.tab == tabTunnels || m.tab == tabFlow) && !m.detail {
 		online := 0
 		for _, t := range m.snaps {
 			if t.Status == StatusOnline {
@@ -178,7 +180,7 @@ func (m Model) header() string {
 		if online < len(m.snaps) {
 			c = cYellow
 		}
-		return m.headerLines(left+bold(c).Render(fmt.Sprintf("● %d/%d online", online, len(m.snaps))), tabTunnels)
+		return m.headerLines(left+bold(c).Render(fmt.Sprintf("● %d/%d online", online, len(m.snaps))), m.tab)
 	}
 	if m.multi() {
 		left += lav("▸ ") + bold(cBright).Render(s.Info.Name) + "   "
@@ -236,6 +238,8 @@ func (m Model) footer() string {
 		pairs = []string{"enter", "apply", "esc", "clear", "↑↓", "select"}
 	case m.tab == tabTunnels:
 		pairs = []string{"↑↓", "select", "enter", "show tunnel", "tab", "views", "?", "help", "q", "quit"}
+	case m.tab == tabFlow:
+		pairs = []string{"tab", "views", "s", "share", "?", "help", "q", "quit"}
 	case m.tab == tabLogs:
 		pairs = []string{"d i w e", "levels", "f", "follow", "↑↓", "scroll", "?", "help", "q", "quit"}
 	case m.snap.Info.Protocol == "tcp":
@@ -1397,7 +1401,7 @@ func (m Model) helpModal() string {
 	left := []string{
 		sec("Navigation"),
 		row("tab ⇧tab", "next / previous view"),
-		row("1 2 3 4", "jump to view"),
+		row("1 – 5", "jump to view"),
 		row("↑ ↓  k j", "move selection"),
 		row("enter", "inspect request · show tunnel"),
 		row("esc", "back · close · clear"),
