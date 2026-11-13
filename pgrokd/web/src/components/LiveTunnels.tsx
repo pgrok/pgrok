@@ -6,6 +6,7 @@ import { Text } from "@/components/retroui/Text";
 import { Tunnel } from "../types";
 
 const REFRESH_INTERVAL_MS = 3000;
+const FETCH_ERROR = "Failed to fetch live tunnels, retrying shortly.";
 
 // LiveTunnels lists the signed-in user's active tunnels, refreshing
 // periodically, and lets the user disconnect any of them.
@@ -20,7 +21,7 @@ export default function LiveTunnels() {
       setTunnels(response.data);
       setError(undefined);
     } catch {
-      setError("Failed to load live tunnels, retrying shortly.");
+      setError(FETCH_ERROR);
     }
     setNow(Date.now());
   }, []);
@@ -57,7 +58,9 @@ export default function LiveTunnels() {
       <Card.Content>
         {error && (
           <p role="alert" className="mb-4 rounded border-2 border-destructive px-3 py-2 text-sm text-destructive">
-            {error}
+            {error === FETCH_ERROR && tunnels !== undefined
+              ? "Failed to fetch live tunnels, you are viewing a stale list. Retrying shortly."
+              : error}
           </p>
         )}
         {tunnels === undefined && !error && <Text className="text-sm text-muted-foreground">Loading...</Text>}
