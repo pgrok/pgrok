@@ -62,6 +62,11 @@ func commandHTTP(homeDir string, logger *logx.Logger) *cli.Command {
 				Name:  "remove-request-header",
 				Usage: "The name of a header to remove from forwarded requests, can be repeated",
 			},
+			&cli.StringFlag{
+				Name:  "inspect-addr",
+				Usage: `The local address to serve the request inspector on, "false" to disable`,
+				Value: defaultInspectAddr,
+			},
 		),
 	}
 }
@@ -82,6 +87,13 @@ func actionHTTP(ctx context.Context, cmd *cli.Command, logger *logx.Logger) erro
 		cmd.String("forward-addr"),
 		config.ForwardAddr,
 	)
+	inspectAddr := defaultInspectAddr
+	if config.InspectAddr != nil {
+		inspectAddr = *config.InspectAddr
+	}
+	if cmd.IsSet("inspect-addr") {
+		inspectAddr = cmd.String("inspect-addr")
+	}
 	err = runTunnel(logger, tunnel{
 		protocol:        protocolHTTP,
 		remoteAddr:      cmp.Or(cmd.String("remote-addr"), config.RemoteAddr),
@@ -94,6 +106,7 @@ func actionHTTP(ctx context.Context, cmd *cli.Command, logger *logx.Logger) erro
 			RequestHeaders:       append(config.RequestHeaders, cmd.StringSlice("request-header")...),
 			RemoveRequestHeaders: append(config.RemoveRequestHeaders, cmd.StringSlice("remove-request-header")...),
 		},
+		inspectAddr: inspectAddr,
 	})
 	fatalTunnelError(ctx, logger, err)
 	return nil
@@ -107,7 +120,7 @@ const (
 // tryConnect establishes the tunnel and blocks until it fails. The onReady
 // callback is invoked with the public URL reported by the server (which may be
 // empty) every time the tunnel is up.
-func tryConnect(logger *logx.Logger, protocol, remoteAddr, forwardAddr, token, subdomain string, onReady func(hostURL string)) error {
+func tryConnect(logger *logx.Logger, protocol, remoteAddr, forwardAddr, token, subdomain, inspectURL string, onReady func(hostURL string)) error {
 	client, err := ssh.Dial(
 		"tcp",
 		remoteAddr,
@@ -161,7 +174,11 @@ func tryConnect(logger *logx.Logger, protocol, remoteAddr, forwardAddr, token, s
 	if serverInfo.HostURL != "" {
 		message = fmt.Sprintf("🎉 You're ready to go live at %s!", serverInfo.HostURL)
 	}
-	logger.Info(message, "remote", remoteAddr)
+	attrs := []any{"remote", remoteAddr}
+	if inspectURL != "" {
+		attrs = append(attrs, "inspector", inspectURL)
+	}
+	logger.Info(message, attrs...)
 	onReady(serverInfo.HostURL)
 	for {
 		remote, err := remoteListener.Accept()

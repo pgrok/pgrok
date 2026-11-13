@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pgrok inspector</title>
+<style>
+  :root {
+    --background: hsl(48 100% 98%);
+    --foreground: hsl(0 0% 0%);
+    --card: hsl(0 0% 100%);
+    --primary: hsl(50 100% 60%);
+    --primary-foreground: hsl(0 0% 0%);
+    --muted-foreground: hsl(0 0% 35%);
+    --accent: hsl(50 89% 74%);
+    --destructive: hsl(355 78% 56%);
+    --success: hsl(142 60% 40%);
+    --border: hsl(0 0% 0%);
+    --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+    --font-head: "Archivo Black", ui-sans-serif, system-ui, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --background: hsl(0 0% 9%);
+      --foreground: hsl(0 0% 98%);
+      --card: hsl(0 0% 14%);
+      --muted-foreground: hsl(0 0% 65%);
+      --accent: hsl(50 70% 40%);
+      --success: hsl(142 55% 50%);
+      --border: hsl(0 0% 98%);
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--background); color: var(--foreground); font-family: var(--font-sans); font-size: 14px; }
+  header { display: flex; align-items: center; gap: 12px; padding: 12px 24px; border-bottom: 2px solid var(--border); background: var(--primary); color: var(--primary-foreground); }
+  header h1 { margin: 0; font-family: var(--font-head); font-size: 20px; font-weight: 900; }
+  header .count { margin-left: auto; font-weight: 600; }
+  main { display: grid; grid-template-columns: minmax(320px, 2fr) 3fr; gap: 24px; padding: 24px; align-items: start; }
+  .card { background: var(--card); border: 2px solid var(--border); box-shadow: 4px 4px 0 0 var(--border); }
+  .card > h2 { margin: 0; padding: 10px 14px; border-bottom: 2px solid var(--border); font-family: var(--font-head); font-size: 16px; font-weight: 900; display: flex; align-items: center; gap: 8px; }
+  #list { list-style: none; margin: 0; padding: 0; max-height: calc(100vh - 150px); overflow-y: auto; }
+  #list li { display: grid; grid-template-columns: 64px 1fr auto auto; gap: 10px; align-items: center; padding: 8px 14px; border-bottom: 1px solid var(--border); cursor: pointer; }
+  #list li:last-child { border-bottom: none; }
+  #list li:hover { background: var(--accent); }
+  #list li.selected { background: var(--primary); color: var(--primary-foreground); }
+  #list li.selected .muted { color: var(--primary-foreground); }
+  .method { font-weight: 700; font-family: var(--font-mono); }
+  .path { font-family: var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .muted { color: var(--muted-foreground); }
+  .status { font-family: var(--font-mono); font-weight: 700; padding: 1px 6px; border: 2px solid var(--border); background: var(--card); color: var(--foreground); }
+  .status.ok { background: var(--success); color: #fff; }
+  .status.err { background: var(--destructive); color: #fff; }
+  .badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 0 5px; border: 2px solid var(--border); background: var(--accent); color: var(--foreground); margin-left: 6px; vertical-align: 1px; }
+  .empty { padding: 32px 14px; text-align: center; color: var(--muted-foreground); }
+  #detail .body-wrap { padding: 14px; }
+  .summary { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .summary .path { white-space: normal; word-break: break-all; font-size: 15px; }
+  button { font: inherit; font-weight: 700; padding: 6px 14px; border: 2px solid var(--border); background: var(--primary); color: var(--primary-foreground); box-shadow: 3px 3px 0 0 var(--border); cursor: pointer; }
+  button:hover { transform: translate(1px, 1px); box-shadow: 2px 2px 0 0 var(--border); }
+  button:active { transform: translate(3px, 3px); box-shadow: none; }
+  button:disabled { opacity: .5; cursor: not-allowed; transform: none; box-shadow: 3px 3px 0 0 var(--border); }
+  #replay { margin-left: auto; }
+  h3 { font-family: var(--font-head); font-size: 14px; font-weight: 900; margin: 18px 0 8px; }
+  table { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 12px; }
+  td { padding: 3px 8px; border: 1px solid var(--border); vertical-align: top; word-break: break-all; }
+  td:first-child { width: 30%; font-weight: 700; }
+  pre { margin: 0; padding: 10px; border: 2px solid var(--border); background: var(--background); font-family: var(--font-mono); font-size: 12px; white-space: pre-wrap; word-break: break-all; max-height: 420px; overflow: auto; }
+  .note { font-size: 12px; color: var(--muted-foreground); margin: 6px 0 0; }
+  .error { color: var(--destructive); font-weight: 700; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>pgrok inspector</h1>
+  <span class="count" id="count"></span>
+</header>
+<main>
+  <section class="card">
+    <h2>Requests</h2>
+    <ul id="list"></ul>
+  </section>
+  <section class="card" id="detail">
+    <h2>Details</h2>
+    <div class="body-wrap" id="detail-body"><p class="empty">Select a request to see its details.</p></div>
+  </section>
+</main>
+<script>
+"use strict";
+const listEl = document.getElementById("list");
+const detailEl = document.getElementById("detail-body");
+const countEl = document.getElementById("count");
+let entries = []; // Newest first
+let selected = null;
+
+function el(tag, attrs, ...children) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (k === "onclick") e.onclick = v; else e.setAttribute(k, v);
+  }
+  for (const c of children) if (c !== null && c !== undefined) e.append(c);
+  return e;
+}
+
+function statusEl(status) {
+  const cls = status >= 400 ? "err" : status < 300 ? "ok" : "";
+  return el("span", { class: "status " + cls }, String(status));
+}
+
+function fmtDuration(ns) {
+  const ms = ns / 1e6;
+  return ms < 1000 ? ms.toFixed(ms < 10 ? 1 : 0) + " ms" : (ms / 1000).toFixed(2) + " s";
+}
+
+function fmtSize(n) {
+  return n < 1024 ? n + " B" : n < 1 << 20 ? (n / 1024).toFixed(1) + " KiB" : (n / (1 << 20)).toFixed(1) + " MiB";
+}
+
+function renderList() {
+  countEl.textContent = entries.length + (entries.length === 1 ? " request" : " requests");
+  listEl.replaceChildren();
+  if (entries.length === 0) {
+    listEl.append(el("li", { class: "empty", style: "display:block;cursor:default" }, "Waiting for requests through the tunnel…"));
+    return;
+  }
+  for (const s of entries) {
+    const li = el("li", { class: s.id === selected ? "selected" : "", "data-id": s.id, onclick: () => select(s.id) },
+      el("span", { class: "method" }, s.method),
+      el("span", { class: "path", title: s.path }, s.path, s.replay_of ? el("span", { class: "badge" }, "replay") : null),
+      el("span", { class: "muted" }, fmtDuration(s.duration)),
+      statusEl(s.status),
+    );
+    listEl.append(li);
+  }
+}
+
+function headersTable(h) {
+  const t = el("table");
+  for (const k of Object.keys(h || {}).sort()) {
+    for (const v of h[k]) t.append(el("tr", {}, el("td", {}, k), el("td", {}, v)));
+  }
+  return t.children.length ? t : el("p", { class: "muted" }, "No headers");
+}
+
+function bodyView(body, headers) {
+  if (body.skipped) return el("p", { class: "muted" }, "Body not captured for streaming responses and protocol upgrades.");
+  if (body.size === 0) return el("p", { class: "muted" }, "No body");
+  const frag = document.createDocumentFragment();
+  if (body.binary) {
+    const enc = (headers && headers["Content-Encoding"] || []).join(", ");
+    frag.append(el("p", { class: "muted" }, "Binary body (" + fmtSize(body.size) + (enc ? ", " + enc : "") + ")"));
+    return frag;
+  }
+  let text = body.text;
+  const ct = (headers && headers["Content-Type"] || []).join(" ");
+  if (!body.truncated && (ct.includes("json") || /^\s*[[{]/.test(text))) {
+    try { text = JSON.stringify(JSON.parse(text), null, 2); } catch (_) { /* Not JSON, show as is */ }
+  }
+  frag.append(el("pre", {}, text));
+  if (body.truncated) frag.append(el("p", { class: "note" }, "Showing the first " + fmtSize(body.text.length) + " of " + fmtSize(body.size) + "."));
+  return frag;
+}
+
+async function select(id) {
+  selected = id;
+  for (const li of listEl.children) li.classList.toggle("selected", li.dataset.id === String(id));
+  const res = await fetch("api/requests/" + id);
+  if (!res.ok) {
+    detailEl.replaceChildren(el("p", { class: "error" }, "Request #" + id + " is no longer available."));
+    return;
+  }
+  const e = await res.json();
+  if (selected !== id) return;
+  const replay = el("button", { id: "replay", title: e.replayable ? "Send this request to the local forward address again" : "Requests with streamed, truncated or upgraded bodies cannot be replayed" }, "Replay");
+  replay.disabled = !e.replayable;
+  replay.onclick = () => doReplay(e.id, replay);
+  detailEl.replaceChildren(
+    el("div", { class: "summary" },
+      el("span", { class: "method" }, e.method),
+      el("span", { class: "path" }, e.path),
+      statusEl(e.status),
+      el("span", { class: "muted" }, fmtDuration(e.duration) + " · " + new Date(e.time).toLocaleTimeString()),
+      e.replay_of ? el("span", { class: "badge" }, "replay of #" + e.replay_of) : null,
+      replay,
+    ),
+    el("h3", {}, "Request headers"), headersTable(e.request_header),
+    el("h3", {}, "Request body"), bodyView(e.request_body, e.request_header),
+    el("h3", {}, "Response headers"), headersTable(e.response_header),
+    el("h3", {}, "Response body"), bodyView(e.response_body, e.response_header),
+  );
+}
+
+async function doReplay(id, button) {
+  button.disabled = true;
+  const res = await fetch("api/requests/" + id + "/replay", { method: "POST" });
+  const data = await res.json();
+  if (!res.ok) {
+    button.after(el("p", { class: "error" }, data.error));
+    return;
+  }
+  addEntry(data);
+  select(data.id);
+}
+
+function addEntry(s) {
+  if (entries.some((e) => e.id === s.id)) return;
+  entries.unshift(s);
+  entries.length = Math.min(entries.length, 500);
+  renderList();
+}
+
+async function load() {
+  const res = await fetch("api/requests");
+  entries = (await res.json()).reverse();
+  renderList();
+}
+
+const events = new EventSource("api/events");
+events.onopen = load; // (Re)load the full list on every (re)connect.
+events.onmessage = (m) => addEntry(JSON.parse(m.data));
+renderList();
+</script>
+</body>
+</html>

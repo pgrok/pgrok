@@ -113,6 +113,7 @@ Following config options can be overridden through CLI flags for both `http` and
 - `--remote-addr, -r` -> `remote_addr`
 - `--forward-addr, -f` -> `forward_addr`
 - `--token, -t` -> `token`
+- `--inspect-addr` -> `inspect_addr` (`http` subcommand only)
 
 The `start` subcommand accepts `--remote-addr` and `--token` as well.
 
@@ -159,6 +160,21 @@ remove_request_headers:
 ```
 
 The `--host-header` flag overrides `host_header`, and headers from the CLI flags are applied after those in the config file. All removals are applied before any header is set, so a header that is both removed and set is sent with the set value, regardless of where each comes from. When set, `X-Forwarded-For` gets the local address appended and hop-by-hop headers (e.g., `Connection`, `Upgrade`) are dropped by the proxy.
+
+#### Request inspector
+
+While an HTTP tunnel is running, `pgrok` serves a request inspector at http://127.0.0.1:4040, logged next to the "ready to go live" message:
+
+```
+🎉 You're ready to go live at http://unknwon.example.com! remote=example.com:2222 inspector=http://127.0.0.1:4040
+```
+
+It lists the last 500 requests that went through the tunnel with live updates. Click one to see its request and response headers and bodies (JSON is pretty-printed, bodies are capped at 1 MiB each), and use the "Replay" button to send the same request to your local forward address again. Bodies of streaming responses (e.g. Server-Sent Events) and protocol upgrades (e.g. WebSocket) are not captured.
+
+- Use `--inspect-addr` flag or `inspect_addr` config option to change the address, or set it to `false` to disable the inspector.
+- Captured requests are only kept in memory, and the inspector binds to loopback by default because they may contain credentials.
+- If the address is already in use (e.g. another `pgrok http` is running), the tunnel starts without the inspector and logs a warning.
+- Tunnels started with `pgrok start` do not serve the inspector.
 
 #### Custom subdomain prefix
 
