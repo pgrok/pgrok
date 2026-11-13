@@ -1,6 +1,7 @@
 package web
 
 import (
+	"mime"
 	"net/http"
 	"time"
 
@@ -62,5 +63,18 @@ func (c *Context) AuthTime() (time.Time, bool) {
 func authenticate(c *Context) {
 	if !c.Authenticated() {
 		c.ResponseWriter().WriteHeader(http.StatusUnauthorized)
+	}
+}
+
+// requireJSON aborts requests that do not declare a JSON body with 415. It
+// guards state-changing API routes against cross-site request forgery: an HTML
+// form cannot send "application/json", and a cross-origin fetch with that
+// content type requires a CORS preflight that this server never approves. The
+// SameSite=Lax session cookie alone is not enough, because tunnel subdomains
+// (e.g., "*.example.com") are same-site with the dashboard ("example.com").
+func requireJSON(c *Context) {
+	mediaType, _, _ := mime.ParseMediaType(c.Request().Header.Get("Content-Type"))
+	if mediaType != "application/json" {
+		c.ResponseWriter().WriteHeader(http.StatusUnsupportedMediaType)
 	}
 }

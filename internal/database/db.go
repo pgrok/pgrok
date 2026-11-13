@@ -1,12 +1,16 @@
 package database
 
 import (
+	"context"
+	"embed"
 	"fmt"
+	"io/fs"
 	"strings"
 	"time"
 
 	"github.com/flamego/flamego"
 	"github.com/pkg/errors"
+	"github.com/pressly/goose/v3"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
@@ -20,8 +24,12 @@ type DB struct {
 	*gorm.DB
 }
 
-// New returns a new database handle with given configuration.
-func New(logger *logx.Logger, config *conf.Database) (*DB, error) {
+//go:embed migrations/*.sql
+var migrations embed.FS
+
+// New returns a new database handle with given configuration, after applying
+// pending migrations.
+func New(ctx context.Context, logger *logx.Logger, config *conf.Database) (*DB, error) {
 	if config == nil {
 		return nil, errors.New("no database config provided")
 	}
@@ -30,15 +38,6 @@ func New(logger *logx.Logger, config *conf.Database) (*DB, error) {
 	if flamego.Env() == flamego.EnvTypeProd {
 		level = gormlogger.Warn
 	}
-
-	// NOTE: AutoMigrate does not respect logger passed in gorm.Config.
-	gormlogger.Default = gormlogger.New(
-		&gormLogger{Logger: logger.Scoped("gorm")},
-		gormlogger.Config{
-			SlowThreshold: 1000 * time.Millisecond,
-			LogLevel:      level,
-		},
-	)
 
 	dsn := fmt.Sprintf(
 		"user='%s' password='%s' host='%s' port='%d' dbname='%s' search_path='public' application_name='pgrokd' client_encoding=UTF8",
@@ -50,6 +49,13 @@ func New(logger *logx.Logger, config *conf.Database) (*DB, error) {
 			SkipDefaultTransaction: true,
 			// Translate errors such as unique violations into gorm.ErrDuplicatedKey.
 			TranslateError: true,
+			Logger: gormlogger.New(
+				&gormLogger{Logger: logger.Scoped("gorm")},
+				gormlogger.Config{
+					SlowThreshold: 1000 * time.Millisecond,
+					LogLevel:      level,
+				},
+			),
 			NowFunc: func() time.Time {
 				return time.Now().UTC().Truncate(time.Microsecond)
 			},
@@ -67,17 +73,20 @@ func New(logger *logx.Logger, config *conf.Database) (*DB, error) {
 	sqlDB.SetMaxIdleConns(30)
 	sqlDB.SetConnMaxLifetime(time.Minute)
 
-	err = db.AutoMigrate(
-		&Principal{},
-		&HostKey{},
-		&OIDCKey{},
-		&OIDCAuthRequest{},
-		&OIDCAccessToken{},
-		&OIDCRefreshToken{},
-		&OIDCDeviceAuthorization{},
-	)
+	fsys, err := fs.Sub(migrations, "migrations")
 	if err != nil {
-		return nil, errors.Wrap(err, "auto migrate")
+		return nil, errors.Wrap(err, "open migrations")
+	}
+	provider, err := goose.NewProvider(goose.DialectPostgres, sqlDB, fsys)
+	if err != nil {
+		return nil, errors.Wrap(err, "create migration provider")
+	}
+	results, err := provider.Up(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "migrate")
+	}
+	for _, r := range results {
+		logger.Info("Applied migration", "source", r.Source.Path, "duration", r.Duration)
 	}
 	return &DB{db}, nil
 }
