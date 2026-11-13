@@ -52,6 +52,10 @@ func commandHTTP(homeDir string, logger *logx.Logger) *cli.Command {
 				Aliases: []string{"t"},
 			},
 			&cli.StringFlag{
+				Name:  "host-key-fingerprint",
+				Usage: "The SHA256 fingerprint of the server's ssh-rsa host key to pin, instead of trusting it on first use",
+			},
+			&cli.StringFlag{
 				Name:    "subdomain",
 				Usage:   "specify a custom subdomain prefix for a deterministic tunnel URL",
 				Aliases: []string{"s"},
@@ -129,6 +133,10 @@ func actionHTTP(ctx context.Context, cmd *cli.Command, logger *logx.Logger) erro
 	logger.Debug("Capture server is running on", "url", s.URL)
 
 	surl, _ := url.Parse(s.URL)
+	hostKeyCallback, err := newHostKeyCallback(logger, configPath, cmp.Or(cmd.String("host-key-fingerprint"), config.HostKeyFingerprint))
+	if err != nil {
+		logger.FatalContext(ctx, "Failed to set up host key verification", "error", err)
+	}
 	onReady := newReadyHook(logger)
 	cooldownAfter := time.Now().Add(time.Minute)
 	for failed := 0; ; failed++ {
@@ -139,9 +147,11 @@ func actionHTTP(ctx context.Context, cmd *cli.Command, logger *logx.Logger) erro
 			surl.Host,
 			cmp.Or(cmd.String("token"), config.Token),
 			cmd.String("subdomain"),
+			hostKeyCallback,
 			onReady,
 		)
 		if err != nil {
+			exitOnHostKeyError(ctx, logger, err)
 			if time.Now().After(cooldownAfter) {
 				failed = 0
 			}
@@ -168,6 +178,10 @@ type Config struct {
 	HostHeader           string   `yaml:"host_header"`
 	RequestHeaders       []string `yaml:"request_headers"`
 	RemoveRequestHeaders []string `yaml:"remove_request_headers"`
+
+	// HostKeyFingerprint is the SHA256 fingerprint of the server's ssh-rsa host
+	// key to pin, instead of trusting it on first use.
+	HostKeyFingerprint string `yaml:"host_key_fingerprint"`
 }
 
 func loadConfig(configPath string) (*Config, error) {
@@ -192,7 +206,7 @@ const (
 // tryConnect establishes the tunnel and blocks until it fails. The onReady
 // callback is invoked with the public URL reported by the server (which may be
 // empty) every time the tunnel is up.
-func tryConnect(logger *logx.Logger, protocol, remoteAddr, forwardAddr, token, subdomain string, onReady func(hostURL string)) error {
+func tryConnect(logger *logx.Logger, protocol, remoteAddr, forwardAddr, token, subdomain string, hostKeyCallback ssh.HostKeyCallback, onReady func(hostURL string)) error {
 	client, err := ssh.Dial(
 		"tcp",
 		remoteAddr,
@@ -201,7 +215,8 @@ func tryConnect(logger *logx.Logger, protocol, remoteAddr, forwardAddr, token, s
 			Auth: []ssh.AuthMethod{
 				ssh.Password(token),
 			},
-			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+			HostKeyCallback:   hostKeyCallback,
+			HostKeyAlgorithms: hostKeyAlgorithms,
 		},
 	)
 	if err != nil {

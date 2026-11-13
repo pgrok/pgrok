@@ -113,6 +113,7 @@ Following config options can be overridden through CLI flags for both `http` and
 - `--remote-addr, -r` -> `remote_addr`
 - `--forward-addr, -f` -> `forward_addr`
 - `--token, -t` -> `token`
+- `--host-key-fingerprint` -> `host_key_fingerprint`
 
 #### QR code
 
@@ -171,6 +172,24 @@ This goes live at `http://staging-unknwon.example.com`, forwarding to `http://lo
 - The value may contain lowercase letters, digits, and hyphens, with no leading or trailing hyphen. It shares the leftmost DNS label with your subdomain (`<prefix>-<subdomain>`), so the combined length must stay within 63 characters. Invalid values are rejected by the server.
 - The resulting URL is deterministic: if the prefixed host is already in use, the client fails with an error instead of falling back to a randomized one.
 - This flag only applies to HTTP tunnels. It has no effect on `pgrok tcp`.
+
+#### Server host key verification
+
+`pgrok` verifies the SSH host key of the server so that nobody can impersonate it and receive your token and tunnel traffic. On the first connection to a `remote_addr`, the server's `ssh-rsa` host key (`ssh-ed25519` for `pgrokd` before v1.1.0) is trusted and recorded in a `known_hosts` file (OpenSSH format) next to the config file, and its fingerprint is logged:
+
+```
+WARN Trusting server host key on first use, verify the fingerprint with your server administrator remote=example.com:2222 fingerprint=SHA256:<FINGERPRINT> file=/home/unknwon/.config/pgrok/known_hosts
+```
+
+`pgrokd` logs the fingerprint of its RSA host key on startup (`INFO [sshd] Host key for pgrok clients type=ssh-rsa fingerprint=SHA256:<FINGERPRINT>`), so server admins can publish it for users to compare.
+
+Subsequent connections must present the same key. Otherwise, `pgrok` refuses to connect and exits, showing the expected and received fingerprints. If the change is legitimate (e.g., the server database was reset), remove the line for the server from the `known_hosts` file.
+
+To pin the key explicitly instead of trusting it on first use, use the `--host-key-fingerprint` flag or the `host_key_fingerprint` config option with the `ssh-rsa` fingerprint published by your server admin:
+
+```
+pgrok http --host-key-fingerprint SHA256:<FINGERPRINT> 3000
+```
 
 ### Vanilla SSH
 

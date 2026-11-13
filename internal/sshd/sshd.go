@@ -47,6 +47,15 @@ func Start(
 	}
 	for _, signer := range signers {
 		config.AddHostKey(signer)
+
+		// The pgrok client only accepts the RSA host key, log its fingerprint for
+		// admins to publish so users can verify it.
+		if signer.PublicKey().Type() == ssh.KeyAlgoRSA {
+			logger.Info("Host key for pgrok clients",
+				"type", signer.PublicKey().Type(),
+				"fingerprint", ssh.FingerprintSHA256(signer.PublicKey()),
+			)
+		}
 	}
 
 	address := "0.0.0.0:" + strconv.Itoa(port)
@@ -158,30 +167,53 @@ func Start(
 
 func ensureHostKeys(ctx context.Context, db *database.DB) ([]ssh.Signer, error) {
 	var signers []ssh.Signer
-	for algorithm, keygen := range map[cryptoutil.KeyAlgorithm]func() ([]byte, error){
-		cryptoutil.KeyAlgorithmRSA:     cryptoutil.NewRSAPEM,
-		cryptoutil.KeyAlgorithmEd25519: cryptoutil.NewEd25519PEM,
-		cryptoutil.KeyAlgorithmECDSA:   cryptoutil.NewECDSAPEM,
+	for _, hk := range []struct {
+		algorithm cryptoutil.KeyAlgorithm
+		keygen    func() ([]byte, error)
+		keyType   string
+	}{
+		{cryptoutil.KeyAlgorithmRSA, cryptoutil.NewRSAPEM, ssh.KeyAlgoRSA},
+		{cryptoutil.KeyAlgorithmEd25519, cryptoutil.NewEd25519PEM, ssh.KeyAlgoED25519},
+		{cryptoutil.KeyAlgorithmECDSA, cryptoutil.NewECDSAPEM, ssh.KeyAlgoECDSA256},
 	} {
-		hostKey, err := db.GetHostKeyByAlgorithm(ctx, algorithm)
+		hostKey, err := db.GetHostKeyByAlgorithm(ctx, hk.algorithm)
 		if err != nil {
 			if err != database.ErrHostKeyNotExists {
-				return nil, errors.Wrapf(err, "get host key with algorithm %q", algorithm)
+				return nil, errors.Wrapf(err, "get host key with algorithm %q", hk.algorithm)
 			}
 
-			pem, err := keygen()
+			pem, err := hk.keygen()
 			if err != nil {
-				return nil, errors.Wrapf(err, "generate %q PEM", algorithm)
+				return nil, errors.Wrapf(err, "generate %q PEM", hk.algorithm)
 			}
-			hostKey, err = db.CreateHostKey(ctx, algorithm, pem)
+			hostKey, err = db.CreateHostKey(ctx, hk.algorithm, pem)
 			if err != nil {
-				return nil, errors.Wrapf(err, "create host key with algorithm %q", algorithm)
+				return nil, errors.Wrapf(err, "create host key with algorithm %q", hk.algorithm)
 			}
 		}
 
 		signer, err := ssh.ParsePrivateKey(hostKey.PEM)
 		if err != nil {
 			return nil, errors.Wrap(err, "parse host key")
+		}
+
+		// Previous releases generated the "ecdsa" host key as an Ed25519 key. Having
+		// two Ed25519 host keys made the served one change across restarts, because
+		// an added host key replaces the one of the same type. Replace the key that
+		// does not match its algorithm.
+		if signer.PublicKey().Type() != hk.keyType {
+			pem, err := hk.keygen()
+			if err != nil {
+				return nil, errors.Wrapf(err, "generate %q PEM", hk.algorithm)
+			}
+			err = db.UpdateHostKey(ctx, hk.algorithm, pem)
+			if err != nil {
+				return nil, errors.Wrapf(err, "update host key with algorithm %q", hk.algorithm)
+			}
+			signer, err = ssh.ParsePrivateKey(pem)
+			if err != nil {
+				return nil, errors.Wrap(err, "parse host key")
+			}
 		}
 		signers = append(signers, signer)
 	}

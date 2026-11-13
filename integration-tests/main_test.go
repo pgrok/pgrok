@@ -58,6 +58,11 @@ func TestMain(m *testing.M) {
 
 	ctx := context.Background()
 
+	// The pgrok client pins the server host key in the "known_hosts" file next to
+	// its config file, start fresh in case the database has been reset since the
+	// last run.
+	_ = os.Remove("known_hosts")
+
 	shutdownOIDCServer, err := setupOIDCServer(ctx)
 	if err != nil {
 		code = 1

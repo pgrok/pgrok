@@ -40,3 +40,14 @@ func (db *DB) CreateHostKey(ctx context.Context, algorithm cryptoutil.KeyAlgorit
 	}
 	return k, db.WithContext(ctx).Create(k).Error
 }
+
+// UpdateHostKey replaces the PEM data of the host key with given algorithm.
+func (db *DB) UpdateHostKey(ctx context.Context, algorithm cryptoutil.KeyAlgorithm, pem []byte) error {
+	return db.WithContext(ctx).
+		Model(&HostKey{}).
+		Where("algorithm = ?", algorithm).
+		Updates(map[string]any{
+			"pem":        pem,
+			"created_at": time.Now(),
+		}).Error
+}

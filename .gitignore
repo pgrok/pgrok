@@ -5,6 +5,8 @@ dist
 # Configuration and application files
 /pgrokd.yml
 /pgrok.yml
+/known_hosts
+/integration-tests/known_hosts
 .idea
 .envrc
 .moon/cache

@@ -1,7 +1,9 @@
 package cryptoutil
 
 import (
+	"crypto/ecdsa"
 	"crypto/ed25519"
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -41,11 +43,11 @@ func NewEd25519PEM() ([]byte, error) {
 	return marshalToPEM(private)
 }
 
-// NewECDSAPEM creates a new ECDSA key in PEM format.
+// NewECDSAPEM creates a new ECDSA P-256 key in PEM format.
 func NewECDSAPEM() ([]byte, error) {
-	_, private, err := ed25519.GenerateKey(rand.Reader)
+	private, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "generate key")
 	}
 	return marshalToPEM(private)
 }
