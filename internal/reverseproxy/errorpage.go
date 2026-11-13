@@ -26,8 +26,8 @@ type errorPage struct {
 var (
 	noTunnelPage = errorPage{
 		Title:      "This tunnel is offline",
-		Message:    "There is no pgrok tunnel connected for this address right now.",
-		Hint:       `If this is your tunnel, start it with <code>pgrok http &lt;port&gt;</code> and keep it running. The dashboard shows how to set up the client.`,
+		Message:    "There is no pgrok tunnel connected for this address.",
+		Hint:       `If this is your tunnel, start it with <code>pgrok http &lt;port&gt;</code> and keep it running.`,
 		TextFormat: "No reverse proxy is available for the host: %s\n",
 	}
 	upstreamDownPage = errorPage{
@@ -39,8 +39,8 @@ var (
 )
 
 // writeErrorPage writes the given error page with 502 status. It responds with
-// HTML only when the client accepts it (i.e. browsers), and plain text
-// otherwise (i.e. API clients and curl).
+// HTML only when the Accept header includes text/html (e.g., browsers), and
+// plain text otherwise (e.g., API clients and curl).
 func writeErrorPage(w http.ResponseWriter, r *http.Request, page errorPage, dashboardURL string) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")

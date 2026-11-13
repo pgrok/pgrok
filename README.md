@@ -53,7 +53,7 @@ Before you get started, make sure you have the following:
     ```
 1. Create a new OIDC client in your SSO with the **Redirect URI** to be `http://example.com/-/oidc/callback`.
 
-When no tunnel is connected for a host, or the tunnel is connected but the client cannot reach its local service, the proxy responds with `502 Bad Gateway`. Browsers get a small HTML page explaining which case it is, with a link to the dashboard (`external_url`). Other clients, such as curl and API clients, get a plain-text body. The page for an unreachable local service needs a `pgrok` client of this version or newer. Older clients still get a bare `502`.
+When no tunnel is connected for a host, or the tunnel is connected but the client cannot reach its local service, the proxy responds with `502 Bad Gateway`. Browsers get a small HTML page explaining which case it is, with a link to the dashboard (`external_url`). Other clients, such as curl and API clients, get a plain-text body. With the `pgrok` client, the page for an unreachable local service needs a client of this version or newer. Tunnels from older `pgrok` clients still return an empty `502`.
 
 ### Set up the client (`pgrok`)
 

@@ -143,7 +143,9 @@ func New(logger *logx.Logger, defaultForwardAddr string, opts Options, forwards 
 func newProxy(logger *logx.Logger, target *url.URL) *httputil.ReverseProxy {
 	proxy := httputil.NewSingleHostReverseProxy(target)
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
-		logger.Error("Failed to forward request", "path", r.URL.Path, "forwardTo", target.Host, "error", err)
+		// The local service being down is not an error of pgrok, and the request
+		// is already logged with its 502 status, so keep the details at debug level.
+		logger.Debug("Failed to forward request", "path", r.URL.Path, "forwardTo", target.Host, "error", err)
 		w.Header().Set(UpstreamErrorHeader, "1")
 		w.WriteHeader(http.StatusBadGateway)
 	}
