@@ -56,12 +56,16 @@ type OIDCAuthRequest struct {
 	LoginHint string `gorm:"not null"`
 	// CodeHash is the SHA-256 of the authorization code, set once the request is
 	// approved.
-	CodeHash    *string `gorm:"unique"`
-	PrincipalID int64   `gorm:"not null"`
-	AuthTime    time.Time
-	Done        bool      `gorm:"not null"`
-	ExpiresAt   time.Time `gorm:"not null;index"`
-	CreatedAt   time.Time `gorm:"not null"`
+	CodeHash *string `gorm:"unique"`
+	// CallbackHash is the SHA-256 of the one-time secret that the approving
+	// browser presents at the provider's callback to receive the code, set once
+	// the request is approved.
+	CallbackHash *string `gorm:"unique"`
+	PrincipalID  int64   `gorm:"not null"`
+	AuthTime     time.Time
+	Done         bool      `gorm:"not null"`
+	ExpiresAt    time.Time `gorm:"not null;index"`
+	CreatedAt    time.Time `gorm:"not null"`
 }
 
 func (*OIDCAuthRequest) TableName() string { return "oidc_auth_requests" }
@@ -86,11 +90,22 @@ func (db *DB) GetOIDCAuthRequestByID(ctx context.Context, id string) (*OIDCAuthR
 // request whose code has the given hash, and clears the code so that it can be
 // redeemed only once, even by concurrent requests.
 func (db *DB) RedeemOIDCAuthRequestCode(ctx context.Context, codeHash string) (*OIDCAuthRequest, error) {
+	return db.redeemOIDCAuthRequest(ctx, "code_hash", codeHash)
+}
+
+// RedeemOIDCAuthRequestCallback returns the unexpired, approved authorization
+// request whose callback secret has the given hash, and clears it so that only
+// one browser receives a code for the request.
+func (db *DB) RedeemOIDCAuthRequestCallback(ctx context.Context, callbackHash string) (*OIDCAuthRequest, error) {
+	return db.redeemOIDCAuthRequest(ctx, "callback_hash", callbackHash)
+}
+
+func (db *DB) redeemOIDCAuthRequest(ctx context.Context, column, hash string) (*OIDCAuthRequest, error) {
 	var reqs []*OIDCAuthRequest
 	err := db.WithContext(ctx).Model(&reqs).
 		Clauses(clause.Returning{}).
-		Where("code_hash = ? AND done AND expires_at > ?", codeHash, time.Now()).
-		Update("code_hash", nil).Error
+		Where(column+" = ? AND done AND expires_at > ?", hash, time.Now()).
+		Update(column, nil).Error
 	if err != nil {
 		return nil, err
 	}
@@ -105,14 +120,19 @@ func (db *DB) SetOIDCAuthRequestCodeHash(ctx context.Context, id, codeHash strin
 	return db.WithContext(ctx).Model(&OIDCAuthRequest{}).Where("id = ?", id).Update("code_hash", codeHash).Error
 }
 
-// CompleteOIDCAuthRequest marks the request as approved by the principal.
-func (db *DB) CompleteOIDCAuthRequest(ctx context.Context, id string, principalID int64) error {
+// CompleteOIDCAuthRequest marks the request as approved by the principal, who
+// signed in at authTime. A request can be approved only once, so that nobody
+// else who learns its ID can replace the principal before the client redeems
+// the code. Only the browser that holds the callback secret whose hash is
+// callbackHash can then collect the code.
+func (db *DB) CompleteOIDCAuthRequest(ctx context.Context, id string, principalID int64, authTime time.Time, callbackHash string) error {
 	result := db.WithContext(ctx).Model(&OIDCAuthRequest{}).
-		Where("id = ? AND expires_at > ?", id, time.Now()).
+		Where("id = ? AND NOT done AND expires_at > ?", id, time.Now()).
 		Updates(map[string]any{
-			"principal_id": principalID,
-			"auth_time":    time.Now(),
-			"done":         true,
+			"principal_id":  principalID,
+			"auth_time":     authTime,
+			"callback_hash": callbackHash,
+			"done":          true,
 		})
 	if result.Error != nil {
 		return result.Error

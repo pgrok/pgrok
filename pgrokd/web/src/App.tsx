@@ -1,13 +1,14 @@
-import axios from "axios";
+import axios, { isAxiosError } from "axios";
 import { StrictMode } from "react";
 import ReactDOM from "react-dom/client";
 import { Route, createBrowserRouter, createRoutesFromElements, Navigate, RouterProvider } from "react-router-dom";
 import "./App.css";
 import { UserContextType, UserProvider } from "./hooks/useUser";
+import ConsentPage from "./pages/Consent";
 import DashboardPage from "./pages/Dashboard";
 import ErrorPage from "./pages/Error";
 import SignInPage from "./pages/SignIn";
-import { FetchIdentityProviderResponse } from "./types";
+import { FetchAuthRequestResponse, FetchIdentityProviderResponse } from "./types";
 
 // Make sure all requests carry over the session cookie
 axios.defaults.withCredentials = true;
@@ -45,6 +46,28 @@ export const router = createBrowserRouter(
             data = response.data as FetchIdentityProviderResponse;
           });
           return data;
+        }}
+        errorElement={<ErrorPage />}
+      />
+
+      <Route
+        path="/consent"
+        element={
+          <ProtectedRoute>
+            <ConsentPage />
+          </ProtectedRoute>
+        }
+        loader={async function ({ request }) {
+          const id = new URL(request.url).searchParams.get("authRequestID") ?? "";
+          return axios
+            .get(`/api/oidc-provider/auth-requests/${encodeURIComponent(id)}`)
+            .then((response) => response.data as FetchAuthRequestResponse)
+            .catch((error: unknown) => {
+              const message = isAxiosError(error)
+                ? (error.response?.data as { error?: string } | undefined)?.error
+                : undefined;
+              return { error: message ?? "The sign-in request is invalid or has expired." } as FetchAuthRequestResponse;
+            });
         }}
         errorElement={<ErrorPage />}
       />

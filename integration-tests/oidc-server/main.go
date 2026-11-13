@@ -9,6 +9,9 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"slices"
+	"strconv"
+	"strings"
 	"time"
 
 	charmlog "charm.land/log/v2"
@@ -56,12 +59,21 @@ func main() {
 }`, *externalURL)
 	})
 
+	// The user signed in to this identity provider before any test ran, and
+	// signs in again only when asked to (OpenID Connect Core 1.0, section
+	// 3.1.2.1).
+	authTime := time.Now().Add(-time.Hour)
 	var audience, nonce string
 	f.Get("/oauth2/authorize", func(c flamego.Context) {
 		redirectURI := c.Query("redirect_uri")
 		state := c.Query("state")
 		audience = c.Query("client_id")
 		nonce = c.Query("nonce")
+		maxAge, err := strconv.Atoi(c.Query("max_age"))
+		if slices.Contains(strings.Fields(c.Query("prompt")), "login") ||
+			(err == nil && time.Since(authTime) > time.Duration(maxAge)*time.Second) {
+			authTime = time.Now()
+		}
 		c.Redirect(fmt.Sprintf("%s?state=%s&code=masterpiece", redirectURI, state))
 	})
 
@@ -73,12 +85,13 @@ func main() {
 		token := jwt.NewWithClaims(
 			jwt.SigningMethodRS256,
 			jwt.MapClaims{
-				"iss":   *externalURL,
-				"sub":   "unknwon",
-				"aud":   audience,
-				"exp":   time.Now().Add(time.Hour).Unix(),
-				"iat":   time.Now().Unix(),
-				"nonce": nonce,
+				"iss":       *externalURL,
+				"sub":       "unknwon",
+				"aud":       audience,
+				"exp":       time.Now().Add(time.Hour).Unix(),
+				"iat":       time.Now().Unix(),
+				"nonce":     nonce,
+				"auth_time": authTime.Unix(),
 			},
 		)
 		rawIDToken, err := token.SignedString(rs256)

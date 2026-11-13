@@ -12,6 +12,21 @@ export interface FetchIdentityProviderResponse {
 }
 
 /**
+ * The response type of the `/api/oidc-provider/auth-requests/{id}`.
+ */
+export interface FetchAuthRequestResponse {
+  /**
+   * The potential error returned by the server.
+   */
+  error?: string;
+
+  id: string;
+  clientName: string;
+  redirectURI: string;
+  scopes: string[];
+}
+
+/**
  * The response type of the `/api/regenerate-token`.
  */
 export interface RegenerateTokenResponse {

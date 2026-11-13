@@ -6,7 +6,9 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/coreos/go-oidc"
 	"github.com/flamego/flamego"
@@ -25,12 +27,17 @@ import (
 
 // NewServer constructs the HTTP server that serves the web UI and the JSON API.
 func NewServer(logger *logx.Logger, config *conf.Config, db *database.DB) (*http.Server, error) {
+	provider, err := oidcprovider.New(context.Background(), config, db)
+	if err != nil {
+		return nil, errors.Wrap(err, "set up OpenID Provider")
+	}
+
 	f := flamego.New()
 	f.Use(flamego.Logger())
 	f.Use(flamego.Recovery())
 	f.Use(flamego.Renderer())
 
-	err := mountWebAppRoutes(f)
+	err = mountWebAppRoutes(f)
 	if err != nil {
 		return nil, errors.Wrap(err, "set up web assets")
 	}
@@ -62,6 +69,10 @@ func NewServer(logger *logx.Logger, config *conf.Config, db *database.DB) (*http
 		f.Get("/user-info", authenticate, getUserInfo)
 		f.Post("/regenerate-token", authenticate, requireJSON, postRegenerateToken(db))
 		f.Get("/identity-provider", getIdentityProvider)
+		f.Group("/oidc-provider/auth-requests/{id}", func() {
+			f.Get("", getOIDCProviderAuthRequest(db, provider))
+			f.Post("", sameOrigin, postOIDCProviderAuthRequest(db))
+		}, authenticate)
 	})
 
 	// Human-facing web routes, namespaced under "/-".
@@ -70,12 +81,9 @@ func NewServer(logger *logx.Logger, config *conf.Config, db *database.DB) (*http
 		f.Get("/oidc/auth", getOIDCAuth)
 		f.Get("/oidc/callback", getOIDCCallback(logger, db))
 		f.Get("/sign-out", getSignOut)
+		f.Get(strings.TrimPrefix(oidcprovider.LoginPath, "/-"), getOIDCProviderLogin(db, provider))
 	})
 
-	provider, err := oidcprovider.New(context.Background(), config, db)
-	if err != nil {
-		return nil, errors.Wrap(err, "set up OpenID Provider")
-	}
 	// The provider serves RP-initiated logout, which must also end the web
 	// session that signed the user in, so the request goes through the session
 	// middleware first. Only a logout that proves which user it is for, with an
@@ -149,19 +157,42 @@ func getOIDCAuth(c *Context, r flamego.Render) {
 		return
 	}
 
+	// Remember where to go after signing in. Every sign-in sets or clears it,
+	// so that one abandoned midway does not redirect a later one.
+	if returnTo := c.Query("returnTo"); isLocalPath(returnTo) {
+		c.Session.Set("returnTo", returnTo)
+	} else {
+		c.Session.Delete("returnTo")
+	}
+
 	nonce := strutil.MustRandomChars(10)
 	c.Session.Set("oidc::nonce", nonce)
 
-	c.Redirect(
-		fmt.Sprintf(p.Endpoint().AuthURL+"?client_id=%s&redirect_uri=%s&state=%s&nonce=%s&response_type=code&scope=%s&hd=%s",
-			c.Config.IdentityProvider.ClientID,
-			c.Config.ExternalURL+"/-/oidc/callback",
-			nonce,
-			nonce,
-			url.QueryEscape("openid profile email"),
-			c.Config.IdentityProvider.RequiredDomain,
-		),
+	authURL := fmt.Sprintf(p.Endpoint().AuthURL+"?client_id=%s&redirect_uri=%s&state=%s&nonce=%s&response_type=code&scope=%s&hd=%s",
+		c.Config.IdentityProvider.ClientID,
+		c.Config.ExternalURL+"/-/oidc/callback",
+		nonce,
+		nonce,
+		url.QueryEscape("openid profile email"),
+		c.Config.IdentityProvider.RequiredDomain,
 	)
+	// An OpenID Provider client may ask for a sign-in no older than maxAge
+	// seconds, which the identity provider has to enforce for its own session.
+	// Asking for max_age on every sign-in also makes the identity provider
+	// report when the user really signed in (OpenID Connect Core 1.0, section
+	// 2), since that, not the time of this sign-in, is what clients are told.
+	// Keep it to a year: some identity providers add it to the sign-in time in
+	// 32 bits, and Keycloak before 26.4 then asks for a password every time.
+	const maxMaxAge = 365 * 24 * 60 * 60
+	maxAge, err := strconv.ParseUint(c.Query("maxAge"), 10, 32)
+	if err != nil || maxAge > maxMaxAge {
+		maxAge = maxMaxAge
+	}
+	authURL += "&max_age=" + strconv.FormatUint(maxAge, 10)
+	if maxAge == 0 {
+		authURL += "&prompt=login"
+	}
+	c.Redirect(authURL)
 }
 
 // getOIDCCallback completes the OIDC flow: verifies the callback, upserts the
@@ -218,13 +249,23 @@ func getOIDCCallback(logger *logx.Logger, db *database.DB) flamego.Handler {
 		}
 
 		c.Session.Set("userID", principal.ID)
-		c.Redirect("/")
+		c.Session.Set("authTime", userInfo.AuthTime.Unix())
+
+		// Resume what sent the user to sign in, such as an authorization request
+		// of the OpenID Provider.
+		returnTo, _ := c.Session.Get("returnTo").(string)
+		c.Session.Delete("returnTo")
+		if !isLocalPath(returnTo) {
+			returnTo = "/"
+		}
+		c.Redirect(returnTo)
 	}
 }
 
 // signOut ends the user's web session.
 func signOut(c *Context) {
 	c.Session.Delete("userID")
+	c.Session.Delete("authTime")
 }
 
 // getSignOut clears the session and returns to the home page.
@@ -236,6 +277,8 @@ func getSignOut(c *Context) {
 type idpUserInfo struct {
 	Identifier  string
 	DisplayName string
+	// AuthTime is when the user signed in to the identity provider.
+	AuthTime time.Time
 }
 
 func handleOIDCCallback(ctx context.Context, logger *logx.Logger, idp *conf.IdentityProvider, redirectURL, code, nonce string) (*idpUserInfo, error) {
@@ -273,6 +316,20 @@ func handleOIDCCallback(ctx context.Context, logger *logx.Logger, idp *conf.Iden
 	if nonce != idToken.Nonce {
 		return nil, errors.Errorf("mismatched nonce, want %q but got %q", nonce, idToken.Nonce)
 	}
+	var idTokenClaims struct {
+		// A number of seconds, which may have a fraction (RFC 7519, section 2).
+		// Anything else counts as missing.
+		AuthTime any `json:"auth_time"`
+	}
+	if err = idToken.Claims(&idTokenClaims); err != nil {
+		return nil, errors.Wrap(err, "unmarshal ID Token claims")
+	}
+	// Identity providers that do not report it, such as Google by default,
+	// signed the user in just now as far as pgrokd can tell.
+	authTime := time.Now()
+	if seconds, ok := idTokenClaims.AuthTime.(float64); ok && seconds > 0 && int64(seconds) < authTime.Unix() {
+		authTime = time.Unix(int64(seconds), 0)
+	}
 
 	rawUserInfo, err := p.UserInfo(ctx, oauth2.StaticTokenSource(token))
 	if err != nil {
@@ -286,7 +343,7 @@ func handleOIDCCallback(ctx context.Context, logger *logx.Logger, idp *conf.Iden
 	}
 	logger.DebugContext(ctx, "User info", "claims", claims)
 
-	userInfo := &idpUserInfo{}
+	userInfo := &idpUserInfo{AuthTime: authTime}
 	if v, ok := claims[idp.FieldMapping.Identifier].(string); ok {
 		userInfo.Identifier = v
 	}
