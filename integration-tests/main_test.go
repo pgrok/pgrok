@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.bobheadxi.dev/streamline/streamexec"
+	"golang.org/x/crypto/ssh"
 	"golang.org/x/net/publicsuffix"
 	"unknwon.dev/x/logx"
 )
@@ -36,6 +37,8 @@ var logger = logx.New(charmlog.NewWithOptions(os.Stderr, charmlog.Options{Report
 var (
 	token string
 	url   string
+	// webClient carries the signed-in web session of the test user.
+	webClient *http.Client
 )
 
 func TestMain(m *testing.M) {
@@ -177,6 +180,7 @@ func authenticateUser() (token, url string, _ error) {
 		return "", "", errors.Wrap(err, "new cookie jar")
 	}
 	client := &http.Client{Jar: jar}
+	webClient = client
 
 	// Perform sign in
 	resp, err := client.Get("http://localhost:3320/-/oidc/auth")
@@ -217,6 +221,12 @@ func authenticateUser() (token, url string, _ error) {
 	url = userInfo["url"]
 	if token == "" || url == "" {
 		return "", "", errors.New(`"token" or "url" not found`)
+	}
+
+	// The dashboard builds the copy-paste "pgrok init --remote-addr" command
+	// from this value, so it must match the address clients actually dial.
+	if got, want := userInfo["remoteAddr"], "localhost:2222"; got != want {
+		return "", "", errors.Errorf(`unexpected "remoteAddr": want %q but got %q`, want, got)
 	}
 	return token, url, nil
 }
@@ -474,4 +484,102 @@ func TestOIDCProviderEndSession(t *testing.T) {
 	// send, keeps the user signed in.
 	assert.Equal(t, http.StatusOK, status("http://localhost:3320/oauth2/end_session"))
 	assert.Equal(t, http.StatusOK, status("http://localhost:3320/api/user-info"))
+}
+
+func TestTokenRotation(t *testing.T) {
+	ctx := context.Background()
+	oldToken := token
+
+	// A request without a JSON content type, as an HTML form on another site
+	// would send, must not rotate the token.
+	resp, err := webClient.Post("http://localhost:3320/api/regenerate-token", "application/x-www-form-urlencoded", strings.NewReader(""))
+	require.NoError(t, err)
+	_ = resp.Body.Close()
+	require.Equal(t, http.StatusUnsupportedMediaType, resp.StatusCode)
+	require.NoError(t, sshAuthenticate(oldToken))
+
+	resp, err = webClient.Post("http://localhost:3320/api/regenerate-token", "application/json", strings.NewReader("{}"))
+	require.NoError(t, err)
+	body, err := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode, string(body))
+
+	var got map[string]string
+	require.NoError(t, json.Unmarshal(body, &got))
+	newToken := got["token"]
+	require.NotEmpty(t, newToken)
+	require.NotEqual(t, oldToken, newToken)
+
+	// The old token is rejected for new connections.
+	err = sshAuthenticate(oldToken)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unable to authenticate")
+
+	// The new token works end to end.
+	token = newToken
+	shutdownEchoServer, err := setupEchoServer(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, shutdownEchoServer()) })
+
+	_, shutdownPgrok, err := setupPgrok(ctx, "http", 0)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, shutdownPgrok()) })
+
+	out, err := run.Cmd(ctx, "curl", "--silent", fmt.Sprintf("%s/echo?q=chickendinner", url)).Run().String()
+	require.NoError(t, err)
+	assert.Contains(t, out, "chickendinner")
+}
+
+// sshAuthenticate attempts an SSH handshake with pgrokd using the given token.
+func sshAuthenticate(token string) error {
+	client, err := ssh.Dial("tcp", "localhost:2222", &ssh.ClientConfig{
+		User:            "pgrok",
+		Auth:            []ssh.AuthMethod{ssh.Password(token)},
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		Timeout:         5 * time.Second,
+	})
+	if err != nil {
+		return errors.Wrap(err, "dial")
+	}
+	return client.Close()
+}
+
+func TestErrorPages(t *testing.T) {
+	get := func(t *testing.T, host, accept string) (int, string) {
+		req, err := http.NewRequest(http.MethodGet, "http://localhost:3000/", nil)
+		require.NoError(t, err)
+		req.Host = host
+		req.Header.Set("Accept", accept)
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		defer func() { _ = resp.Body.Close() }()
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		return resp.StatusCode, string(body)
+	}
+
+	t.Run("no tunnel", func(t *testing.T) {
+		status, body := get(t, "nobody.localhost:3000", "text/html")
+		assert.Equal(t, http.StatusBadGateway, status)
+		assert.Contains(t, body, "This tunnel is offline")
+		assert.Contains(t, body, "nobody.localhost:3000")
+		assert.Contains(t, body, `href="http://localhost:3320"`)
+
+		status, body = get(t, "nobody.localhost:3000", "*/*")
+		assert.Equal(t, http.StatusBadGateway, status)
+		assert.Equal(t, "No reverse proxy is available for the host: nobody.localhost:3000\n", body)
+	})
+
+	t.Run("local service down", func(t *testing.T) {
+		// Nothing listens on port 8001.
+		endpoint, shutdownPgrok, err := setupPgrok(context.Background(), "http", 8001)
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, shutdownPgrok()) })
+
+		status, body := get(t, endpoint, "text/html")
+		assert.Equal(t, http.StatusBadGateway, status)
+		assert.Contains(t, body, "the local service at the other end is not responding")
+		assert.NotContains(t, body, "dial tcp")
+	})
 }

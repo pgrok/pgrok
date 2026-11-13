@@ -83,7 +83,11 @@ token: "%s"
 
 # Dynamic forward rules and use "forward_addr" as catch-all.
 #dynamic_forwards: |
-#  /api http://localhost:8080`
+#  /api http://localhost:8080
+
+# Rewrite the Host header to the host of the forward address for local apps that
+# reject unknown hosts. The public host is kept in X-Forwarded-Host.
+#host_header: rewrite`
 	config := fmt.Sprintf(
 		configTemplate,
 		cmd.String("remote-addr"),
