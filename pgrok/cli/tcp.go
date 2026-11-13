@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/urfave/cli/v3"
 	"unknwon.dev/x/logx"
 )
@@ -42,7 +41,7 @@ func commandTCP(homeDir string, logger *logx.Logger) *cli.Command {
 			},
 			&cli.StringFlag{
 				Name:  "host-key-fingerprint",
-				Usage: "The SHA256 fingerprint of the server's host key to pin, instead of trusting it on first use",
+				Usage: "The SHA256 fingerprint of the server's ssh-rsa host key to pin, instead of trusting it on first use",
 			},
 		),
 	}
@@ -105,10 +104,7 @@ func actionTCP(ctx context.Context, cmd *cli.Command, logger *logx.Logger) error
 			onReady,
 		)
 		if err != nil {
-			var mismatch *hostKeyMismatchError
-			if errors.As(err, &mismatch) {
-				logger.FatalContext(ctx, mismatch.Error())
-			}
+			exitOnHostKeyError(ctx, logger, err)
 			if time.Now().After(cooldownAfter) {
 				failed = 0
 			}

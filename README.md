@@ -175,13 +175,13 @@ This goes live at `http://staging-unknwon.example.com`, forwarding to `http://lo
 
 #### Server host key verification
 
-`pgrok` verifies the SSH host key of the server so that nobody can impersonate it and receive your token and tunnel traffic. On the first connection to a `remote_addr`, the server's `ssh-rsa` host key is trusted and recorded in a `known_hosts` file (OpenSSH format) next to the config file, and its fingerprint is logged:
+`pgrok` verifies the SSH host key of the server so that nobody can impersonate it and receive your token and tunnel traffic. On the first connection to a `remote_addr`, the server's `ssh-rsa` host key (`ssh-ed25519` for `pgrokd` before v1.1.0) is trusted and recorded in a `known_hosts` file (OpenSSH format) next to the config file, and its fingerprint is logged:
 
 ```
 WARN Trusting server host key on first use, verify the fingerprint with your server administrator remote=example.com:2222 fingerprint=SHA256:<FINGERPRINT> file=/home/unknwon/.config/pgrok/known_hosts
 ```
 
-`pgrokd` logs the fingerprint of its RSA host key on startup (`INFO Host key for pgrok clients type=ssh-rsa fingerprint=SHA256:<FINGERPRINT>`), so server admins can publish it for users to compare.
+`pgrokd` logs the fingerprint of its RSA host key on startup (`INFO [sshd] Host key for pgrok clients type=ssh-rsa fingerprint=SHA256:<FINGERPRINT>`), so server admins can publish it for users to compare.
 
 Subsequent connections must present the same key. Otherwise, `pgrok` refuses to connect and exits, showing the expected and received fingerprints. If the change is legitimate (e.g., the server database was reset), remove the line for the server from the `known_hosts` file.
 

@@ -53,7 +53,7 @@ func commandHTTP(homeDir string, logger *logx.Logger) *cli.Command {
 			},
 			&cli.StringFlag{
 				Name:  "host-key-fingerprint",
-				Usage: "The SHA256 fingerprint of the server's host key to pin, instead of trusting it on first use",
+				Usage: "The SHA256 fingerprint of the server's ssh-rsa host key to pin, instead of trusting it on first use",
 			},
 			&cli.StringFlag{
 				Name:    "subdomain",
@@ -151,10 +151,7 @@ func actionHTTP(ctx context.Context, cmd *cli.Command, logger *logx.Logger) erro
 			onReady,
 		)
 		if err != nil {
-			var mismatch *hostKeyMismatchError
-			if errors.As(err, &mismatch) {
-				logger.FatalContext(ctx, mismatch.Error())
-			}
+			exitOnHostKeyError(ctx, logger, err)
 			if time.Now().After(cooldownAfter) {
 				failed = 0
 			}
@@ -182,8 +179,8 @@ type Config struct {
 	RequestHeaders       []string `yaml:"request_headers"`
 	RemoveRequestHeaders []string `yaml:"remove_request_headers"`
 
-	// HostKeyFingerprint is the SHA256 fingerprint of the server's host key to
-	// pin, instead of trusting it on first use.
+	// HostKeyFingerprint is the SHA256 fingerprint of the server's ssh-rsa host
+	// key to pin, instead of trusting it on first use.
 	HostKeyFingerprint string `yaml:"host_key_fingerprint"`
 }
 
