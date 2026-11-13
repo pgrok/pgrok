@@ -3,6 +3,7 @@ package main
 import (
 	"io"
 	"os"
+	"sync"
 
 	"charm.land/lipgloss/v2"
 	"github.com/mdp/qrterminal/v3"
@@ -23,6 +24,10 @@ func newReadyHook(logger *logx.Logger) func(hostURL string) {
 	return onNewURL(os.Stdout)
 }
 
+// qrMu serializes printing QR codes, because the QR code is written line by
+// line and the tunnels of the "start" subcommand become ready concurrently.
+var qrMu sync.Mutex
+
 // onNewURL returns a callback that prints the QR code of a non-empty host URL
 // only when it differs from the last printed one, so reconnects that keep the
 // same URL do not print it again.
@@ -36,6 +41,8 @@ func onNewURL(w io.Writer) func(hostURL string) {
 		// Force white on black so the QR code scans the same on light and dark
 		// terminal themes.
 		colored := func(s string) string { return "\x1b[97;40m" + s + "\x1b[0m" }
+		qrMu.Lock()
+		defer qrMu.Unlock()
 		qrterminal.GenerateWithConfig(hostURL, qrterminal.Config{
 			Level:          qrterminal.L,
 			Writer:         w,

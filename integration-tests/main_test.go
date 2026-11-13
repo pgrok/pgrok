@@ -275,11 +275,20 @@ func setupPgrokWithSubdomain(ctx context.Context, protocol string, port int, sub
 		args = append(args, strconv.Itoa(port))
 	}
 
+	endpoints, shutdown, err := startPgrok(protocol, args, 1)
+	if err != nil {
+		return "", nil, err
+	}
+	return endpoints[0], shutdown, nil
+}
+
+// startPgrok starts the pgrok client with given arguments and waits until
+// numTunnels tunnels are ready, returning their endpoints in order of readiness.
+func startPgrok(name string, args []string, numTunnels int) (endpoints []string, shutdown func() error, _ error) {
 	cmd := exec.Command("../.bin/pgrok", args...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
-	started := false
-	ready := make(chan struct{})
+	ready := make(chan string, numTunnels)
 	go func() {
 		stream, err := streamexec.Start(cmd)
 		if err != nil {
@@ -287,29 +296,35 @@ func setupPgrokWithSubdomain(ctx context.Context, protocol string, port int, sub
 			return
 		}
 		err = stream.Stream(func(line string) {
-			fmt.Printf("[pgrok-%s] %s\n", protocol, line)
-			if !started && strings.Contains(line, "You're ready to go live") {
-				started = true
-				endpoint = line[strings.Index(line, "://")+3 : strings.Index(line, "!")]
-				ready <- struct{}{}
+			fmt.Printf("[pgrok-%s] %s\n", name, line)
+			if strings.Contains(line, "You're ready to go live") {
+				select {
+				case ready <- line[strings.Index(line, "://")+3 : strings.Index(line, "!")]:
+				default: // Ignore readiness after reconnects
+				}
 			}
 		})
 		if err != nil && !strings.Contains(err.Error(), "signal: killed") {
 			logger.Error("Failed to stream pgrok output", "error", err)
 			return
 		}
-		logger.Info("pgrok exited", "protocol", protocol)
+		logger.Info("pgrok exited", "name", name)
 	}()
 
 	// Make sure the pgrok is ready
-	select {
-	case <-ready:
-		logger.Info("pgrok started", "protocol", protocol, "endpoint", endpoint)
-	case <-time.After(5 * time.Second):
-		return "", nil, errors.New("pgrok failed to start after 5 seconds")
+	timeout := time.After(5 * time.Second)
+	for len(endpoints) < numTunnels {
+		select {
+		case endpoint := <-ready:
+			logger.Info("pgrok started", "name", name, "endpoint", endpoint)
+			endpoints = append(endpoints, endpoint)
+		case <-timeout:
+			_ = kill(cmd.Process.Pid)
+			return nil, nil, errors.Errorf("pgrok failed to start %d tunnel(s) after 5 seconds", numTunnels)
+		}
 	}
 
-	return endpoint, func() error { return kill(cmd.Process.Pid) }, nil
+	return endpoints, func() error { return kill(cmd.Process.Pid) }, nil
 }
 
 func setupEchoServer(ctx context.Context) (shutdown func() error, _ error) {
@@ -529,4 +544,34 @@ func TestErrorPages(t *testing.T) {
 		assert.Contains(t, body, "the local service at the other end is not responding")
 		assert.NotContains(t, body, "dial tcp")
 	})
+}
+
+func TestStartAll(t *testing.T) {
+	ctx := context.Background()
+
+	shutdownEchoServer, err := setupEchoServer(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, shutdownEchoServer()) })
+
+	err = run.Cmd(ctx, "go", "build", "-o", "../.bin/pgrok", "../pgrok/cli").Run().Wait()
+	require.NoError(t, err)
+
+	// Starts both the "web" (http) and "oidc" (tcp) tunnels defined in the config.
+	endpoints, shutdownPgrok, err := startPgrok("start", []string{"start", "--config", "pgrok.yml", "--token", token, "--all"}, 2)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, shutdownPgrok()) })
+
+	require.Contains(t, endpoints, "multi-unknwon.localhost:3000")
+	tcpEndpoint := endpoints[0]
+	if tcpEndpoint == "multi-unknwon.localhost:3000" {
+		tcpEndpoint = endpoints[1]
+	}
+
+	body, err := run.Cmd(ctx, "curl", "--silent", "http://multi-unknwon.localhost:3000/echo?q=chickendinner").Run().String()
+	require.NoError(t, err)
+	assert.Contains(t, body, "chickendinner")
+
+	body, err = run.Cmd(ctx, "curl", "--silent", fmt.Sprintf("http://%s/.well-known/openid-configuration", tcpEndpoint)).Run().String()
+	require.NoError(t, err)
+	assert.Contains(t, body, `"issuer": "http://localhost:9833",`)
 }

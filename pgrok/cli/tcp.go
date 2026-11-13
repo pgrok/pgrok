@@ -5,8 +5,6 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"strings"
-	"time"
 
 	"github.com/urfave/cli/v3"
 	"unknwon.dev/x/logx"
@@ -80,34 +78,12 @@ func actionTCP(ctx context.Context, cmd *cli.Command, logger *logx.Logger) error
 		cmd.String("forward-addr"),
 		config.ForwardAddr,
 	)
-	logger.Info("Forward", "address", forwardAddr)
-
-	onReady := newReadyHook(logger)
-	cooldownAfter := time.Now().Add(time.Minute)
-	for failed := 0; ; failed++ {
-		err := tryConnect(
-			logger,
-			protocolTCP,
-			cmp.Or(cmd.String("remote-addr"), config.RemoteAddr),
-			forwardAddr,
-			cmp.Or(cmd.String("token"), config.Token),
-			"", // No subdomain as TCP doesn't use it
-			onReady,
-		)
-		if err != nil {
-			if time.Now().After(cooldownAfter) {
-				failed = 0
-			}
-			backoff := time.Duration(2<<(failed/3+1)) * time.Second
-			logger.Error(
-				fmt.Sprintf("Failed to connect to server, will reconnect in %s", backoff.String()),
-				"error", err.Error(),
-			)
-			if strings.Contains(err.Error(), "no supported methods remain") {
-				logger.FatalContext(ctx, "Please double check your token and try again")
-			}
-			time.Sleep(backoff)
-			cooldownAfter = time.Now().Add(time.Minute)
-		}
-	}
+	err = runTunnel(logger, tunnel{
+		protocol:    protocolTCP,
+		remoteAddr:  cmp.Or(cmd.String("remote-addr"), config.RemoteAddr),
+		forwardAddr: forwardAddr,
+		token:       cmp.Or(cmd.String("token"), config.Token),
+	})
+	fatalTunnelError(ctx, logger, err)
+	return nil
 }

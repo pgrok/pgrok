@@ -114,9 +114,11 @@ Following config options can be overridden through CLI flags for both `http` and
 - `--forward-addr, -f` -> `forward_addr`
 - `--token, -t` -> `token`
 
+The `start` subcommand accepts `--remote-addr` and `--token` as well.
+
 #### QR code
 
-To open the tunnel on your phone right away, `pgrok` prints a QR code of the URL once the tunnel is up, for both `http` and `tcp` subcommands. It is printed again only when a reconnect gets a different URL, and only when stdout is a terminal.
+To open the tunnel on your phone right away, `pgrok` prints a QR code of the URL once the tunnel is up, for the `http`, `tcp` and `start` subcommands (one per tunnel for `start`). It is printed again only when a reconnect gets a different URL, and only when stdout is a terminal.
 
 #### HTTP dynamic forwards
 
@@ -171,6 +173,42 @@ This goes live at `http://staging-unknwon.example.com`, forwarding to `http://lo
 - The value may contain lowercase letters, digits, and hyphens, with no leading or trailing hyphen. It shares the leftmost DNS label with your subdomain (`<prefix>-<subdomain>`), so the combined length must stay within 63 characters. Invalid values are rejected by the server.
 - The resulting URL is deterministic: if the prefixed host is already in use, the client fails with an error instead of falling back to a randomized one.
 - This flag only applies to HTTP tunnels. It has no effect on `pgrok tcp`.
+
+#### Multiple tunnels
+
+Define named tunnels under `tunnels` in the `pgrok.yml` to run several of them from a single `pgrok` process, all sharing the top-level `remote_addr` and `token`:
+
+```yaml
+tunnels:
+  web:
+    protocol: http
+    forward_addr: http://localhost:3000
+    subdomain: web
+    dynamic_forwards: |
+      /api http://localhost:8080
+  db:
+    protocol: tcp
+    forward_addr: localhost:5432
+```
+
+- `protocol` (required): either `http` or `tcp`.
+- `forward_addr` (required): the local address to forward to, accepting the same shorthands as the `http` and `tcp` subcommands (e.g. `3000`).
+- `subdomain` (optional, `http` only): the [custom subdomain prefix](#custom-subdomain-prefix) with the same rules as the `--subdomain` flag.
+- `dynamic_forwards` (optional, `http` only): the [HTTP dynamic forwards](#http-dynamic-forwards) for this tunnel.
+
+Then use the `start` subcommand to run tunnels by name, or all of them with `--all`:
+
+```
+pgrok start web db
+pgrok start --all
+```
+
+Each tunnel connects and reconnects on its own, so one tunnel failing does not affect the others, and log lines are prefixed with the tunnel name (e.g. `[web] 🎉 You're ready to go live at http://web-unknwon.example.com!`). The command exits when the server rejects the token.
+
+> [!TIP]
+> Every HTTP tunnel of the same user needs a distinct host. Without `subdomain`, only one HTTP tunnel gets your stable subdomain (e.g. `unknwon.example.com`) and the others fall back to random UUID-prefixed hosts that change across reconnects. Set `subdomain` for each HTTP tunnel to get stable URLs.
+
+Top-level `forward_addr` and `dynamic_forwards` are not used by `start`, and the `http` and `tcp` subcommands keep using them as before.
 
 ### Vanilla SSH
 

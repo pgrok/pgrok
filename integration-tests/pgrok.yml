@@ -9,3 +9,13 @@ token: "REDACTED"
 # Dynamic forward rules and use "forward_addr" as catch-all.
 dynamic_forwards: |
   /echo http://localhost:8080
+
+# Named tunnels to be started with "pgrok start".
+tunnels:
+  web:
+    protocol: http
+    forward_addr: http://localhost:8080
+    subdomain: multi
+  oidc:
+    protocol: tcp
+    forward_addr: localhost:9833
