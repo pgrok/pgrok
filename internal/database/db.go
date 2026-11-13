@@ -47,6 +47,8 @@ func New(ctx context.Context, logger *logx.Logger, config *conf.Database) (*DB, 
 		postgres.Open(dsn),
 		&gorm.Config{
 			SkipDefaultTransaction: true,
+			// Translate errors such as unique violations into gorm.ErrDuplicatedKey.
+			TranslateError: true,
 			Logger: gormlogger.New(
 				&gormLogger{Logger: logger.Scoped("gorm")},
 				gormlogger.Config{

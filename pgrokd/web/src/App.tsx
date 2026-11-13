@@ -6,6 +6,7 @@ import "./App.css";
 import { UserContextType, UserProvider } from "./hooks/useUser";
 import ConsentPage from "./pages/Consent";
 import DashboardPage from "./pages/Dashboard";
+import DevicePage from "./pages/Device";
 import ErrorPage from "./pages/Error";
 import SignInPage from "./pages/SignIn";
 import { FetchAuthRequestResponse, FetchIdentityProviderResponse } from "./types";
@@ -71,6 +72,8 @@ export const router = createBrowserRouter(
         }}
         errorElement={<ErrorPage />}
       />
+
+      <Route path="/device" element={<DevicePage />} errorElement={<ErrorPage />} />
 
       <Route
         path="/"

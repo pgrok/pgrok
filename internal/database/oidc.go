@@ -304,8 +304,114 @@ func (db *DB) DeleteOIDCTokensBySubjectAndClient(ctx context.Context, subject, c
 	})
 }
 
+// OIDCDeviceAuthorization is a device authorization request (RFC 8628) waiting
+// for the user to enter its user code.
+type OIDCDeviceAuthorization struct {
+	// ID is the SHA-256 of the device code.
+	ID           string   `gorm:"primaryKey"`
+	UserCode     string   `gorm:"unique;not null"`
+	ClientID     string   `gorm:"not null"`
+	Scopes       []string `gorm:"serializer:json;not null"`
+	Subject      string   `gorm:"not null"`
+	AuthTime     time.Time
+	Done         bool `gorm:"not null"`
+	Denied       bool `gorm:"not null"`
+	LastPolledAt time.Time
+	ExpiresAt    time.Time `gorm:"not null;index"`
+	CreatedAt    time.Time `gorm:"not null"`
+}
+
+func (*OIDCDeviceAuthorization) TableName() string { return "oidc_device_authorizations" }
+
+// ErrOIDCDuplicateUserCode is returned when the user code is already taken.
+var ErrOIDCDuplicateUserCode = errors.New("duplicate user code")
+
+// CreateOIDCDeviceAuthorization creates the device authorization.
+func (db *DB) CreateOIDCDeviceAuthorization(ctx context.Context, auth *OIDCDeviceAuthorization) error {
+	err := db.WithContext(ctx).Create(auth).Error
+	if errors.Is(err, gorm.ErrDuplicatedKey) {
+		return ErrOIDCDuplicateUserCode
+	}
+	return err
+}
+
+// ErrOIDCDevicePolledTooFast is returned when a device polls again sooner than
+// the minimum interval.
+var ErrOIDCDevicePolledTooFast = errors.New("device polled too fast")
+
+// PollOIDCDeviceAuthorization returns the device authorization of the client
+// with the given ID and records the poll. It returns ErrOIDCDevicePolledTooFast
+// when the previous poll was less than minInterval ago. An approved
+// authorization is deleted as it is returned, so that its device code can be
+// redeemed only once.
+func (db *DB) PollOIDCDeviceAuthorization(ctx context.Context, id, clientID string, minInterval time.Duration) (*OIDCDeviceAuthorization, error) {
+	var auth OIDCDeviceAuthorization
+	var tooFast bool
+	err := db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ? AND client_id = ?", id, clientID).
+			First(&auth).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrOIDCRecordNotFound
+		} else if err != nil {
+			return err
+		}
+
+		now := time.Now()
+		tooFast = !auth.LastPolledAt.IsZero() && now.Sub(auth.LastPolledAt) < minInterval
+		if auth.Done && !tooFast {
+			return tx.Delete(&auth).Error
+		}
+		return tx.Model(&auth).Update("last_polled_at", now).Error
+	})
+	if err != nil {
+		return nil, err
+	}
+	if tooFast {
+		return nil, ErrOIDCDevicePolledTooFast
+	}
+	return &auth, nil
+}
+
+// GetOIDCDeviceAuthorizationByUserCode returns the unexpired device
+// authorization that the user has not decided on yet.
+func (db *DB) GetOIDCDeviceAuthorizationByUserCode(ctx context.Context, userCode string) (*OIDCDeviceAuthorization, error) {
+	var auth OIDCDeviceAuthorization
+	err := db.WithContext(ctx).
+		Where("user_code = ? AND expires_at > ? AND NOT done AND NOT denied", userCode, time.Now()).
+		First(&auth).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, ErrOIDCRecordNotFound
+	}
+	return &auth, err
+}
+
+// DecideOIDCDeviceAuthorization records the user's decision on the device
+// authorization with the given user code. The subject, who signed in at
+// authTime, is ignored when the authorization is denied.
+func (db *DB) DecideOIDCDeviceAuthorization(ctx context.Context, userCode, subject string, authTime time.Time, approved bool) error {
+	updates := map[string]any{"denied": true}
+	if approved {
+		updates = map[string]any{
+			"done":      true,
+			"subject":   subject,
+			"auth_time": authTime,
+		}
+	}
+	result := db.WithContext(ctx).Model(&OIDCDeviceAuthorization{}).
+		Where("user_code = ? AND expires_at > ? AND NOT done AND NOT denied", userCode, time.Now()).
+		Updates(updates)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrOIDCRecordNotFound
+	}
+	return nil
+}
+
 // expiringOIDCModels are the OIDC provider records with an "expires_at" column.
-var expiringOIDCModels = []any{&OIDCAuthRequest{}, &OIDCAccessToken{}, &OIDCRefreshToken{}}
+var expiringOIDCModels = []any{&OIDCAuthRequest{}, &OIDCDeviceAuthorization{}, &OIDCAccessToken{}, &OIDCRefreshToken{}}
 
 // DeleteExpiredOIDCRecords deletes expired OIDC provider records.
 func (db *DB) DeleteExpiredOIDCRecords(ctx context.Context) error {

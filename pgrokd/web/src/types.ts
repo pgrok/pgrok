@@ -27,6 +27,14 @@ export interface FetchAuthRequestResponse {
 }
 
 /**
+ * The response type of the `/api/oidc-provider/device-authorizations/{userCode}`.
+ */
+export interface FetchDeviceAuthorizationResponse {
+  clientName: string;
+  scopes: string[];
+}
+
+/**
  * The response type of the `/api/regenerate-token`.
  */
 export interface RegenerateTokenResponse {

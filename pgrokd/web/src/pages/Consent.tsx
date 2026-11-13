@@ -9,7 +9,7 @@ import useUser from "../hooks/useUser";
 import { FetchAuthRequestResponse } from "../types";
 
 // Plain-language descriptions of the scopes a client can request.
-const scopeDescriptions: Record<string, string> = {
+export const scopeDescriptions: Record<string, string> = {
   openid: "Know who you are on pgrok",
   profile: "See your name and identifier",
   email: "See your email address",

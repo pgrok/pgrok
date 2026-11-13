@@ -73,6 +73,11 @@ func NewServer(logger *logx.Logger, config *conf.Config, db *database.DB) (*http
 			f.Get("", getOIDCProviderAuthRequest(db, provider))
 			f.Post("", sameOrigin, postOIDCProviderAuthRequest(db))
 		}, authenticate)
+		limiter := &userCodeGuessLimiter{failures: make(map[int64][]time.Time)}
+		f.Group("/oidc-provider/device-authorizations/{userCode}", func() {
+			f.Get("", getOIDCProviderDeviceAuthorization(db, provider, limiter))
+			f.Post("", sameOrigin, postOIDCProviderDeviceAuthorization(db, limiter))
+		}, authenticate)
 	})
 
 	// Human-facing web routes, namespaced under "/-".
