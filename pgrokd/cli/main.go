@@ -56,7 +56,7 @@ func main() {
 		logger.FatalContext(ctx, "Failed to set up web server", "error", err)
 	}
 
-	proxies := reverseproxy.NewCluster()
+	proxies := reverseproxy.NewCluster(logger.Scoped("proxy"), config.ExternalURL)
 	proxyServer := newProxyServer(logger.Scoped("proxy"), config.Proxy.Port, proxies)
 
 	var routines conc.WaitGroup
