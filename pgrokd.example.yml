@@ -28,6 +28,8 @@ sshd:
 # Optional settings for the Prometheus metrics server, disabled when unset.
 # Do not expose this port publicly, metric labels contain user subdomains.
 #metrics:
+#  # The listening address of the metrics server, defaults to "127.0.0.1".
+#  host: "127.0.0.1"
 #  # The listening port of the metrics server, metrics are served at "/metrics".
 #  port: 3390
 

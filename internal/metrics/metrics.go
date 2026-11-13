@@ -7,7 +7,9 @@
 package metrics
 
 import (
+	"bufio"
 	"io"
+	"net"
 	"net/http"
 	"strconv"
 	"time"
@@ -27,7 +29,7 @@ var (
 	httpRequestDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
 		Name:      "http_request_duration_seconds",
-		Help:      "Duration of HTTP requests proxied through HTTP tunnels.",
+		Help:      "Duration of HTTP requests proxied through HTTP tunnels, the lifetime of the connection for protocol upgrades.",
 		Buckets:   prometheus.DefBuckets,
 	}, []string{"subdomain"})
 	httpBytesTotal = promauto.NewCounterVec(prometheus.CounterOpts{
@@ -120,8 +122,7 @@ func (c *countingReadCloser) Read(p []byte) (int, error) {
 
 // responseWriter records the status code and counts the body bytes written. It
 // implements Unwrap so that http.ResponseController can reach the underlying
-// Flusher and Hijacker, which the reverse proxy needs for streaming and protocol
-// upgrades.
+// Flusher, which the reverse proxy needs for streaming.
 type responseWriter struct {
 	http.ResponseWriter
 	counter prometheus.Counter
@@ -129,9 +130,9 @@ type responseWriter struct {
 }
 
 func (w *responseWriter) WriteHeader(code int) {
-	// Informational responses (e.g. 103 Early Hints) are followed by the final
-	// response, except for 101 Switching Protocols.
-	if w.status == 0 && (code >= 200 || code == http.StatusSwitchingProtocols) {
+	// Informational responses (e.g., 103 Early Hints) are followed by the final
+	// response. 101 Switching Protocols is recorded by Hijack instead.
+	if w.status == 0 && code >= 200 {
 		w.status = code
 	}
 	w.ResponseWriter.WriteHeader(code)
@@ -148,6 +149,17 @@ func (w *responseWriter) Write(p []byte) (int, error) {
 
 func (w *responseWriter) Unwrap() http.ResponseWriter {
 	return w.ResponseWriter
+}
+
+// Hijack records 101 Switching Protocols, because the reverse proxy hijacks the
+// connection on protocol upgrades and writes the 101 response to it directly
+// instead of calling WriteHeader.
+func (w *responseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	conn, brw, err := http.NewResponseController(w.ResponseWriter).Hijack()
+	if err == nil && w.status == 0 {
+		w.status = http.StatusSwitchingProtocols
+	}
+	return conn, brw, err
 }
 
 // CountingWriter returns a writer that adds the number of bytes written to w to

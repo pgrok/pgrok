@@ -115,9 +115,13 @@ func (c *Client) handleTCPIPForward(
 		return
 	}
 
+	// Snapshot the protocol because "server-info" requests are handled
+	// concurrently and may change c.protocol while this tunnel is being set up.
+	protocol := c.protocol
+
 	var port int
 	var listener net.Listener
-	switch c.protocol {
+	switch protocol {
 	case "tcp":
 		// Attempt to use the same port as the last time
 		if c.principal.LastTCPPort >= proxy.TCP.PortStart && c.principal.LastTCPPort < proxy.TCP.PortEnd {
@@ -132,7 +136,7 @@ func (c *Client) handleTCPIPForward(
 	case "http":
 		listener, port, err = acquireAvailablePort(15000, 20000)
 	default:
-		err = errors.Errorf("unsupported protocol: %s", c.protocol)
+		err = errors.Errorf("unsupported protocol: %s", protocol)
 	}
 	if err != nil {
 		_ = req.Reply(false, nil)
@@ -212,7 +216,7 @@ func (c *Client) handleTCPIPForward(
 				go ssh.DiscardRequests(reqs)
 
 				var toClient, toVisitor io.Writer = stream, conn
-				if c.protocol == "tcp" {
+				if protocol == "tcp" {
 					toClient = metrics.CountingWriter(stream, metrics.TCPTunnelBytesTotal.WithLabelValues(c.principal.Subdomain, "in"))
 					toVisitor = metrics.CountingWriter(conn, metrics.TCPTunnelBytesTotal.WithLabelValues(c.principal.Subdomain, "out"))
 				}
@@ -250,7 +254,7 @@ func (c *Client) handleTCPIPForward(
 		}
 	}
 
-	if c.protocol == "http" {
+	if protocol == "http" {
 		// For a client-requested subdomain prefix the URL must be deterministic,
 		// so a collision is a hard error instead of silently falling back to a
 		// random alternative host.
@@ -275,12 +279,12 @@ func (c *Client) handleTCPIPForward(
 		c.host = host
 		c.signalReady(nil)
 	}
-	activeTunnels := metrics.TunnelsActive.WithLabelValues(c.protocol)
+	activeTunnels := metrics.TunnelsActive.WithLabelValues(protocol)
 	activeTunnels.Inc()
 	defer activeTunnels.Dec()
 	_ = req.Reply(true, ssh.Marshal(payload))
 	<-ctx.Done()
-	if c.protocol == "http" {
+	if protocol == "http" {
 		proxies.Remove(c.host)
 	}
 }
@@ -309,6 +313,10 @@ func (c *Client) handleServerInfo(proxy conf.Proxy, req *ssh.Request) {
 		err := json.Unmarshal(req.Payload, &payload)
 		if err != nil {
 			_ = req.Reply(false, []byte(err.Error()))
+			return
+		}
+		if payload.Protocol != "tcp" && payload.Protocol != "http" {
+			_ = req.Reply(false, []byte("unsupported protocol: "+payload.Protocol))
 			return
 		}
 		c.protocol = payload.Protocol

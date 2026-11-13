@@ -60,7 +60,7 @@ func main() {
 	proxyServer := newProxyServer(logger.Scoped("proxy"), config.Proxy.Port, proxies)
 	var metricsServer *http.Server
 	if config.Metrics.Port > 0 {
-		metricsServer = newMetricsServer(logger.Scoped("metrics"), config.Metrics.Port)
+		metricsServer = newMetricsServer(logger.Scoped("metrics"), config.Metrics.Host, config.Metrics.Port)
 	}
 
 	var routines conc.WaitGroup
