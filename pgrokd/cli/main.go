@@ -17,6 +17,7 @@ import (
 
 	"github.com/pgrok/pgrok/internal/conf"
 	"github.com/pgrok/pgrok/internal/database"
+	"github.com/pgrok/pgrok/internal/inspector"
 	"github.com/pgrok/pgrok/internal/reverseproxy"
 	"github.com/pgrok/pgrok/internal/tunnels"
 	"github.com/pgrok/pgrok/pgrokd/cli/internal/web"
@@ -53,13 +54,19 @@ func main() {
 	}
 
 	registry := tunnels.NewRegistry()
-	webServer, err := web.NewServer(logger.Scoped("web"), config, db, registry)
+	proxies := reverseproxy.NewCluster(logger.Scoped("proxy"), config.ExternalURL)
+	proxyHandler := newProxyHandler(proxies)
+	var requests *inspector.Inspector
+	if config.Proxy.Inspector {
+		requests = inspector.New(registry, proxyHandler)
+		proxyHandler = requests
+	}
+
+	webServer, err := web.NewServer(logger.Scoped("web"), config, db, registry, requests)
 	if err != nil {
 		logger.FatalContext(ctx, "Failed to set up web server", "error", err)
 	}
-
-	proxies := reverseproxy.NewCluster(logger.Scoped("proxy"), config.ExternalURL)
-	proxyServer := newProxyServer(logger.Scoped("proxy"), config.Proxy.Port, proxies)
+	proxyServer := newProxyServer(logger.Scoped("proxy"), config.Proxy.Port, proxyHandler)
 
 	var routines conc.WaitGroup
 	routines.Go(func() {
