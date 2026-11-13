@@ -15,6 +15,7 @@ import (
 	"github.com/flamego/session"
 	"github.com/flamego/session/postgres"
 	"github.com/pkg/errors"
+	"github.com/zitadel/oidc/v3/pkg/op"
 	"golang.org/x/oauth2"
 	"unknwon.dev/x/logx"
 
@@ -26,18 +27,13 @@ import (
 )
 
 // NewServer constructs the HTTP server that serves the web UI and the JSON API.
-func NewServer(logger *logx.Logger, config *conf.Config, db *database.DB) (*http.Server, error) {
-	provider, err := oidcprovider.New(context.Background(), config, db)
-	if err != nil {
-		return nil, errors.Wrap(err, "set up OpenID Provider")
-	}
-
+func NewServer(logger *logx.Logger, config *conf.Config, db *database.DB, provider *op.Provider) (*http.Server, error) {
 	f := flamego.New()
 	f.Use(flamego.Logger())
 	f.Use(flamego.Recovery())
 	f.Use(flamego.Renderer())
 
-	err = mountWebAppRoutes(f)
+	err := mountWebAppRoutes(f)
 	if err != nil {
 		return nil, errors.Wrap(err, "set up web assets")
 	}

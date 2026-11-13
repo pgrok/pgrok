@@ -71,6 +71,8 @@ func main() {
 		DefaultCommand: "http",
 		Commands: []*cli.Command{
 			commandInit(homeDir, logger),
+			commandLogin(homeDir, logger),
+			commandLogout(homeDir, logger),
 			commandHTTP(homeDir, logger),
 			commandTCP(homeDir, logger),
 		},

@@ -82,15 +82,20 @@ func actionTCP(ctx context.Context, cmd *cli.Command, logger *logx.Logger) error
 	)
 	logger.Info("Forward", "address", forwardAddr)
 
+	token, err := tokenFunc(ctx, cmp.Or(cmd.String("token"), config.Token), configPath, config.ServerURL)
+	if err != nil {
+		logger.FatalContext(ctx, "Failed to get token", "error", err)
+	}
 	onReady := newReadyHook(logger)
 	cooldownAfter := time.Now().Add(time.Minute)
 	for failed := 0; ; failed++ {
-		err := tryConnect(
+		err := connect(
+			ctx,
 			logger,
+			token,
 			protocolTCP,
 			cmp.Or(cmd.String("remote-addr"), config.RemoteAddr),
 			forwardAddr,
-			cmp.Or(cmd.String("token"), config.Token),
 			"", // No subdomain as TCP doesn't use it
 			onReady,
 		)
