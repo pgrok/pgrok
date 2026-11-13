@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -18,7 +19,6 @@ import (
 	"unknwon.dev/x/logx"
 
 	"github.com/pgrok/pgrok/internal/conf"
-	"github.com/pgrok/pgrok/internal/cryptoutil"
 	"github.com/pgrok/pgrok/internal/database"
 	"github.com/pgrok/pgrok/internal/oidcprovider"
 	"github.com/pgrok/pgrok/internal/strutil"
@@ -67,6 +67,7 @@ func NewServer(logger *logx.Logger, config *conf.Config, db *database.DB) (*http
 	// Gogs splits its api and web handlers.
 	f.Group("/api", func() {
 		f.Get("/user-info", authenticate, getUserInfo)
+		f.Post("/regenerate-token", authenticate, requireJSON, postRegenerateToken(db))
 		f.Get("/identity-provider", getIdentityProvider)
 		f.Group("/oidc-provider/auth-requests/{id}", func() {
 			f.Get("", getOIDCProviderAuthRequest(db, provider))
@@ -239,7 +240,6 @@ func getOIDCCallback(logger *logx.Logger, db *database.DB) flamego.Handler {
 			database.UpsertPrincipalOptions{
 				Identifier:  userInfo.Identifier,
 				DisplayName: userInfo.DisplayName,
-				Token:       cryptoutil.SHA1(strutil.MustRandomChars(10)),
 				Subdomain:   subdomain,
 			},
 		)
@@ -361,11 +361,36 @@ func handleOIDCCallback(ctx context.Context, logger *logx.Logger, idp *conf.Iden
 		userInfo.DisplayName = userInfo.Identifier
 	}
 
-	if idp.RequiredDomain != "" {
-		email, _ := claims[idp.FieldMapping.Email].(string)
-		if !strings.HasSuffix(email, "@"+idp.RequiredDomain) {
-			return nil, errors.Errorf("the email %q does not have required domain %q", email, idp.RequiredDomain)
-		}
+	err = checkEmail(idp, claims)
+	if err != nil {
+		return nil, err
 	}
 	return userInfo, nil
+}
+
+// checkEmail returns an error if the email in the claims is not allowed to
+// sign in. Both "required_domain" and "allowed_emails" apply when set.
+func checkEmail(idp *conf.IdentityProvider, claims map[string]any) error {
+	email, _ := claims[idp.FieldMapping.Email].(string)
+	if idp.RequiredDomain != "" {
+		if !strings.HasSuffix(strings.ToLower(email), "@"+strings.ToLower(idp.RequiredDomain)) {
+			return errors.Errorf("the email %q does not have required domain %q", email, idp.RequiredDomain)
+		}
+	}
+
+	if len(idp.AllowedEmails) > 0 {
+		// An unverified email could be set to anything by the user on some
+		// identity providers, so it cannot be trusted for an allowlist. Some
+		// identity providers (e.g., AWS Cognito) send the claim as a string.
+		if v, ok := claims["email_verified"]; ok && v != true && v != "true" {
+			return errors.Errorf("the email %q is not verified by the identity provider", email)
+		}
+		allowed := email != "" && slices.ContainsFunc(idp.AllowedEmails, func(e string) bool {
+			return strings.EqualFold(strings.TrimSpace(e), email)
+		})
+		if !allowed {
+			return errors.Errorf("the email %q is not in the allowed emails", email)
+		}
+	}
+	return nil
 }

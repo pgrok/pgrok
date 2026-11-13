@@ -1,21 +1,17 @@
 ![pgrok banner](assets/banner.png)
 
 <div align="center">
-  <h3>Poor man's ngrok</h3>
+  <h3>Programmable Networking</h3>
   <a href="https://sourcegraph.com/github.com/pgrok/pgrok"><img src="https://img.shields.io/badge/view%20on-Sourcegraph-brightgreen.svg?style=for-the-badge&logo=sourcegraph" alt="Sourcegraph"></a>
 </div>
 
 ## What?
 
-The pgrok is a multi-tenant HTTP/TCP reverse tunnel solution through remote port forwarding from the SSH protocol.
+pgrok is a self-hosted, multi-tenant networking platform for exposing HTTP services and raw TCP connections through SSH reverse tunnels.
 
-This is intended for small teams that need to expose the local development environment to the public internet, and you need to bring your own domain name and SSO provider.
+Run it on your own infrastructure with your own domain and OIDC-compatible SSO provider. Users sign in through your team's SSO to obtain their tunnel credentials and stable HTTP subdomains.
 
-It gives stable subdomain for every user, and gated by your SSO through OIDC protocol.
-
-Think of this as a bare-bones alternative to the [ngrok's $65/user/month enterprise tier](https://ngrok.com/pricing) (at the time of founding this project, they have since changed pricing). Trying to put this behind a production system will blow up your SLA.
-
-For individuals and production systems, just buy ngrok, it is still my favorite.
+Use the pgrok CLI to create tunnels, choose predictable subdomains, and route HTTP requests to different local services by path—or connect with a standard SSH client.
 
 ## Why?
 
@@ -32,7 +28,7 @@ Before you get started, make sure you have the following:
 1. A domain name (e.g., `example.com`, this will be used as the example throughout this section).
 1. A server (dedicated server, VPS) with a public IP address (e.g., `111.33.5.14`).
 1. An SSO provider (e.g., Google, JumpCloud, Okta, GitLab, Keycloak) that allows you to create OIDC clients.
-1. A PostgreSQL server (Render, Vercel, Cloud SQL, self-host).
+1. A PostgreSQL server, v12 or higher (Render, Vercel, Cloud SQL, self-host).
 
 > [!NOTE]
 > 1. All values used in this document are just examples, substitute based on your setup.
@@ -59,7 +55,8 @@ Before you get started, make sure you have the following:
 
 ### Set up the client (`pgrok`)
 
-1. Go to http://example.com, authenticate with your SSO to obtain the token and URL (e.g., `http://unknwon.example.com`).
+1. Go to http://example.com, authenticate with your SSO to obtain the token and URL (e.g., `http://unknwon.example.com`). The "Get started" section of the dashboard has the following commands ready to copy with your token and server address filled in.
+    - If your token leaks, click **Regenerate** next to it on the dashboard. The old token stops working for new connections immediately, so update every client with the new token: edit `token` in `pgrok.yml`, or pass `--token` to clients started with that flag. Re-running `pgrok init ... --token` also works, but rewrites the whole `pgrok.yml`, including any `dynamic_forwards`. Tunnels that are already connected keep running until they disconnect.
 1. Download the latest version of the `pgrok`:
     - For Homebrew:
         ```sh
@@ -117,6 +114,10 @@ Following config options can be overridden through CLI flags for both `http` and
 - `--forward-addr, -f` -> `forward_addr`
 - `--token, -t` -> `token`
 
+#### QR code
+
+To open the tunnel on your phone right away, `pgrok` prints a QR code of the URL once the tunnel is up, for both `http` and `tcp` subcommands. It is printed again only when a reconnect gets a different URL, and only when stdout is a terminal.
+
 #### HTTP dynamic forwards
 
 Typical HTTP reverse tunnel solutions only support forwarding requests to a single address, `pgrok` can be configured to have dynamic forward rules when tunneling HTTP requests.
@@ -130,6 +131,32 @@ dynamic_forwards: |
 ```
 
 Then all requests prefixed with the path `/api` and `/hook` will be forwarded to `http://localhost:8080` and all the rest are forwarded to the `forward_addr` (`http://localhost:3000`).
+
+When prefixes overlap (e.g., `/api` and `/api/v2`), the longest matching prefix wins.
+
+#### HTTP request headers
+
+By default, requests are forwarded with the public `Host` header (e.g., `unknwon.example.com`), which local dev servers that check it (e.g., Vite's `server.allowedHosts`, Rails' `config.hosts`, Django's `ALLOWED_HOSTS`, webpack-dev-server) reject. Use `--host-header rewrite` to send the host of the forward address instead (e.g., `localhost:5173`), so no app config changes are needed:
+
+```
+pgrok http --host-header rewrite 5173
+```
+
+- With dynamic forwards, each request gets the host of the address it is forwarded to.
+- Any other value is used literally, e.g., `--host-header app.test`.
+- The public host is kept in the `X-Forwarded-Host` header so the app can still build absolute URLs.
+
+Use `--request-header "Name: value"` to add or overwrite a request header and `--remove-request-header Name` to remove one; both can be repeated. The equivalent options in `pgrok.yml`:
+
+```yaml
+host_header: rewrite
+request_headers:
+  - "X-Tunnel: pgrok"
+remove_request_headers:
+  - Cookie
+```
+
+The `--host-header` flag overrides `host_header`, and headers from the CLI flags are applied after those in the config file. All removals are applied before any header is set, so a header that is both removed and set is sent with the set value, regardless of where each comes from. When set, `X-Forwarded-For` gets the local address appended and hop-by-hop headers (e.g., `Connection`, `Upgrade`) are dropped by the proxy.
 
 #### Custom subdomain prefix
 
@@ -150,12 +177,12 @@ This goes live at `http://staging-unknwon.example.com`, forwarding to `http://lo
 Because the standard SSH protocol is used for tunneling, you may well just use the vanilla SSH client.
 
 1. Go to http://example.com, authenticate with your SSO to obtain the token and URL (e.g., `http://unknwon.example.com`).
-1. Launch the client by executing the `ssh -N -R 0::3000 example.com -p 2222` command:
+1. Launch the client by executing the `ssh -N -R 0:localhost:3000 example.com -p 2222` command:
     1. Enter the token as your password.
     1. Use the `-v` flag to turn on debug logging.
     1. Upon successful startup, you should see a log looks like:
         ```
-        Allocated port 22487 for remote forward to :3000
+        Allocated port 22487 for remote forward to localhost:3000
         ```
 1. Now visit the URL.
 
