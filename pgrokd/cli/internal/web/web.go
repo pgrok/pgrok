@@ -18,6 +18,7 @@ import (
 
 	"github.com/pgrok/pgrok/internal/conf"
 	"github.com/pgrok/pgrok/internal/database"
+	"github.com/pgrok/pgrok/internal/oidcprovider"
 	"github.com/pgrok/pgrok/internal/strutil"
 	"github.com/pgrok/pgrok/internal/userutil"
 )
@@ -71,14 +72,39 @@ func NewServer(logger *logx.Logger, config *conf.Config, db *database.DB) (*http
 		f.Get("/sign-out", getSignOut)
 	})
 
+	provider, err := oidcprovider.New(context.Background(), config, db)
+	if err != nil {
+		return nil, errors.Wrap(err, "set up OpenID Provider")
+	}
+	// The provider serves RP-initiated logout, which must also end the web
+	// session that signed the user in, so the request goes through the session
+	// middleware first. Only a logout that proves which user it is for, with an
+	// id_token_hint, ends the session, so that other sites cannot sign users out.
+	endSession := func(c *Context) {
+		r := c.Request().Request
+		ctx := oidcprovider.WithEndWebSession(r.Context(), func(subject string) {
+			if c.Principal != nil && subject == oidcprovider.Subject(c.Principal.ID) {
+				signOut(c)
+			}
+		})
+		provider.ServeHTTP(c.ResponseWriter(), r.WithContext(ctx))
+	}
+	f.Combo(oidcprovider.EndSessionPath).Get(endSession).Post(endSession)
+
 	address := fmt.Sprintf("0.0.0.0:%d", config.Web.Port)
 	logger.Info("Web server listening on",
 		"address", address,
 		"env", flamego.Env(),
 	)
 	return &http.Server{
-		Addr:    address,
-		Handler: f,
+		Addr: address,
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if oidcprovider.Handles(r) && r.URL.Path != oidcprovider.EndSessionPath {
+				provider.ServeHTTP(w, r)
+				return
+			}
+			f.ServeHTTP(w, r)
+		}),
 	}, nil
 }
 
@@ -196,9 +222,14 @@ func getOIDCCallback(logger *logx.Logger, db *database.DB) flamego.Handler {
 	}
 }
 
+// signOut ends the user's web session.
+func signOut(c *Context) {
+	c.Session.Delete("userID")
+}
+
 // getSignOut clears the session and returns to the home page.
 func getSignOut(c *Context) {
-	c.Session.Delete("userID")
+	signOut(c)
 	c.Redirect("/")
 }
 

@@ -17,6 +17,7 @@ import (
 
 	"github.com/pgrok/pgrok/internal/conf"
 	"github.com/pgrok/pgrok/internal/database"
+	"github.com/pgrok/pgrok/internal/oidcprovider"
 	"github.com/pgrok/pgrok/internal/reverseproxy"
 	"github.com/pgrok/pgrok/pgrokd/cli/internal/web"
 )
@@ -60,6 +61,9 @@ func main() {
 	proxyServer := newProxyServer(logger.Scoped("proxy"), config.Proxy.Port, proxies)
 
 	var routines conc.WaitGroup
+	routines.Go(func() {
+		oidcprovider.DeleteExpiredRecords(ctx, logger.Scoped("oidc-provider"), db, time.Hour)
+	})
 	routines.Go(func() {
 		if err := runSSHServer(ctx, logger.Scoped("sshd"), config.SSHD.Port, config.Proxy, db, proxies); err != nil && !isBenignShutdown(err, ctx) {
 			logger.ErrorContext(ctx, "SSH server exited unexpectedly", "error", err)

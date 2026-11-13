@@ -19,6 +19,7 @@ import (
 	"time"
 
 	charmlog "charm.land/log/v2"
+	"github.com/coreos/go-oidc"
 	"github.com/flamego/flamego"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -431,6 +432,58 @@ func TestTCP(t *testing.T) {
 	body, err := run.Cmd(ctx, "curl", "--silent", fmt.Sprintf("http://%s/.well-known/openid-configuration", endpoint)).Run().String()
 	require.NoError(t, err)
 	assert.Contains(t, body, `"issuer": "http://localhost:9833",`)
+}
+
+func TestOIDCProviderDiscovery(t *testing.T) {
+	ctx := context.Background()
+	provider, err := oidc.NewProvider(ctx, "http://localhost:3320")
+	require.NoError(t, err)
+
+	var claims struct {
+		DeviceAuthorizationEndpoint string   `json:"device_authorization_endpoint"`
+		CodeChallengeMethods        []string `json:"code_challenge_methods_supported"`
+		JWKSURI                     string   `json:"jwks_uri"`
+	}
+	require.NoError(t, provider.Claims(&claims))
+	assert.Equal(t, "http://localhost:3320/oauth2/token", provider.Endpoint().TokenURL)
+	assert.Equal(t, "http://localhost:3320/oauth2/device_authorization", claims.DeviceAuthorizationEndpoint)
+	assert.Equal(t, []string{"S256"}, claims.CodeChallengeMethods)
+
+	resp, err := http.Get(claims.JWKSURI)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+	var jwks struct {
+		Keys []struct {
+			Kid string `json:"kid"`
+			Alg string `json:"alg"`
+			Use string `json:"use"`
+		} `json:"keys"`
+	}
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&jwks))
+	require.Len(t, jwks.Keys, 1)
+	assert.NotEmpty(t, jwks.Keys[0].Kid)
+	assert.Equal(t, "RS256", jwks.Keys[0].Alg)
+	assert.Equal(t, "sig", jwks.Keys[0].Use)
+}
+
+func TestOIDCProviderEndSession(t *testing.T) {
+	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
+	require.NoError(t, err)
+	client := &http.Client{Jar: jar}
+	status := func(url string) int {
+		resp, err := client.Get(url)
+		require.NoError(t, err)
+		_ = resp.Body.Close()
+		return resp.StatusCode
+	}
+
+	require.Equal(t, http.StatusOK, status("http://localhost:3320/-/oidc/auth"))
+	require.Equal(t, http.StatusOK, status("http://localhost:3320/api/user-info"))
+
+	// A logout that does not say which user it is for, which any site can
+	// send, keeps the user signed in.
+	assert.Equal(t, http.StatusOK, status("http://localhost:3320/oauth2/end_session"))
+	assert.Equal(t, http.StatusOK, status("http://localhost:3320/api/user-info"))
 }
 
 func TestTokenRotation(t *testing.T) {
