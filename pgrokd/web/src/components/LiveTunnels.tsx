@@ -1,5 +1,6 @@
 import axios from "axios";
 import { useCallback, useEffect, useState } from "react";
+import { Alert } from "@/components/retroui/Alert";
 import { Button } from "@/components/retroui/Button";
 import { Card } from "@/components/retroui/Card";
 import { Text } from "@/components/retroui/Text";
@@ -57,14 +58,11 @@ export default function LiveTunnels() {
       </Card.Header>
       <Card.Content>
         {error && (
-          <p
-            role="alert"
-            className="mb-4 rounded border-2 border-black bg-destructive px-3 py-2 font-head text-sm text-destructive-foreground shadow-md"
-          >
+          <Alert className="mb-4">
             {error === FETCH_ERROR && tunnels !== undefined
               ? "Failed to fetch live tunnels, you are viewing a stale list. Retrying shortly."
               : error}
-          </p>
+          </Alert>
         )}
         {tunnels === undefined && !error && <Text className="text-sm text-muted-foreground">Loading...</Text>}
         {tunnels?.length === 0 && <EmptyState />}
