@@ -59,7 +59,31 @@ func main() {
 	proxies := reverseproxy.NewCluster(logger.Scoped("proxy"), config.Server.ExternalURL)
 	proxyServer := newProxyServer(logger.Scoped("proxy"), config.Proxy.Port, proxies)
 
+	var tlsServer, redirectServer *http.Server
+	if config.TLS.Enabled() {
+		tlsServer, redirectServer, err = newTLSServers(ctx, logger.Scoped("tls"), config, webServer.Handler, proxyServer.Handler)
+		if err != nil {
+			logger.FatalContext(ctx, "Failed to set up TLS server", "error", err)
+		}
+	}
+
 	var routines conc.WaitGroup
+	if tlsServer != nil {
+		routines.Go(func() {
+			if err := tlsServer.ListenAndServeTLS("", ""); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				logger.ErrorContext(ctx, "TLS server exited unexpectedly", "error", err)
+				stop()
+			}
+		})
+	}
+	if redirectServer != nil {
+		routines.Go(func() {
+			if err := redirectServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				logger.ErrorContext(ctx, "Redirect server exited unexpectedly", "error", err)
+				stop()
+			}
+		})
+	}
 	routines.Go(func() {
 		if err := runSSHServer(ctx, logger.Scoped("sshd"), config.SSHD.Port, config.Proxy.ProxyConfig, db, proxies); err != nil && !isBenignShutdown(err, ctx) {
 			logger.ErrorContext(ctx, "SSH server exited unexpectedly", "error", err)
@@ -90,6 +114,16 @@ func main() {
 		}
 		if err := proxyServer.Shutdown(shutdownCtx); err != nil {
 			logger.ErrorContext(shutdownCtx, "Failed to shut down proxy server gracefully", "error", err)
+		}
+		if tlsServer != nil {
+			if err := tlsServer.Shutdown(shutdownCtx); err != nil {
+				logger.ErrorContext(shutdownCtx, "Failed to shut down TLS server gracefully", "error", err)
+			}
+		}
+		if redirectServer != nil {
+			if err := redirectServer.Shutdown(shutdownCtx); err != nil {
+				logger.ErrorContext(shutdownCtx, "Failed to shut down redirect server gracefully", "error", err)
+			}
 		}
 	})
 

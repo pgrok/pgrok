@@ -56,6 +56,8 @@ identity_provider:
 	want.Proxy.TCPPortStart = 10000
 	want.Proxy.TCPPortEnd = 20000
 	want.SSHD.Port = 2222
+	want.TLS.Port = 443
+	want.TLS.ACMECA = "https://acme-v02.api.letsencrypt.org/directory"
 	want.Database.Host = "localhost"
 	want.Database.Port = 5432
 	want.Database.User = "pgrokd"
@@ -96,6 +98,21 @@ identity_provider:
 			wantErr: `set field "PORT"`,
 		},
 		{
+			name:    "tls with http external url",
+			files:   map[string]string{"pgrokd.ini": "[tls]\nCERT_FILES = a.pem\nKEY_FILES = a.key\n"},
+			wantErr: "EXTERNAL_URL must use https",
+		},
+		{
+			name:    "tls with both certificate files and acme",
+			files:   map[string]string{"pgrokd.ini": "[server]\nEXTERNAL_URL = https://example.com\n[tls]\nCERT_FILES = a.pem\nKEY_FILES = a.key\nACME_DNS_PROVIDER = builtin\n"},
+			wantErr: "only one of CERT_FILES and ACME_DNS_PROVIDER",
+		},
+		{
+			name:    "tls with more certificate files than keys",
+			files:   map[string]string{"pgrokd.ini": "[server]\nEXTERNAL_URL = https://example.com\n[tls]\nCERT_FILES = a.pem, b.pem\nKEY_FILES = a.key\n"},
+			wantErr: "same number of files",
+		},
+		{
 			name:    "allowed emails without email claim",
 			files:   map[string]string{"pgrokd.ini": "[identity_provider]\nCLAIM_EMAIL =\nALLOWED_EMAILS = a@example.com\n"},
 			wantErr: "ALLOWED_EMAILS requires CLAIM_EMAIL",
@@ -117,6 +134,35 @@ identity_provider:
 			assert.Equal(t, want, got)
 		})
 	}
+
+	t.Run("tls with acme", func(t *testing.T) {
+		t.Setenv("PGROKD_TEST_DNS_TOKEN", "secret")
+		dir := t.TempDir()
+		path := filepath.Join(dir, "pgrokd.ini")
+		require.NoError(t, os.WriteFile(path, []byte(`[server]
+EXTERNAL_URL = https://example.com
+
+[proxy]
+SCHEME = http
+
+[tls]
+HTTP_REDIRECT_PORT = 80
+ACME_DNS_PROVIDER = cloudflare
+
+[tls.acme_dns]
+API_TOKEN = ${PGROKD_TEST_DNS_TOKEN}
+`), 0644))
+
+		got, err := loadConfig(path)
+		require.NoError(t, err)
+		assert.Equal(t, 443, got.TLS.Port)
+		assert.Equal(t, 80, got.TLS.HTTPRedirectPort)
+		assert.Equal(t, "cloudflare", got.TLS.ACMEDNSProvider)
+		// Settings are only read from their own section, not inherited from [tls].
+		assert.Equal(t, map[string]string{"API_TOKEN": "secret"}, got.TLS.ACMEDNSSettings)
+		assert.Equal(t, filepath.Join(dir, "acme"), got.TLS.ACMEStoragePath)
+		assert.Equal(t, "https", got.webConfig().ProxyScheme)
+	})
 
 	t.Run("no identity provider", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "pgrokd.ini")

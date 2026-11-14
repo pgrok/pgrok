@@ -10,6 +10,7 @@ import (
 	"gopkg.in/yaml.v3"
 	"unknwon.dev/ini/v2"
 
+	"github.com/pgrok/pgrok/internal/certs"
 	"github.com/pgrok/pgrok/internal/database"
 	"github.com/pgrok/pgrok/internal/osutil"
 	"github.com/pgrok/pgrok/internal/sshd"
@@ -33,6 +34,11 @@ type Config struct {
 	SSHD struct {
 		Port int `ini:"PORT"`
 	} `ini:"sshd"`
+	TLS struct {
+		Port             int `ini:"PORT"`
+		HTTPRedirectPort int `ini:"HTTP_REDIRECT_PORT"`
+		certs.Config     `ini:",extends"`
+	} `ini:"tls"`
 	Database         database.Config      `ini:"database"`
 	IdentityProvider web.IdentityProvider `ini:"identity_provider"`
 }
@@ -104,6 +110,21 @@ func loadConfig(path string) (*Config, error) {
 	}
 
 	c.Server.ExternalURL = strings.TrimSuffix(c.Server.ExternalURL, "/")
+
+	if c.TLS.Enabled() {
+		if !strings.HasPrefix(c.Server.ExternalURL, "https://") {
+			return nil, errors.New("[server] EXTERNAL_URL must use https when [tls] is configured")
+		}
+		c.TLS.ACMEStoragePath = cmp.Or(c.TLS.ACMEStoragePath, filepath.Join(filepath.Dir(path), "acme"))
+		c.TLS.ACMEDNSSettings = make(map[string]string)
+		for _, key := range f.Section("tls.acme_dns").Keys() {
+			c.TLS.ACMEDNSSettings[key.Name()] = key.String()
+		}
+		if err = c.TLS.Validate(); err != nil {
+			return nil, errors.Wrap(err, "[tls]")
+		}
+		c.Proxy.Scheme = "https"
+	}
 
 	if idp := c.IdentityProvider; idp.ClaimEmail == "" {
 		if idp.RequiredDomain != "" {
