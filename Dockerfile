@@ -44,4 +44,4 @@ VOLUME ["/var/opt/pgrokd"]
 EXPOSE 3320 3000 2222
 HEALTHCHECK CMD (curl -o /dev/null -sS http://127.0.0.1:3320/-/healthcheck) || exit 1
 ENTRYPOINT ["/sbin/tini", "--", "/app/pgrokd/pgrokd"]
-CMD ["--config", "/var/opt/pgrokd/pgrokd.yml"]
+CMD ["--config", "/var/opt/pgrokd/pgrokd.ini"]

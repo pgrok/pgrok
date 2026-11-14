@@ -7,7 +7,6 @@ import (
 	"github.com/flamego/flamego"
 	"github.com/flamego/session"
 
-	"github.com/pgrok/pgrok/internal/conf"
 	"github.com/pgrok/pgrok/internal/database"
 )
 
@@ -17,7 +16,7 @@ import (
 type Context struct {
 	flamego.Context
 
-	Config    *conf.Config
+	Config    *Config
 	Session   session.Session
 	Principal *database.Principal // The authenticated principal, or nil when signed out.
 }
@@ -30,7 +29,7 @@ func (c *Context) Authenticated() bool {
 // contexter builds and injects a *Context for every request, loading the
 // signed-in principal from the session (best effort) so downstream handlers can
 // rely on c.Principal / c.IsSignedIn.
-func contexter(config *conf.Config, db *database.DB) flamego.Handler {
+func contexter(config *Config, db *database.DB) flamego.Handler {
 	return func(ctx flamego.Context, s session.Session) {
 		c := &Context{
 			Context: ctx,

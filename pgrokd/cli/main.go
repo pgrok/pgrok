@@ -15,7 +15,6 @@ import (
 	"github.com/flamego/flamego"
 	"github.com/sourcegraph/conc"
 
-	"github.com/pgrok/pgrok/internal/conf"
 	"github.com/pgrok/pgrok/internal/database"
 	"github.com/pgrok/pgrok/internal/reverseproxy"
 	"github.com/pgrok/pgrok/pgrokd/cli/internal/web"
@@ -35,13 +34,14 @@ func main() {
 	}
 	logger := setupLogging(level)
 
-	configPath := flag.String("config", "pgrokd.yml", "the path to the config file")
+	configFlag := flag.String("config", "pgrokd.ini", "the path to the config file")
 	flag.Parse()
 
-	config, err := conf.Load(*configPath)
+	configPath := findConfigFile(*configFlag)
+	config, err := loadConfig(configPath)
 	if err != nil {
 		logger.FatalContext(ctx, "Failed to load config",
-			"config", *configPath,
+			"config", configPath,
 			"error", err,
 		)
 	}
@@ -51,17 +51,17 @@ func main() {
 		logger.FatalContext(ctx, "Failed to connect to database", "error", err)
 	}
 
-	webServer, err := web.NewServer(logger.Scoped("web"), config, db)
+	webServer, err := web.NewServer(logger.Scoped("web"), config.webConfig(), config.Database, db)
 	if err != nil {
 		logger.FatalContext(ctx, "Failed to set up web server", "error", err)
 	}
 
-	proxies := reverseproxy.NewCluster(logger.Scoped("proxy"), config.ExternalURL)
+	proxies := reverseproxy.NewCluster(logger.Scoped("proxy"), config.Server.ExternalURL)
 	proxyServer := newProxyServer(logger.Scoped("proxy"), config.Proxy.Port, proxies)
 
 	var routines conc.WaitGroup
 	routines.Go(func() {
-		if err := runSSHServer(ctx, logger.Scoped("sshd"), config.SSHD.Port, config.Proxy, db, proxies); err != nil && !isBenignShutdown(err, ctx) {
+		if err := runSSHServer(ctx, logger.Scoped("sshd"), config.SSHD.Port, config.Proxy.ProxyConfig, db, proxies); err != nil && !isBenignShutdown(err, ctx) {
 			logger.ErrorContext(ctx, "SSH server exited unexpectedly", "error", err)
 			stop()
 		}

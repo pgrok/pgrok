@@ -15,9 +15,16 @@ import (
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
 	"unknwon.dev/x/logx"
-
-	"github.com/pgrok/pgrok/internal/conf"
 )
+
+// Config is the [database] section of the config.
+type Config struct {
+	Host     string `ini:"HOST"`
+	Port     int    `ini:"PORT"`
+	User     string `ini:"USER"`
+	Password string `ini:"PASSWORD"`
+	Name     string `ini:"NAME"`
+}
 
 // DB is the database handle.
 type DB struct {
@@ -29,11 +36,7 @@ var migrations embed.FS
 
 // New returns a new database handle with given configuration, after applying
 // pending migrations.
-func New(ctx context.Context, logger *logx.Logger, config *conf.Database) (*DB, error) {
-	if config == nil {
-		return nil, errors.New("no database config provided")
-	}
-
+func New(ctx context.Context, logger *logx.Logger, config Config) (*DB, error) {
 	level := gormlogger.Info
 	if flamego.Env() == flamego.EnvTypeProd {
 		level = gormlogger.Warn
@@ -41,7 +44,7 @@ func New(ctx context.Context, logger *logx.Logger, config *conf.Database) (*DB, 
 
 	dsn := fmt.Sprintf(
 		"user='%s' password='%s' host='%s' port='%d' dbname='%s' search_path='public' application_name='pgrokd' client_encoding=UTF8",
-		config.User, config.Password, config.Host, config.Port, config.Database,
+		config.User, config.Password, config.Host, config.Port, config.Name,
 	)
 	db, err := gorm.Open(
 		postgres.Open(dsn),

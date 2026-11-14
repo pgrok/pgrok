@@ -19,7 +19,6 @@ import (
 	"golang.org/x/crypto/ssh"
 	"unknwon.dev/x/logx"
 
-	"github.com/pgrok/pgrok/internal/conf"
 	"github.com/pgrok/pgrok/internal/database"
 	"github.com/pgrok/pgrok/internal/reverseproxy"
 )
@@ -91,7 +90,7 @@ func (c *Client) handleHint(req *ssh.Request) {
 func (c *Client) handleTCPIPForward(
 	ctx context.Context,
 	cancel context.CancelFunc,
-	proxy conf.Proxy,
+	proxy ProxyConfig,
 	req *ssh.Request,
 	proxies *reverseproxy.Cluster,
 ) {
@@ -119,14 +118,14 @@ func (c *Client) handleTCPIPForward(
 	switch c.protocol {
 	case "tcp":
 		// Attempt to use the same port as the last time
-		if c.principal.LastTCPPort >= proxy.TCP.PortStart && c.principal.LastTCPPort < proxy.TCP.PortEnd {
+		if c.principal.LastTCPPort >= proxy.TCPPortStart && c.principal.LastTCPPort < proxy.TCPPortEnd {
 			listener, err = net.Listen("tcp", "0.0.0.0:"+strconv.Itoa(c.principal.LastTCPPort))
 			if err == nil {
 				port = c.principal.LastTCPPort
 				break
 			}
 		}
-		listener, port, err = acquireAvailablePort(proxy.TCP.PortStart, proxy.TCP.PortEnd)
+		listener, port, err = acquireAvailablePort(proxy.TCPPortStart, proxy.TCPPortEnd)
 
 	case "http":
 		listener, port, err = acquireAvailablePort(15000, 20000)
@@ -291,7 +290,7 @@ func acquireAvailablePort(start, end int) (_ net.Listener, port int, _ error) {
 	return nil, 0, errors.New("no luck after 100 attempts")
 }
 
-func (c *Client) handleServerInfo(proxy conf.Proxy, req *ssh.Request) {
+func (c *Client) handleServerInfo(proxy ProxyConfig, req *ssh.Request) {
 	if len(req.Payload) > 0 {
 		var payload struct {
 			Protocol string `json:"protocol"`
@@ -307,7 +306,7 @@ func (c *Client) handleServerInfo(proxy conf.Proxy, req *ssh.Request) {
 	var hostURL string
 	switch c.protocol {
 	case "tcp":
-		host := cmp.Or(proxy.TCP.Domain, proxy.Domain)
+		host := cmp.Or(proxy.TCPDomain, proxy.Domain)
 		if i := strings.Index(host, ":"); i > 0 {
 			host = host[:i]
 		}

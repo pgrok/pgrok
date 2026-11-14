@@ -65,38 +65,27 @@ git clone --depth 10 git@github.com:pgrok/pgrok.git
 > [!NOTE]
 > The repository has Go modules enabled, please clone to somewhere outside of your `$GOPATH`.
 
-## Step 4: Initialize `pgrokd.yml`
+## Step 4: Initialize `pgrokd.ini`
 
-Create a `pgrokd.yml` file under the repository root and put the following configuration:
+Create a `pgrokd.ini` file under the repository root and put the following configuration:
 
-```yaml
-external_url: "http://localhost:3320"
-web:
-  port: 3320
-proxy:
-  port: 3000
-  scheme: "http"
-  domain: "localhost:3000"
-sshd:
-  port: 2222
+```ini
+[server]
+EXTERNAL_URL = http://localhost:3320
 
-database:
-  host: "localhost"
-  port: 5432
-  user: "pgrokd"
-  password: "pgrokd"
-  database: "pgrokd"
+[proxy]
+DOMAIN = localhost:3000
 
-identity_provider:
-  type: "oidc"
-  display_name: "OIDC"
-  issuer: "http://localhost:9833"
-  client_id: "winnerwinner"
-  client_secret: "chickendinner"
-  field_mapping:
-    identifier: "email"
-    display_name: "name"
-    email: "email"
+[database]
+USER = pgrokd
+PASSWORD = pgrokd
+
+[identity_provider]
+TYPE = oidc
+DISPLAY_NAME = OIDC
+ISSUER = http://localhost:9833
+CLIENT_ID = winnerwinner
+CLIENT_SECRET = chickendinner
 ```
 
 ## Step 5: Start the servers

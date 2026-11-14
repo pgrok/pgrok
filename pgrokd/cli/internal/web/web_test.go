@@ -4,23 +4,21 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/pgrok/pgrok/internal/conf"
 )
 
 func TestCheckEmail(t *testing.T) {
-	newIdP := func(requiredDomain string, allowedEmails ...string) *conf.IdentityProvider {
-		idp := &conf.IdentityProvider{
+	newIdP := func(requiredDomain string, allowedEmails ...string) *IdentityProvider {
+		idp := &IdentityProvider{
 			RequiredDomain: requiredDomain,
 			AllowedEmails:  allowedEmails,
+			ClaimEmail:     "email",
 		}
-		idp.FieldMapping.Email = "email"
 		return idp
 	}
 
 	tests := []struct {
 		name    string
-		idp     *conf.IdentityProvider
+		idp     *IdentityProvider
 		claims  map[string]any
 		wantErr string
 	}{
