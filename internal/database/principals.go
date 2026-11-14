@@ -16,6 +16,7 @@ type Principal struct {
 	Token       string
 	Subdomain   string
 	LastTCPPort int
+	Blocked     bool // Whether the principal is blocked by an admin.
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
@@ -71,4 +72,20 @@ func (db *DB) UpdatePrincipalLastTCPPort(ctx context.Context, id int64, port int
 func (db *DB) RegeneratePrincipalToken(ctx context.Context, id int64) (string, error) {
 	token := newPrincipalToken()
 	return token, db.WithContext(ctx).Model(&Principal{}).Where("id = ?", id).Update("token", token).Error
+}
+
+// ListPrincipals returns all principals ordered by their IDs.
+func (db *DB) ListPrincipals(ctx context.Context) ([]*Principal, error) {
+	var principals []*Principal
+	return principals, db.WithContext(ctx).Order("id").Find(&principals).Error
+}
+
+// DeletePrincipalByID deletes the principal with given id.
+func (db *DB) DeletePrincipalByID(ctx context.Context, id int64) error {
+	return db.WithContext(ctx).Where("id = ?", id).Delete(&Principal{}).Error
+}
+
+// UpdatePrincipalBlocked updates whether the principal is blocked.
+func (db *DB) UpdatePrincipalBlocked(ctx context.Context, id int64, blocked bool) error {
+	return db.WithContext(ctx).Model(&Principal{}).Where("id = ?", id).Update("blocked", blocked).Error
 }

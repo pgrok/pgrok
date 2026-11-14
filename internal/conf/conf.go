@@ -19,6 +19,9 @@ type Config struct {
 	} `yaml:"sshd"`
 	Database         *Database         `yaml:"database"`
 	IdentityProvider *IdentityProvider `yaml:"identity_provider"`
+	// Admins is the list of principal identifiers (as mapped by
+	// "identity_provider.field_mapping.identifier") with admin access.
+	Admins []string `yaml:"admins"`
 }
 
 type Proxy struct {

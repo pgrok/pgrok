@@ -36,3 +36,30 @@ export interface Tunnel {
    */
   connectedAt: string;
 }
+
+/**
+ * A user as returned by the `/api/admin/principals`.
+ */
+export interface AdminPrincipal {
+  id: number;
+  displayName: string;
+  identifier: string;
+  subdomain: string;
+  createdAt: string;
+  blocked: boolean;
+  isAdmin: boolean;
+  /**
+   * Whether it is the signed-in admin.
+   */
+  isSelf: boolean;
+  activeTunnels: number;
+}
+
+/**
+ * An active tunnel with its owner as returned by the `/api/admin/tunnels`.
+ */
+export interface AdminTunnel extends Tunnel {
+  ownerId: number;
+  ownerDisplayName: string;
+  ownerIdentifier: string;
+}

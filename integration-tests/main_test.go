@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/cookiejar"
+	neturl "net/url"
 	"os"
 	"os/exec"
 	"strconv"
@@ -20,6 +21,7 @@ import (
 
 	charmlog "charm.land/log/v2"
 	"github.com/flamego/flamego"
+	"github.com/flamego/session"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/sourcegraph/run"
@@ -29,6 +31,9 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/net/publicsuffix"
 	"unknwon.dev/x/logx"
+
+	"github.com/pgrok/pgrok/internal/conf"
+	"github.com/pgrok/pgrok/internal/database"
 )
 
 var logger = logx.New(charmlog.NewWithOptions(os.Stderr, charmlog.Options{ReportTimestamp: true}))
@@ -210,21 +215,25 @@ func authenticateUser() (token, url string, _ error) {
 	}
 	logger.Info("Got user info", "body", string(body))
 
-	var userInfo map[string]string
+	var userInfo struct {
+		Token      string `json:"token"`
+		URL        string `json:"url"`
+		RemoteAddr string `json:"remoteAddr"`
+	}
 	err = json.Unmarshal(body, &userInfo)
 	if err != nil {
 		return "", "", errors.Wrap(err, "unmarshal user info")
 	}
 
-	token = userInfo["token"]
-	url = userInfo["url"]
+	token = userInfo.Token
+	url = userInfo.URL
 	if token == "" || url == "" {
 		return "", "", errors.New(`"token" or "url" not found`)
 	}
 
 	// The dashboard builds the copy-paste "pgrok init --remote-addr" command
 	// from this value, so it must match the address clients actually dial.
-	if got, want := userInfo["remoteAddr"], "localhost:2222"; got != want {
+	if got, want := userInfo.RemoteAddr, "localhost:2222"; got != want {
 		return "", "", errors.Errorf(`unexpected "remoteAddr": want %q but got %q`, want, got)
 	}
 	return token, url, nil
@@ -255,6 +264,10 @@ func setupPgrok(ctx context.Context, protocol string, port int) (endpoint string
 }
 
 func setupPgrokWithSubdomain(ctx context.Context, protocol string, port int, subdomain string) (endpoint string, shutdown func() error, _ error) {
+	return setupPgrokWithToken(ctx, token, protocol, port, subdomain)
+}
+
+func setupPgrokWithToken(ctx context.Context, token, protocol string, port int, subdomain string) (endpoint string, shutdown func() error, _ error) {
 	err := run.Cmd(ctx, "go", "build", "-o", "../.bin/pgrok", "../pgrok/cli").Run().Wait()
 	if err != nil {
 		return "", nil, errors.Wrap(err, "go build")
@@ -607,4 +620,226 @@ func TestLiveTunnels(t *testing.T) {
 		_, ok := findTunnel(func(t liveTunnel) bool { return t.URL == tunnelURL && t.ID != tunnel.ID })
 		return ok
 	}, 15*time.Second, 200*time.Millisecond)
+}
+
+type adminPrincipal struct {
+	ID            int64  `json:"id"`
+	Identifier    string `json:"identifier"`
+	Blocked       bool   `json:"blocked"`
+	IsSelf        bool   `json:"isSelf"`
+	ActiveTunnels int    `json:"activeTunnels"`
+}
+
+type adminTunnel struct {
+	liveTunnel
+	OwnerIdentifier string `json:"ownerIdentifier"`
+}
+
+// getJSON sends a GET request to the web server and decodes the JSON response
+// into v on success. It returns the status code.
+func getJSON(client *http.Client, path string, v any) (int, error) {
+	resp, err := client.Get("http://localhost:3320" + path)
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if v != nil && resp.StatusCode == http.StatusOK {
+		return resp.StatusCode, json.NewDecoder(resp.Body).Decode(v)
+	}
+	return resp.StatusCode, nil
+}
+
+// doRequest sends a request to the web server and returns the status code.
+func doRequest(t *testing.T, client *http.Client, method, path, contentType, body string) int {
+	req, err := http.NewRequest(method, "http://localhost:3320"+path, strings.NewReader(body))
+	require.NoError(t, err)
+	if contentType != "" {
+		req.Header.Set("Content-Type", contentType)
+	}
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	_ = resp.Body.Close()
+	return resp.StatusCode
+}
+
+func dialSSH(token string) error {
+	client, err := ssh.Dial("tcp", "localhost:2222", &ssh.ClientConfig{
+		User:            "pgrok",
+		Auth:            []ssh.AuthMethod{ssh.Password(token)},
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+	})
+	if err != nil {
+		return err
+	}
+	return client.Close()
+}
+
+func TestAdmin(t *testing.T) {
+	ctx := context.Background()
+
+	config, err := conf.Load("pgrokd.yml")
+	require.NoError(t, err)
+	db, err := database.New(ctx, logger, config.Database)
+	require.NoError(t, err)
+
+	// The mock OIDC server has only one user, who is an admin, so insert a
+	// non-admin principal with a dashboard session directly in the database.
+	other, err := db.UpsertPrincipal(ctx, database.UpsertPrincipalOptions{
+		Identifier:  "mallory@example.com",
+		DisplayName: "Mallory",
+		Subdomain:   "mallory",
+	})
+	require.NoError(t, err)
+	sessionID := strings.ReplaceAll(uuid.NewString(), "-", "")[:16]
+	sessionData, err := session.GobEncoder(session.Data{"userID": other.ID})
+	require.NoError(t, err)
+	err = db.Exec(`INSERT INTO sessions (key, data, expired_at) VALUES (?, ?, ?)`, sessionID, sessionData, time.Now().Add(time.Hour)).Error
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, db.Exec(`DELETE FROM sessions WHERE key = ?`, sessionID).Error)
+		require.NoError(t, db.Delete(&database.Principal{}, other.ID).Error)
+	})
+	jar, err := cookiejar.New(nil)
+	require.NoError(t, err)
+	webURL, err := neturl.Parse("http://localhost:3320")
+	require.NoError(t, err)
+	jar.SetCookies(webURL, []*http.Cookie{{Name: "pgrokd_session", Value: sessionID}})
+	otherClient := &http.Client{Jar: jar}
+
+	var userInfo map[string]any
+	status, err := getJSON(otherClient, "/api/user-info", &userInfo)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, status)
+	assert.Equal(t, false, userInfo["isAdmin"])
+	status, err = getJSON(webClient, "/api/user-info", &userInfo)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, status)
+	assert.Equal(t, true, userInfo["isAdmin"])
+
+	// Signed-out users and non-admins are rejected.
+	status, err = getJSON(http.DefaultClient, "/api/admin/principals", nil)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusUnauthorized, status)
+	for _, path := range []string{"/api/admin/principals", "/api/admin/tunnels"} {
+		status, err = getJSON(otherClient, path, nil)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusForbidden, status, path)
+	}
+	otherPath := fmt.Sprintf("/api/admin/principals/%d", other.ID)
+	assert.Equal(t, http.StatusForbidden, doRequest(t, otherClient, http.MethodPatch, otherPath, "application/json", `{"blocked":true}`))
+	assert.Equal(t, http.StatusForbidden, doRequest(t, otherClient, http.MethodDelete, otherPath, "application/json", `{}`))
+	assert.Equal(t, http.StatusForbidden, doRequest(t, otherClient, http.MethodDelete, "/api/admin/tunnels/"+uuid.NewString(), "application/json", `{}`))
+
+	// The admin sees all users and tunnels with their owners.
+	adminEndpoint, shutdownAdminPgrok, err := setupPgrok(ctx, "http", 0)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, shutdownAdminPgrok()) })
+	otherEndpoint, shutdownOtherPgrok, err := setupPgrokWithToken(ctx, other.Token, "http", 0, "")
+	require.NoError(t, err)
+	// The client exits by itself once its token is rejected.
+	t.Cleanup(func() { _ = shutdownOtherPgrok() })
+
+	listPrincipals := func() map[string]adminPrincipal {
+		var principals []adminPrincipal
+		status, err := getJSON(webClient, "/api/admin/principals", &principals)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, status)
+		byIdentifier := make(map[string]adminPrincipal)
+		for _, p := range principals {
+			byIdentifier[p.Identifier] = p
+		}
+		return byIdentifier
+	}
+	listTunnels := func() (map[string]adminTunnel, error) {
+		var tunnels []adminTunnel
+		status, err := getJSON(webClient, "/api/admin/tunnels", &tunnels)
+		if err != nil || status != http.StatusOK {
+			return nil, errors.Errorf("list tunnels: status %d, error %v", status, err)
+		}
+		byURL := make(map[string]adminTunnel)
+		for _, t := range tunnels {
+			byURL[t.URL] = t
+		}
+		return byURL, nil
+	}
+
+	principals := listPrincipals()
+	assert.True(t, principals["unknwon@example.com"].IsSelf)
+	assert.GreaterOrEqual(t, principals["unknwon@example.com"].ActiveTunnels, 1)
+	assert.Equal(t, adminPrincipal{ID: other.ID, Identifier: "mallory@example.com", ActiveTunnels: 1}, principals["mallory@example.com"])
+
+	tunnels, err := listTunnels()
+	require.NoError(t, err)
+	assert.Equal(t, "unknwon@example.com", tunnels["http://"+adminEndpoint].OwnerIdentifier)
+	otherTunnel, ok := tunnels["http://"+otherEndpoint]
+	require.True(t, ok, "tunnel %q is not listed", otherEndpoint)
+	assert.Equal(t, "mallory@example.com", otherTunnel.OwnerIdentifier)
+
+	// State-changing endpoints only accept JSON to guard against cross-site
+	// requests.
+	assert.Equal(t, http.StatusUnsupportedMediaType, doRequest(t, webClient, http.MethodDelete, "/api/admin/tunnels/"+otherTunnel.ID, "", ""))
+	assert.Equal(t, http.StatusUnsupportedMediaType, doRequest(t, webClient, http.MethodPatch, otherPath, "text/plain", `{"blocked":true}`))
+
+	assert.Equal(t, http.StatusUnsupportedMediaType, doRequest(t, webClient, http.MethodDelete, otherPath, "", ""))
+
+	// Admins cannot block or delete themselves.
+	selfPath := fmt.Sprintf("/api/admin/principals/%d", principals["unknwon@example.com"].ID)
+	assert.Equal(t, http.StatusBadRequest, doRequest(t, webClient, http.MethodPatch, selfPath, "application/json", `{"blocked":true}`))
+	assert.Equal(t, http.StatusBadRequest, doRequest(t, webClient, http.MethodDelete, selfPath, "application/json", `{}`))
+
+	// Blocking disconnects the tunnels, rejects the dashboard session and new SSH
+	// connections.
+	require.Equal(t, http.StatusNoContent, doRequest(t, webClient, http.MethodPatch, otherPath, "application/json", `{"blocked":true}`))
+	require.Eventually(t, func() bool {
+		tunnels, err := listTunnels()
+		_, ok := tunnels["http://"+otherEndpoint]
+		return err == nil && !ok
+	}, 5*time.Second, 100*time.Millisecond)
+	principals = listPrincipals()
+	assert.True(t, principals["mallory@example.com"].Blocked)
+	assert.Zero(t, principals["mallory@example.com"].ActiveTunnels)
+	status, err = getJSON(otherClient, "/api/user-info", nil)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusUnauthorized, status)
+	assert.ErrorContains(t, dialSSH(other.Token), "unable to authenticate")
+
+	// Unblocking restores access with the same token.
+	require.Equal(t, http.StatusNoContent, doRequest(t, webClient, http.MethodPatch, otherPath, "application/json", `{"blocked":false}`))
+	status, err = getJSON(otherClient, "/api/user-info", nil)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, status)
+	require.NoError(t, dialSSH(other.Token))
+	endpoint, shutdownOtherPgrok, err := setupPgrokWithToken(ctx, other.Token, "http", 0, "")
+	require.NoError(t, err)
+	// The client exits by itself once the principal is deleted.
+	t.Cleanup(func() { _ = shutdownOtherPgrok() })
+	require.Eventually(t, func() bool {
+		tunnels, err := listTunnels()
+		return err == nil && tunnels["http://"+endpoint].OwnerIdentifier == "mallory@example.com"
+	}, 5*time.Second, 100*time.Millisecond)
+
+	// Admins can disconnect any tunnel.
+	tunnels, err = listTunnels()
+	require.NoError(t, err)
+	require.Equal(t, http.StatusNoContent, doRequest(t, webClient, http.MethodDelete, "/api/admin/tunnels/"+tunnels["http://"+endpoint].ID, "application/json", `{}`))
+	assert.Equal(t, http.StatusNotFound, doRequest(t, webClient, http.MethodDelete, "/api/admin/tunnels/"+uuid.NewString(), "application/json", `{}`))
+
+	// Deleting disconnects the tunnels of the client once it has reconnected,
+	// rejects the token and the dashboard session, and removes the user.
+	require.Eventually(t, func() bool {
+		tunnels, err := listTunnels()
+		return err == nil && tunnels["http://"+endpoint].OwnerIdentifier == "mallory@example.com"
+	}, 15*time.Second, 200*time.Millisecond)
+	require.Equal(t, http.StatusNoContent, doRequest(t, webClient, http.MethodDelete, otherPath, "application/json", `{}`))
+	require.Eventually(t, func() bool {
+		tunnels, err := listTunnels()
+		_, ok := tunnels["http://"+endpoint]
+		return err == nil && !ok
+	}, 5*time.Second, 100*time.Millisecond)
+	assert.NotContains(t, listPrincipals(), "mallory@example.com")
+	status, err = getJSON(otherClient, "/api/user-info", nil)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusUnauthorized, status)
+	assert.ErrorContains(t, dialSSH(other.Token), "unable to authenticate")
+	assert.Equal(t, http.StatusNotFound, doRequest(t, webClient, http.MethodDelete, otherPath, "application/json", `{}`))
 }
