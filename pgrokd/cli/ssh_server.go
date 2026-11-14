@@ -9,6 +9,7 @@ import (
 	"github.com/pgrok/pgrok/internal/database"
 	"github.com/pgrok/pgrok/internal/reverseproxy"
 	"github.com/pgrok/pgrok/internal/sshd"
+	"github.com/pgrok/pgrok/internal/tunnels"
 )
 
 func runSSHServer(
@@ -18,6 +19,7 @@ func runSSHServer(
 	proxy conf.Proxy,
 	db *database.DB,
 	proxies *reverseproxy.Cluster,
+	registry *tunnels.Registry,
 ) error {
 	return sshd.Start(
 		ctx,
@@ -26,5 +28,6 @@ func runSSHServer(
 		proxy,
 		db,
 		proxies,
+		registry,
 	)
 }
