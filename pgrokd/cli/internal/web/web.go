@@ -16,14 +16,43 @@ import (
 	"golang.org/x/oauth2"
 	"unknwon.dev/x/logx"
 
-	"github.com/pgrok/pgrok/internal/conf"
 	"github.com/pgrok/pgrok/internal/database"
 	"github.com/pgrok/pgrok/internal/strutil"
 	"github.com/pgrok/pgrok/internal/userutil"
 )
 
+// Config is the settings of the web server.
+type Config struct {
+	Port        int
+	ExternalURL string
+	// ProxyScheme and ProxyDomain make up the URLs of HTTP tunnels.
+	ProxyScheme string
+	ProxyDomain string
+	// SSHDPort is the port that clients connect to, shown on the dashboard.
+	SSHDPort int
+	// IdentityProvider is nil when no identity provider is configured.
+	IdentityProvider *IdentityProvider
+}
+
+// IdentityProvider is the [identity_provider] section of the config.
+type IdentityProvider struct {
+	Type         string `ini:"TYPE"`
+	DisplayName  string `ini:"DISPLAY_NAME"`
+	Issuer       string `ini:"ISSUER"`
+	ClientID     string `ini:"CLIENT_ID"`
+	ClientSecret string `ini:"CLIENT_SECRET"`
+	// The claims to read the identifier, display name and email of a user from.
+	ClaimIdentifier  string `ini:"CLAIM_IDENTIFIER"`
+	ClaimDisplayName string `ini:"CLAIM_DISPLAY_NAME"`
+	ClaimEmail       string `ini:"CLAIM_EMAIL"`
+
+	RequiredDomain string   `ini:"REQUIRED_DOMAIN"`
+	AllowedEmails  []string `ini:"ALLOWED_EMAILS"`
+}
+
 // NewServer constructs the HTTP server that serves the web UI and the JSON API.
-func NewServer(logger *logx.Logger, config *conf.Config, db *database.DB) (*http.Server, error) {
+// Sessions are stored in the database of dbConfig.
+func NewServer(logger *logx.Logger, config *Config, dbConfig database.Config, db *database.DB) (*http.Server, error) {
 	f := flamego.New()
 	f.Use(flamego.Logger())
 	f.Use(flamego.Recovery())
@@ -38,7 +67,7 @@ func NewServer(logger *logx.Logger, config *conf.Config, db *database.DB) (*http
 		session.Options{
 			Initer: postgres.Initer(),
 			Config: postgres.Config{
-				DSN:       postgresDSN(config.Database),
+				DSN:       postgresDSN(dbConfig),
 				Table:     "sessions",
 				InitTable: true,
 			},
@@ -71,7 +100,7 @@ func NewServer(logger *logx.Logger, config *conf.Config, db *database.DB) (*http
 		f.Get("/sign-out", getSignOut)
 	})
 
-	address := fmt.Sprintf("0.0.0.0:%d", config.Web.Port)
+	address := fmt.Sprintf("0.0.0.0:%d", config.Port)
 	logger.Info("Web server listening on",
 		"address", address,
 		"env", flamego.Env(),
@@ -84,14 +113,14 @@ func NewServer(logger *logx.Logger, config *conf.Config, db *database.DB) (*http
 
 // postgresDSN builds the session store DSN, handling both TCP hosts and UNIX
 // domain sockets.
-func postgresDSN(config *conf.Database) string {
+func postgresDSN(config database.Config) string {
 	// Check if the host is a UNIX domain socket
 	if strings.HasPrefix(config.Host, "/") {
 		return fmt.Sprintf("postgres://%s:%s@localhost:%d/%s?host=%s",
 			config.User,
 			config.Password,
 			config.Port,
-			config.Database,
+			config.Name,
 			config.Host,
 		)
 	}
@@ -100,7 +129,7 @@ func postgresDSN(config *conf.Database) string {
 		config.Password,
 		config.Host,
 		config.Port,
-		config.Database,
+		config.Name,
 	)
 }
 
@@ -207,7 +236,7 @@ type idpUserInfo struct {
 	DisplayName string
 }
 
-func handleOIDCCallback(ctx context.Context, logger *logx.Logger, idp *conf.IdentityProvider, redirectURL, code, nonce string) (*idpUserInfo, error) {
+func handleOIDCCallback(ctx context.Context, logger *logx.Logger, idp *IdentityProvider, redirectURL, code, nonce string) (*idpUserInfo, error) {
 	p, err := oidc.NewProvider(ctx, idp.Issuer)
 	if err != nil {
 		return nil, errors.Wrap(err, "create new provider")
@@ -256,16 +285,16 @@ func handleOIDCCallback(ctx context.Context, logger *logx.Logger, idp *conf.Iden
 	logger.DebugContext(ctx, "User info", "claims", claims)
 
 	userInfo := &idpUserInfo{}
-	if v, ok := claims[idp.FieldMapping.Identifier].(string); ok {
+	if v, ok := claims[idp.ClaimIdentifier].(string); ok {
 		userInfo.Identifier = v
 	}
 	if userInfo.Identifier == "" {
-		return nil, errors.Errorf("the field %q is not found in claims or has empty value", idp.FieldMapping.Identifier)
+		return nil, errors.Errorf("the field %q is not found in claims or has empty value", idp.ClaimIdentifier)
 	}
 
 	// Best effort to map optional fields
-	if idp.FieldMapping.DisplayName != "" {
-		if v, ok := claims[idp.FieldMapping.DisplayName].(string); ok {
+	if idp.ClaimDisplayName != "" {
+		if v, ok := claims[idp.ClaimDisplayName].(string); ok {
 			userInfo.DisplayName = v
 		}
 	}
@@ -281,9 +310,9 @@ func handleOIDCCallback(ctx context.Context, logger *logx.Logger, idp *conf.Iden
 }
 
 // checkEmail returns an error if the email in the claims is not allowed to
-// sign in. Both "required_domain" and "allowed_emails" apply when set.
-func checkEmail(idp *conf.IdentityProvider, claims map[string]any) error {
-	email, _ := claims[idp.FieldMapping.Email].(string)
+// sign in. Both REQUIRED_DOMAIN and ALLOWED_EMAILS apply when set.
+func checkEmail(idp *IdentityProvider, claims map[string]any) error {
+	email, _ := claims[idp.ClaimEmail].(string)
 	if idp.RequiredDomain != "" {
 		if !strings.HasSuffix(strings.ToLower(email), "@"+strings.ToLower(idp.RequiredDomain)) {
 			return errors.Errorf("the email %q does not have required domain %q", email, idp.RequiredDomain)

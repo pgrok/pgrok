@@ -1,42 +1,30 @@
 # Deploy with single binary
 
-1. Create a `pgrokd.yml` file:
-    ```yaml
-    external_url: "http://example.com"
-    web:
-      port: 3320
-    proxy:
-      port: 3000
-      scheme: "http"
-      domain: "example.com"
-    sshd:
-      port: 2222
+> **Note**: Upgrading from an older version? See [`pgrokd.example.ini`](../../pgrokd.example.ini) for the current config layout.
 
-    database:
-      host: "localhost"
-      port: 5432
-      user: "REDACTED"
-      password: "REDACTED"
-      database: "pgrokd"
+1. Create a `pgrokd.ini` file. Only set the options to change, all options and their defaults are listed in [`config.ini`](../../pgrokd/cli/internal/embed/config.ini).
+    ```ini
+    [server]
+    EXTERNAL_URL = http://example.com
 
-    identity_provider:
-      type: "oidc"
-      display_name: "Google"
-      issuer: "https://accounts.google.com"
-      client_id: "REDACTED"
-      client_secret: "REDACTED"
-      field_mapping:
-        identifier: "email"
-        display_name: "name"
-        email: "email"
-    #  # The required domain name, "field_mapping.email" is required to set for this to work.
-    #  required_domain: "example.com"
-    #  # Only these emails may sign in (case-insensitive), "field_mapping.email" is required to set for this to work.
-    #  # When "required_domain" is also set, both must match.
-    #  allowed_emails:
-    #    - "alice@example.com"
-    #    - "bob@example.com"
+    [proxy]
+    DOMAIN = example.com
+
+    [database]
+    USER = REDACTED
+    PASSWORD = REDACTED
+
+    [identity_provider]
+    TYPE = oidc
+    DISPLAY_NAME = Google
+    ISSUER = https://accounts.google.com
+    CLIENT_ID = REDACTED
+    CLIENT_SECRET = REDACTED
+    ; Only allow emails of this domain to sign in.
+    ;REQUIRED_DOMAIN = example.com
+    ; Only allow these emails to sign in (case-insensitive). When REQUIRED_DOMAIN is also set, both must match.
+    ;ALLOWED_EMAILS = alice@example.com, bob@example.com
     ```
 1. Download the latest version of the `pgrokd` archive from the [Releases](https://github.com/pgrok/pgrok/releases) page.
 1. Launch the `pgrokd` in background (systemd, screen, nohup).
-    1. By default, `pgrokd` expects the `pgrokd.yml` is available in the working directory. Use `--config` flag to specify a different path for the config file.
+    1. By default, `pgrokd` expects the `pgrokd.ini` is available in the working directory. Use `--config` flag to specify a different path for the config file.

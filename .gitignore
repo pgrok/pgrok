@@ -4,6 +4,7 @@ dist
 
 # Configuration and application files
 /pgrokd.yml
+/pgrokd.ini
 /pgrok.yml
 .idea
 .envrc

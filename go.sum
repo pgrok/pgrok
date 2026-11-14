@@ -229,5 +229,7 @@ mvdan.cc/gofumpt v0.5.0 h1:0EQ+Z56k8tXjj/6TQD25BFNKQXpCvT0rnansIc7Ug5E=
 mvdan.cc/gofumpt v0.5.0/go.mod h1:HBeVDtMKRZpXyxFciAirzdKklDlGu8aAy1wEbH5Y9js=
 rsc.io/qr v0.2.0 h1:6vBLea5/NRMVTz8V66gipeLycZMl/+UlFmk8DvqQ6WY=
 rsc.io/qr v0.2.0/go.mod h1:IF+uZjkb9fqyeF/4tlBoynqmQxUoPfWEKh921coOuXs=
+unknwon.dev/ini/v2 v2.0.0-beta.4 h1:W1mOu7vP8QCdq1b6rDFzYmzZs/vQ4FCIRbQVgZ82z3U=
+unknwon.dev/ini/v2 v2.0.0-beta.4/go.mod h1:pEeiEmFhx52IIFUwFqZcepgj8i3AFkxt9yDO4xHK45w=
 unknwon.dev/x v0.0.0-20260601135813-58f5fd8eb988 h1:Px9LZaAWIj0jCAeeN4YI4M/7b8SdbFAn2NJXp0ZaMHc=
 unknwon.dev/x v0.0.0-20260601135813-58f5fd8eb988/go.mod h1:Ks814GgzihBUdNtUs73mudIRE+tENn+SqjdvJsXLLGA=

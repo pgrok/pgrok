@@ -13,7 +13,7 @@ import (
 
 func getUserInfo(c *Context, r flamego.Render) {
 	// Assume clients reach the SSH server at the host of the external URL on
-	// sshd.port, matching the documented setups (e.g., "external_url:
+	// the SSHD port, matching the documented setups (e.g., "EXTERNAL_URL =
 	// http://example.com" with "pgrok init --remote-addr example.com:2222").
 	var sshHost string
 	if u, err := url.Parse(c.Config.ExternalURL); err == nil {
@@ -23,8 +23,8 @@ func getUserInfo(c *Context, r flamego.Render) {
 	r.JSON(http.StatusOK, map[string]string{
 		"displayName": c.Principal.DisplayName,
 		"token":       c.Principal.Token,
-		"url":         c.Config.Proxy.Scheme + "://" + c.Principal.Subdomain + "." + c.Config.Proxy.Domain,
-		"remoteAddr":  net.JoinHostPort(sshHost, strconv.Itoa(c.Config.SSHD.Port)),
+		"url":         c.Config.ProxyScheme + "://" + c.Principal.Subdomain + "." + c.Config.ProxyDomain,
+		"remoteAddr":  net.JoinHostPort(sshHost, strconv.Itoa(c.Config.SSHDPort)),
 	})
 }
 

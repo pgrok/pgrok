@@ -11,11 +11,21 @@ import (
 	"golang.org/x/crypto/ssh"
 	"unknwon.dev/x/logx"
 
-	"github.com/pgrok/pgrok/internal/conf"
 	"github.com/pgrok/pgrok/internal/cryptoutil"
 	"github.com/pgrok/pgrok/internal/database"
 	"github.com/pgrok/pgrok/internal/reverseproxy"
 )
+
+// ProxyConfig is how tunnels are exposed to the public, read from the [proxy]
+// section of the config.
+type ProxyConfig struct {
+	Scheme string `ini:"SCHEME"`
+	Domain string `ini:"DOMAIN"`
+	// TCPDomain is the domain of TCP tunnels, Domain is used when empty.
+	TCPDomain    string `ini:"TCP_DOMAIN"`
+	TCPPortStart int    `ini:"TCP_PORT_START"`
+	TCPPortEnd   int    `ini:"TCP_PORT_END"`
+}
 
 // Start starts a SSH server listening on the given port. It returns when ctx is
 // canceled or the listener is closed.
@@ -23,7 +33,7 @@ func Start(
 	ctx context.Context,
 	logger *logx.Logger,
 	port int,
-	proxy conf.Proxy,
+	proxy ProxyConfig,
 	db *database.DB,
 	proxies *reverseproxy.Cluster,
 ) error {
