@@ -57,7 +57,10 @@ export default function LiveTunnels() {
       </Card.Header>
       <Card.Content>
         {error && (
-          <p role="alert" className="mb-4 rounded border-2 border-destructive px-3 py-2 text-sm text-destructive">
+          <p
+            role="alert"
+            className="mb-4 rounded border-2 border-black bg-destructive px-3 py-2 font-head text-sm text-destructive-foreground shadow-md"
+          >
             {error === FETCH_ERROR && tunnels !== undefined
               ? "Failed to fetch live tunnels, you are viewing a stale list. Retrying shortly."
               : error}
