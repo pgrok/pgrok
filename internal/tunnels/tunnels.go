@@ -16,6 +16,7 @@ type Tunnel struct {
 	PrincipalID int64     // The ID of the principal who owns the tunnel.
 	Protocol    string    // Either "http" or "tcp".
 	URL         string    // The public URL, as returned to the client in "server-info".
+	Host        string    // The host routed by the HTTP proxy, empty for TCP tunnels.
 	RemoteAddr  string    // The remote address of the SSH client.
 	ConnectedAt time.Time // The time when the tunnel was established.
 
@@ -32,11 +33,15 @@ func (t Tunnel) Close() error {
 type Registry struct {
 	mu      sync.RWMutex
 	tunnels map[string]Tunnel
+	hosts   map[string]string // Host -> ID of HTTP tunnels
 }
 
 // NewRegistry returns a new Registry.
 func NewRegistry() *Registry {
-	return &Registry{tunnels: make(map[string]Tunnel)}
+	return &Registry{
+		tunnels: make(map[string]Tunnel),
+		hosts:   make(map[string]string),
+	}
 }
 
 // Add assigns a new ID to the tunnel and adds it to the registry. The closer is
@@ -49,10 +54,17 @@ func (r *Registry) Add(t Tunnel, closer func() error) (remove func()) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.tunnels[t.ID] = t
+	if t.Host != "" {
+		r.hosts[t.Host] = t.ID
+	}
 	return func() {
 		r.mu.Lock()
 		defer r.mu.Unlock()
 		delete(r.tunnels, t.ID)
+		// The host may have been taken over by a newer tunnel already.
+		if t.Host != "" && r.hosts[t.Host] == t.ID {
+			delete(r.hosts, t.Host)
+		}
 	}
 }
 
@@ -62,6 +74,15 @@ func (r *Registry) Get(id string) (Tunnel, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	t, ok := r.tunnels[id]
+	return t, ok
+}
+
+// GetByHost returns the HTTP tunnel serving the given host. It returns a
+// boolean to indicate whether such tunnel exists.
+func (r *Registry) GetByHost(host string) (Tunnel, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	t, ok := r.tunnels[r.hosts[host]]
 	return t, ok
 }
 

@@ -25,7 +25,10 @@ type Proxy struct {
 	Port   int    `yaml:"port"`
 	Scheme string `yaml:"scheme"`
 	Domain string `yaml:"domain"`
-	TCP    struct {
+	// Inspector enables recording proxied HTTP requests in memory for their
+	// owners to inspect and replay from the web UI.
+	Inspector bool `yaml:"inspector"`
+	TCP       struct {
 		Domain    string `yaml:"domain"`
 		PortStart int    `yaml:"port_start"`
 		PortEnd   int    `yaml:"port_end"`

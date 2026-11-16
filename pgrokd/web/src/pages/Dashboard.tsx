@@ -5,6 +5,7 @@ import CopyButton from "../components/CopyButton";
 import GetStarted from "../components/GetStarted";
 import LiveTunnels from "../components/LiveTunnels";
 import RegenerateToken from "../components/RegenerateToken";
+import RequestInspector from "../components/RequestInspector";
 import ThemeToggle from "../components/ThemeToggle";
 import useUser from "../hooks/useUser";
 
@@ -62,6 +63,7 @@ export default function DashboardPage() {
         </Card>
 
         <LiveTunnels />
+        <RequestInspector />
 
         <GetStarted />
       </main>

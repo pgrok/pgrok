@@ -178,6 +178,14 @@ The "Live tunnels" card on the dashboard lists your active tunnels with their pu
 
 Use the "Disconnect" button to close a tunnel's connection on the server side, e.g., to kick a forgotten client. Note that `pgrok` reconnects automatically, so stop the client itself to end a tunnel for good.
 
+#### Request inspector
+
+When the server admin enables it with `proxy.inspector: true` in `pgrokd.yml`, the "Requests" card on the dashboard lists the latest HTTP requests to your tunnels (with `pgrok` or vanilla SSH) and refreshes every few seconds. Select a request to see its headers and bodies (JSON is pretty-printed), and use "Replay" to send it again through the same host, which shows up as a new request marked as a replay.
+
+- Only you can see requests to your tunnels. Values of `Authorization`, `Proxy-Authorization`, `Cookie` and `Set-Cookie` headers are shown as `[redacted]`, but replays send the original values.
+- The last 200 requests per user are kept in the server's memory only and are gone once `pgrokd` restarts. Bodies are captured up to 64 KiB each, and requests with larger bodies cannot be replayed.
+- Bodies of server-sent events and upgraded connections (e.g., WebSocket) are not captured, and such requests show up once they end.
+
 ### Vanilla SSH
 
 Because the standard SSH protocol is used for tunneling, you may well just use the vanilla SSH client.

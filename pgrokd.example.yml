@@ -13,6 +13,11 @@ proxy:
   scheme: "http"
   # The domain name of the proxy URLs.
   domain: "localhost:3000"
+  # Whether to record the latest HTTP requests to each user's tunnels in memory, so
+  # that they can inspect and replay them on the dashboard. Captured headers and
+  # bodies may contain credentials of anyone who visits the tunnels, only the
+  # tunnel owner can see them, and credential headers are redacted on display.
+  inspector: false
   # Optional settings for the TCP proxy.
   tcp:
     # The domain name of the proxy URLs - defaults to proxy.domain value

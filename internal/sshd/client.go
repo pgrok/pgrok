@@ -271,16 +271,17 @@ func (c *Client) handleTCPIPForward(
 		c.signalReady(nil)
 	}
 
-	removeTunnel := registry.Add(
-		tunnels.Tunnel{
-			PrincipalID: c.principal.ID,
-			Protocol:    c.protocol,
-			URL:         c.hostURL(proxy),
-			RemoteAddr:  c.serverConn.RemoteAddr().String(),
-			ConnectedAt: time.Now(),
-		},
-		c.serverConn.Close,
-	)
+	tunnel := tunnels.Tunnel{
+		PrincipalID: c.principal.ID,
+		Protocol:    c.protocol,
+		URL:         c.hostURL(proxy),
+		RemoteAddr:  c.serverConn.RemoteAddr().String(),
+		ConnectedAt: time.Now(),
+	}
+	if c.protocol == "http" {
+		tunnel.Host = c.host
+	}
+	removeTunnel := registry.Add(tunnel, c.serverConn.Close)
 	defer removeTunnel()
 
 	_ = req.Reply(true, ssh.Marshal(payload))

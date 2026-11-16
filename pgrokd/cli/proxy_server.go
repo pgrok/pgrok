@@ -10,10 +10,10 @@ import (
 	"github.com/pgrok/pgrok/internal/reverseproxy"
 )
 
-func newProxyServer(logger *logx.Logger, port int, proxies *reverseproxy.Cluster) *http.Server {
-	f := flamego.New()
-	f.Use(flamego.Recovery())
-	f.Any("/{**}", func(w http.ResponseWriter, r *http.Request) {
+// newProxyHandler returns the handler that forwards requests to the reverse
+// proxy of their hosts.
+func newProxyHandler(proxies *reverseproxy.Cluster) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		proxy, ok := proxies.Get(r.Host)
 		if !ok {
 			proxies.ServeNoTunnel(w, r)
@@ -21,6 +21,12 @@ func newProxyServer(logger *logx.Logger, port int, proxies *reverseproxy.Cluster
 		}
 		proxy.ServeHTTP(w, r)
 	})
+}
+
+func newProxyServer(logger *logx.Logger, port int, handler http.Handler) *http.Server {
+	f := flamego.New()
+	f.Use(flamego.Recovery())
+	f.Any("/{**}", handler.ServeHTTP)
 
 	address := fmt.Sprintf("0.0.0.0:%d", port)
 	logger.Info("Server listening on", "address", address)

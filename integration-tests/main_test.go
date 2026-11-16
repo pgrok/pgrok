@@ -608,3 +608,83 @@ func TestLiveTunnels(t *testing.T) {
 		return ok
 	}, 15*time.Second, 200*time.Millisecond)
 }
+
+type inspectedRequest struct {
+	ID              string              `json:"id"`
+	TunnelID        string              `json:"tunnelId"`
+	ReplayOf        string              `json:"replayOf"`
+	Method          string              `json:"method"`
+	Path            string              `json:"path"`
+	Status          int                 `json:"status"`
+	RequestHeaders  map[string][]string `json:"requestHeaders"`
+	ResponseBody    []byte              `json:"responseBody"`
+	ResponseHeaders map[string][]string `json:"responseHeaders"`
+}
+
+func getJSON(t *testing.T, url string, v any) {
+	resp, err := webClient.Get(url)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(v))
+}
+
+func TestRequestInspector(t *testing.T) {
+	ctx := context.Background()
+
+	// Inspecting requires authentication.
+	resp, err := http.Get("http://localhost:3320/api/requests")
+	require.NoError(t, err)
+	_ = resp.Body.Close()
+	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+
+	shutdownEchoServer, err := setupEchoServer(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, shutdownEchoServer()) })
+
+	endpoint, shutdownPgrok, err := setupPgrok(ctx, "http", 0)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, shutdownPgrok()) })
+	tunnel, ok := findTunnel(func(t liveTunnel) bool { return t.URL == "http://"+endpoint })
+	require.True(t, ok)
+
+	body, err := run.Cmd(ctx, "curl", "--silent", "--header", "'Authorization: Bearer secret'",
+		fmt.Sprintf("http://%s/echo?q=inspected", endpoint)).Run().String()
+	require.NoError(t, err)
+	require.Contains(t, body, "inspected")
+
+	// The request is listed for its tunnel with credentials redacted.
+	var requests []inspectedRequest
+	getJSON(t, "http://localhost:3320/api/requests?tunnel="+tunnel.ID, &requests)
+	require.Len(t, requests, 1)
+	original := requests[0]
+	assert.Equal(t, http.MethodGet, original.Method)
+	assert.Equal(t, "/echo?q=inspected", original.Path)
+	assert.Equal(t, http.StatusOK, original.Status)
+
+	var details inspectedRequest
+	getJSON(t, "http://localhost:3320/api/requests/"+original.ID, &details)
+	assert.Equal(t, []string{"[redacted]"}, details.RequestHeaders["Authorization"])
+	assert.Equal(t, "inspected", string(details.ResponseBody))
+
+	// Replaying requires a JSON request to prevent cross-site requests.
+	replayURL := "http://localhost:3320/api/requests/" + original.ID + "/replay"
+	resp, err = webClient.Post(replayURL, "application/x-www-form-urlencoded", nil)
+	require.NoError(t, err)
+	_ = resp.Body.Close()
+	require.Equal(t, http.StatusUnsupportedMediaType, resp.StatusCode)
+
+	resp, err = webClient.Post(replayURL, "application/json", strings.NewReader("{}"))
+	require.NoError(t, err)
+	var replay inspectedRequest
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&replay))
+	_ = resp.Body.Close()
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+	assert.Equal(t, original.ID, replay.ReplayOf)
+	assert.Equal(t, http.StatusOK, replay.Status)
+	assert.Equal(t, "inspected", string(replay.ResponseBody))
+
+	getJSON(t, "http://localhost:3320/api/requests?tunnel="+tunnel.ID, &requests)
+	require.Len(t, requests, 2)
+	assert.Equal(t, replay.ID, requests[0].ID)
+}
