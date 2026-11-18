@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/urfave/cli/v3"
@@ -14,6 +15,7 @@ import (
 	"unknwon.dev/x/logx"
 
 	"github.com/pgrok/pgrok/internal/dynamicforward"
+	"github.com/pgrok/pgrok/internal/tui"
 )
 
 func commandHTTP(homeDir string, logger *logx.Logger) *cli.Command {
@@ -67,6 +69,7 @@ func commandHTTP(homeDir string, logger *logx.Logger) *cli.Command {
 				Usage: `The local address to serve the request inspector on, "false" to disable`,
 				Value: defaultInspectAddr,
 			},
+			tuiFlag,
 		),
 	}
 }
@@ -94,7 +97,7 @@ func actionHTTP(ctx context.Context, cmd *cli.Command, logger *logx.Logger) erro
 	if cmd.IsSet("inspect-addr") {
 		inspectAddr = cmd.String("inspect-addr")
 	}
-	err = runTunnel(logger, tunnel{
+	t := tunnel{
 		protocol:        protocolHTTP,
 		remoteAddr:      cmp.Or(cmd.String("remote-addr"), config.RemoteAddr),
 		forwardAddr:     defaultForwardAddr,
@@ -107,8 +110,13 @@ func actionHTTP(ctx context.Context, cmd *cli.Command, logger *logx.Logger) erro
 			RemoveRequestHeaders: append(config.RemoveRequestHeaders, cmd.StringSlice("remove-request-header")...),
 		},
 		inspectAddr: inspectAddr,
+	}
+	err = runWithTUI(cmd, logger, []tui.Info{tunnelInfo("", configPath, t)}, func(hubs []*tui.Hub) error {
+		return runTunnel(logger, t, hubs[0])
 	})
-	fatalTunnelError(ctx, logger, err)
+	if err != nil {
+		fatalTunnelError(ctx, logger, err)
+	}
 	return nil
 }
 
@@ -117,10 +125,10 @@ const (
 	protocolTCP  string = "tcp"
 )
 
-// tryConnect establishes the tunnel and blocks until it fails. The onReady
-// callback is invoked with the public URL reported by the server (which may be
-// empty) every time the tunnel is up.
-func tryConnect(logger *logx.Logger, protocol, remoteAddr, forwardAddr, token, subdomain, inspectURL string, onReady func(hostURL string)) error {
+// tryConnect establishes the tunnel and blocks until it fails, reporting to
+// hub, which may be nil. The onReady callback is invoked with the public URL
+// reported by the server (which may be empty) every time the tunnel is up.
+func tryConnect(logger *logx.Logger, hub *tui.Hub, protocol, remoteAddr, forwardAddr, token, subdomain, inspectURL string, onReady func(hostURL string)) error {
 	client, err := ssh.Dial(
 		"tcp",
 		remoteAddr,
@@ -135,6 +143,7 @@ func tryConnect(logger *logx.Logger, protocol, remoteAddr, forwardAddr, token, s
 	if err != nil {
 		return errors.Wrap(err, "dial remote server")
 	}
+	defer func() { _ = client.Close() }()
 
 	// Hint the server before establishing the reverse tunnel
 	payload, err := json.Marshal(map[string]string{"protocol": protocol, "subdomain": subdomain})
@@ -180,11 +189,16 @@ func tryConnect(logger *logx.Logger, protocol, remoteAddr, forwardAddr, token, s
 	}
 	logger.Info(message, attrs...)
 	onReady(serverInfo.HostURL)
+	hub.SetOnline(serverInfo.HostURL)
+	if hub != nil {
+		go measureRTT(client, hub)
+	}
 	for {
 		remote, err := remoteListener.Accept()
 		if err != nil {
 			return errors.Wrap(err, "accept connection from server")
 		}
+		remote = hub.TrackConn(remote)
 
 		forward, err := net.Dial("tcp", forwardAddr)
 		if err != nil {
@@ -212,5 +226,19 @@ func tryConnect(logger *logx.Logger, protocol, remoteAddr, forwardAddr, token, s
 			}()
 			<-ctx.Done()
 		}(remote, forward)
+	}
+}
+
+// measureRTT reports the round-trip time to the server every few seconds
+// until the connection closes. The server answers the keepalive request, like
+// any request type it does not know, with a failure.
+func measureRTT(client *ssh.Client, hub *tui.Hub) {
+	for {
+		start := time.Now()
+		if _, _, err := client.SendRequest("keepalive@openssh.com", true, nil); err != nil {
+			return
+		}
+		hub.SetRTT(time.Since(start))
+		time.Sleep(5 * time.Second)
 	}
 }
