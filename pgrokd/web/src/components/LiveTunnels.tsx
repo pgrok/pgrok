@@ -72,7 +72,6 @@ export default function LiveTunnels() {
               <thead>
                 <tr className="border-b-2 border-border">
                   <th className="py-2 pr-4 font-semibold">URL</th>
-                  <th className="py-2 pr-4 font-semibold">Protocol</th>
                   <th className="py-2 pr-4 font-semibold">Connected</th>
                   <th className="py-2 pr-4 font-semibold">Client</th>
                   <th className="py-2">
@@ -129,7 +128,6 @@ function TunnelRow({
           <code className="break-all">{tunnel.url}</code>
         )}
       </td>
-      <td className="py-3 pr-4 uppercase">{tunnel.protocol}</td>
       <td className="whitespace-nowrap py-3 pr-4" title={connectedAt.toLocaleString()}>
         {formatDuration(now - connectedAt.getTime())}
       </td>
