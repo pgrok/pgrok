@@ -530,3 +530,81 @@ func TestErrorPages(t *testing.T) {
 		assert.NotContains(t, body, "dial tcp")
 	})
 }
+
+type liveTunnel struct {
+	ID          string    `json:"id"`
+	Protocol    string    `json:"protocol"`
+	URL         string    `json:"url"`
+	RemoteAddr  string    `json:"remoteAddr"`
+	ConnectedAt time.Time `json:"connectedAt"`
+}
+
+// findTunnel returns the first tunnel listed by the API that matches.
+func findTunnel(match func(liveTunnel) bool) (liveTunnel, bool) {
+	resp, err := webClient.Get("http://localhost:3320/api/tunnels")
+	if err != nil {
+		return liveTunnel{}, false
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	var tunnels []liveTunnel
+	if resp.StatusCode != http.StatusOK || json.NewDecoder(resp.Body).Decode(&tunnels) != nil {
+		return liveTunnel{}, false
+	}
+	for _, tunnel := range tunnels {
+		if match(tunnel) {
+			return tunnel, true
+		}
+	}
+	return liveTunnel{}, false
+}
+
+func deleteTunnel(t *testing.T, id string) int {
+	req, err := http.NewRequest(http.MethodDelete, "http://localhost:3320/api/tunnels/"+id, nil)
+	require.NoError(t, err)
+	resp, err := webClient.Do(req)
+	require.NoError(t, err)
+	_ = resp.Body.Close()
+	return resp.StatusCode
+}
+
+func TestLiveTunnels(t *testing.T) {
+	ctx := context.Background()
+
+	// Listing requires authentication.
+	resp, err := http.Get("http://localhost:3320/api/tunnels")
+	require.NoError(t, err)
+	_ = resp.Body.Close()
+	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+
+	endpoint, shutdownPgrok, err := setupPgrok(ctx, "http", 0)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, shutdownPgrok()) })
+
+	// The tunnel is listed while the client is connected.
+	tunnelURL := "http://" + endpoint
+	tunnel, ok := findTunnel(func(t liveTunnel) bool { return t.URL == tunnelURL })
+	require.True(t, ok, "tunnel %q is not listed", tunnelURL)
+	assert.Equal(t, "http", tunnel.Protocol)
+	assert.NotEmpty(t, tunnel.RemoteAddr)
+	assert.WithinDuration(t, time.Now(), tunnel.ConnectedAt, time.Minute)
+
+	// Unknown tunnels cannot be closed.
+	require.Equal(t, http.StatusNotFound, deleteTunnel(t, uuid.NewString()))
+
+	// Closing the tunnel disconnects the client and removes it from the list.
+	require.Equal(t, http.StatusNoContent, deleteTunnel(t, tunnel.ID))
+	require.Eventually(t, func() bool {
+		_, ok := findTunnel(func(t liveTunnel) bool { return t.ID == tunnel.ID })
+		return !ok
+	}, 5*time.Second, 100*time.Millisecond)
+	body, err := run.Cmd(ctx, "curl", "--silent", tunnelURL).Run().String()
+	require.NoError(t, err)
+	assert.Contains(t, body, "No reverse proxy is available for the host")
+
+	// The client notices the disconnection and reconnects as a new tunnel.
+	require.Eventually(t, func() bool {
+		_, ok := findTunnel(func(t liveTunnel) bool { return t.URL == tunnelURL && t.ID != tunnel.ID })
+		return ok
+	}, 15*time.Second, 200*time.Millisecond)
+}

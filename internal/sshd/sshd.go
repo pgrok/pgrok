@@ -15,6 +15,7 @@ import (
 	"github.com/pgrok/pgrok/internal/cryptoutil"
 	"github.com/pgrok/pgrok/internal/database"
 	"github.com/pgrok/pgrok/internal/reverseproxy"
+	"github.com/pgrok/pgrok/internal/tunnels"
 )
 
 // Start starts a SSH server listening on the given port. It returns when ctx is
@@ -26,6 +27,7 @@ func Start(
 	proxy conf.Proxy,
 	db *database.DB,
 	proxies *reverseproxy.Cluster,
+	registry *tunnels.Registry,
 ) error {
 	config := &ssh.ServerConfig{
 		PasswordCallback: func(conn ssh.ConnMetadata, token []byte) (*ssh.Permissions, error) {
@@ -137,6 +139,7 @@ func Start(
 						proxy,
 						req,
 						proxies,
+						registry,
 					)
 				case "cancel-tcpip-forward":
 					go func(req *ssh.Request) {

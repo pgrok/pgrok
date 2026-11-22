@@ -22,3 +22,17 @@ export interface RegenerateTokenResponse {
 
   token: string;
 }
+
+/**
+ * An active tunnel as returned by the `/api/tunnels`.
+ */
+export interface Tunnel {
+  id: string;
+  protocol: "http" | "tcp";
+  url: string;
+  remoteAddr: string;
+  /**
+   * The RFC 3339 timestamp of when the tunnel was established.
+   */
+  connectedAt: string;
+}

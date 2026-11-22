@@ -19,11 +19,12 @@ import (
 	"github.com/pgrok/pgrok/internal/conf"
 	"github.com/pgrok/pgrok/internal/database"
 	"github.com/pgrok/pgrok/internal/strutil"
+	"github.com/pgrok/pgrok/internal/tunnels"
 	"github.com/pgrok/pgrok/internal/userutil"
 )
 
 // NewServer constructs the HTTP server that serves the web UI and the JSON API.
-func NewServer(logger *logx.Logger, config *conf.Config, db *database.DB) (*http.Server, error) {
+func NewServer(logger *logx.Logger, config *conf.Config, db *database.DB, registry *tunnels.Registry) (*http.Server, error) {
 	f := flamego.New()
 	f.Use(flamego.Logger())
 	f.Use(flamego.Recovery())
@@ -61,6 +62,8 @@ func NewServer(logger *logx.Logger, config *conf.Config, db *database.DB) (*http
 		f.Get("/user-info", authenticate, getUserInfo)
 		f.Post("/regenerate-token", authenticate, requireJSON, postRegenerateToken(db))
 		f.Get("/identity-provider", getIdentityProvider)
+		f.Get("/tunnels", authenticate, getTunnels(registry))
+		f.Delete("/tunnels/{id}", authenticate, deleteTunnel(logger, registry))
 	})
 
 	// Human-facing web routes, namespaced under "/-".

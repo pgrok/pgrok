@@ -3,6 +3,7 @@ import { Card } from "@/components/retroui/Card";
 import { Text } from "@/components/retroui/Text";
 import CopyButton from "../components/CopyButton";
 import GetStarted from "../components/GetStarted";
+import LiveTunnels from "../components/LiveTunnels";
 import RegenerateToken from "../components/RegenerateToken";
 import ThemeToggle from "../components/ThemeToggle";
 import useUser from "../hooks/useUser";
@@ -59,6 +60,8 @@ export default function DashboardPage() {
             </dl>
           </Card.Content>
         </Card>
+
+        <LiveTunnels />
 
         <GetStarted />
       </main>

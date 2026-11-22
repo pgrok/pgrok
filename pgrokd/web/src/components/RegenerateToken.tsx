@@ -1,5 +1,6 @@
 import axios, { isAxiosError } from "axios";
 import { useState } from "react";
+import { Alert } from "@/components/retroui/Alert";
 import { Button } from "@/components/retroui/Button";
 import useUser from "../hooks/useUser";
 import { RegenerateTokenResponse } from "../types";
@@ -73,9 +74,7 @@ export default function RegenerateToken() {
         Tunnels that are already connected are not cut off.
       </p>
       {error && (
-        <p role="alert" className="mt-2 font-semibold text-destructive">
-          {error}
-        </p>
+        <Alert className="mt-2">{error}</Alert>
       )}
       <div className="mt-3 flex gap-2">
         <Button

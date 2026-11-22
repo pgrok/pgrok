@@ -1,4 +1,5 @@
 import { useLoaderData } from "react-router-dom";
+import { Alert } from "@/components/retroui/Alert";
 import { Button } from "@/components/retroui/Button";
 import { Card } from "@/components/retroui/Card";
 import { Text } from "@/components/retroui/Text";
@@ -22,7 +23,7 @@ export default function SignInPage() {
         <Card className="mt-8 block w-full">
           <Card.Content>
             {data.error ? (
-              <Text className="text-center text-muted-foreground">{data.error}</Text>
+              <Alert>{data.error}</Alert>
             ) : (
               <Button className="w-full" render={<a href={data.authURL} />}>
                 Continue with {data.displayName}
