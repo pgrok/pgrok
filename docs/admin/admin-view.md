@@ -12,7 +12,7 @@ admins:
   - "bob@example.com"
 ```
 
-Restart `pgrokd` to apply changes. Admins see an "Admin" link next to "Sign out" on the dashboard.
+Each entry must match the identifier exactly, including letter case. Restart `pgrokd` to apply changes. Admins see an "Admin" link next to "Sign out" on the dashboard.
 
 ## Users
 
@@ -21,18 +21,19 @@ The "Users" table lists everyone who has signed in, with their subdomain, creati
 Blocking a user:
 
 - Disconnects all of their active tunnels immediately.
-- Rejects their token when `pgrok` (or a vanilla SSH client) connects, so `pgrok` exits with an authentication error instead of reconnecting.
-- Signs them out of the dashboard and prevents them from signing in again until unblocked.
+- Rejects their token when `pgrok` (or a vanilla SSH client) connects, so `pgrok` exits with an authentication error on its next reconnect attempt, a few seconds later.
+- Treats their dashboard sessions as signed out (from their next page load) and prevents them from signing in again until unblocked. Unblocking brings those sessions back.
 
 Unblocking a user restores access with the same token, they only need to restart `pgrok`. Admins cannot block themselves.
 
 Deleting a user, e.g., someone who has been removed from the identity provider:
 
 - Removes their account and token, which cannot be undone.
-- Disconnects all of their active tunnels immediately, and `pgrok` exits with an authentication error instead of reconnecting.
-- Signs them out of the dashboard.
+- Disconnects all of their active tunnels immediately, and `pgrok` exits with an authentication error on its next reconnect attempt.
+- Signs them out of the dashboard on their next page load.
+- Frees their subdomain, so the next account whose identifier maps to the same subdomain gets it.
 
-Deletion is not a ban. If the person can still sign in to the identity provider, they get a fresh account with a new token (and the same subdomain) on their next sign-in. To keep them out, block them instead. Likewise, deleting a user whose identifier is listed in `admins` does not remove their admin rights; remove them from `admins` for that. Admins cannot delete themselves.
+Deletion is not a ban. If the person can still sign in to the identity provider, they get a fresh account with a new token (and the same subdomain, unless someone else has taken it) on their next sign-in. To keep them out, block them instead. Likewise, deleting a user whose identifier is listed in `admins` does not remove their admin rights; remove them from `admins` for that. Admins cannot delete themselves.
 
 ## All tunnels
 

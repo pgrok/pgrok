@@ -1,6 +1,7 @@
 import axios, { isAxiosError } from "axios";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { Alert } from "@/components/retroui/Alert";
 import { Button } from "@/components/retroui/Button";
 import { Card } from "@/components/retroui/Card";
 import { Text } from "@/components/retroui/Text";
@@ -71,24 +72,36 @@ function NotAuthorized() {
 function AdminPanels() {
   const [principals, setPrincipals] = useState<AdminPrincipal[]>();
   const [tunnels, setTunnels] = useState<AdminTunnel[]>();
-  const [error, setError] = useState<string>();
+  // Kept apart so that the next refresh does not clear the error of an action.
+  const [loadError, setLoadError] = useState<string>();
+  const [actionError, setActionError] = useState<string>();
   const [forbidden, setForbidden] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  const latestRefresh = useRef(0);
 
   const refresh = useCallback(async () => {
+    // A periodic refresh may still be in flight when an action triggers another
+    // one, so only the latest refresh is applied.
+    const id = ++latestRefresh.current;
     try {
       const [principalsResponse, tunnelsResponse] = await Promise.all([
         axios.get<AdminPrincipal[]>("/api/admin/principals"),
         axios.get<AdminTunnel[]>("/api/admin/tunnels"),
       ]);
+      if (id !== latestRefresh.current) {
+        return;
+      }
       setPrincipals(principalsResponse.data);
       setTunnels(tunnelsResponse.data);
-      setError(undefined);
+      setLoadError(undefined);
     } catch (error_) {
+      if (id !== latestRefresh.current) {
+        return;
+      }
       if (isAxiosError(error_) && error_.response?.status === 403) {
         setForbidden(true);
       } else {
-        setError("Failed to load users and tunnels, retrying shortly.");
+        setLoadError("Failed to load users and tunnels, retrying shortly.");
       }
     }
     setNow(Date.now());
@@ -110,32 +123,35 @@ function AdminPanels() {
   }, [refresh]);
 
   async function setBlocked(principal: AdminPrincipal, blocked: boolean) {
+    setActionError(undefined);
     try {
       await axios.patch(`/api/admin/principals/${principal.id}`, { blocked }, JSON_REQUEST);
     } catch (error_) {
       const message = isAxiosError<{ error?: string }>(error_) ? error_.response?.data?.error : undefined;
-      setError(message ?? `Failed to ${blocked ? "block" : "unblock"} ${principal.displayName}.`);
+      setActionError(message ?? `Failed to ${blocked ? "block" : "unblock"} ${principal.displayName}.`);
     }
     await refresh();
   }
 
   async function deletePrincipal(principal: AdminPrincipal) {
+    setActionError(undefined);
     try {
       // A body is required for axios to send the Content-Type header.
       await axios.delete(`/api/admin/principals/${principal.id}`, { ...JSON_REQUEST, data: {} });
     } catch (error_) {
       const message = isAxiosError<{ error?: string }>(error_) ? error_.response?.data?.error : undefined;
-      setError(message ?? `Failed to delete ${principal.displayName}.`);
+      setActionError(message ?? `Failed to delete ${principal.displayName}.`);
     }
     await refresh();
   }
 
   async function disconnect(id: string) {
+    setActionError(undefined);
     try {
       // A body is required for axios to send the Content-Type header.
       await axios.delete(`/api/admin/tunnels/${encodeURIComponent(id)}`, { ...JSON_REQUEST, data: {} });
     } catch {
-      setError("Failed to disconnect the tunnel, it may have already ended.");
+      setActionError("Failed to disconnect the tunnel, it may have already ended.");
     }
     await refresh();
   }
@@ -146,10 +162,13 @@ function AdminPanels() {
 
   return (
     <>
-      {error && (
-        <p role="alert" className="mt-6 rounded border-2 border-destructive px-3 py-2 text-sm text-destructive">
-          {error}
-        </p>
+      {[actionError, loadError].map(
+        (error) =>
+          error && (
+            <Alert key={error} className="mt-6">
+              {error}
+            </Alert>
+          ),
       )}
 
       <Card className="mt-6 block w-full">
@@ -235,13 +254,15 @@ function PrincipalRow({
   onSetBlocked: (principal: AdminPrincipal, blocked: boolean) => Promise<void>;
   onDelete: (principal: AdminPrincipal) => Promise<void>;
 }) {
-  const [confirming, setConfirming] = useState<"block" | "delete">();
+  // The confirmed action is fixed when the confirm opens, so that a refresh
+  // showing another admin's change cannot flip it.
+  const [confirming, setConfirming] = useState<"block" | "unblock" | "delete">();
   const [busy, setBusy] = useState(false);
   const createdAt = new Date(principal.createdAt);
 
   async function confirmBlock() {
     setBusy(true);
-    await onSetBlocked(principal, !principal.blocked);
+    await onSetBlocked(principal, confirming === "block");
     setBusy(false);
     setConfirming(undefined);
   }
@@ -255,9 +276,11 @@ function PrincipalRow({
   }
 
   const tunnels = `${principal.activeTunnels} tunnel${principal.activeTunnels === 1 ? "" : "s"}`;
-  const action = principal.blocked ? "Unblock" : "Block";
+  const confirmingBlock = confirming === "block" || confirming === "unblock";
+  const unblocking = confirmingBlock ? confirming === "unblock" : principal.blocked;
+  const action = unblocking ? "Unblock" : "Block";
   let question = "Block this user?";
-  if (principal.blocked) {
+  if (unblocking) {
     question = "Restore access?";
   } else if (principal.activeTunnels > 0) {
     question = `Block and disconnect ${tunnels}?`;
@@ -294,12 +317,12 @@ function PrincipalRow({
         {/* The right padding keeps the buttons' offset shadows from being clipped. */}
         <td className="py-3 pr-1">
           {/* Admins cannot block or delete themselves. */}
-          {!principal.isSelf && confirming === "block" && (
+          {!principal.isSelf && confirmingBlock && (
             <div className="flex items-center justify-end gap-2">
               <span className="text-right">{question}</span>
               <Button
                 size="sm"
-                className={principal.blocked ? undefined : dangerButton}
+                className={unblocking ? undefined : dangerButton}
                 disabled={busy}
                 onClick={() => void confirmBlock()}
               >
@@ -310,7 +333,7 @@ function PrincipalRow({
               </Button>
             </div>
           )}
-          {!principal.isSelf && confirming !== "block" && (
+          {!principal.isSelf && !confirmingBlock && (
             <div className="flex justify-end gap-2">
               <Button
                 size="sm"
@@ -321,7 +344,7 @@ function PrincipalRow({
                     : "Disconnect this user's tunnels and reject their sign-ins and connections"
                 }
                 disabled={confirming === "delete"}
-                onClick={() => setConfirming("block")}
+                onClick={() => setConfirming(principal.blocked ? "unblock" : "block")}
               >
                 {action}
               </Button>
