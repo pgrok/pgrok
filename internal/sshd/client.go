@@ -283,6 +283,18 @@ func (c *Client) handleTCPIPForward(
 	)
 	defer removeTunnel()
 
+	// An admin blocks or deletes a principal by updating the database and then
+	// closing the principal's tunnels in the registry. Checking the database
+	// after the tunnel is in the registry guarantees that one side sees the
+	// other, even when the forward request arrives long after the handshake.
+	if p, err := c.db.GetPrincipalByID(ctx, c.principal.ID); err != nil || p.Blocked {
+		c.logger.Info("Rejected tunnel of blocked or deleted principal",
+			"id", c.principal.ID,
+			"remote", c.serverConn.RemoteAddr(),
+		)
+		_ = c.serverConn.Close()
+	}
+
 	_ = req.Reply(true, ssh.Marshal(payload))
 	<-ctx.Done()
 	if c.protocol == "http" {

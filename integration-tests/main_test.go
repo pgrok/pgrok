@@ -706,8 +706,29 @@ func TestAdmin(t *testing.T) {
 	jar.SetCookies(webURL, []*http.Cookie{{Name: "pgrokd_session", Value: sessionID}})
 	otherClient := &http.Client{Jar: jar}
 
+	// Signing in with a session ID planted by someone else, e.g., through a cookie
+	// set by a tunnel page, must not authenticate that session ID.
+	plantedSessionID := strings.ReplaceAll(uuid.NewString(), "-", "")[:16]
+	plantedCookie := []*http.Cookie{{Name: "pgrokd_session", Value: plantedSessionID}}
+	victimJar, err := cookiejar.New(nil)
+	require.NoError(t, err)
+	victimJar.SetCookies(webURL, plantedCookie)
+	victimClient := &http.Client{Jar: victimJar}
+	resp, err := victimClient.Get("http://localhost:3320/-/oidc/auth")
+	require.NoError(t, err)
+	_ = resp.Body.Close()
+	status, err := getJSON(victimClient, "/api/user-info", nil)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, status)
+	attackerJar, err := cookiejar.New(nil)
+	require.NoError(t, err)
+	attackerJar.SetCookies(webURL, plantedCookie)
+	status, err = getJSON(&http.Client{Jar: attackerJar}, "/api/user-info", nil)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusUnauthorized, status)
+
 	var userInfo map[string]any
-	status, err := getJSON(otherClient, "/api/user-info", &userInfo)
+	status, err = getJSON(otherClient, "/api/user-info", &userInfo)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, status)
 	assert.Equal(t, false, userInfo["isAdmin"])
@@ -736,7 +757,6 @@ func TestAdmin(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, shutdownAdminPgrok()) })
 	otherEndpoint, shutdownOtherPgrok, err := setupPgrokWithToken(ctx, other.Token, "http", 0, "")
 	require.NoError(t, err)
-	// The client exits by itself once its token is rejected.
 	t.Cleanup(func() { _ = shutdownOtherPgrok() })
 
 	listPrincipals := func() map[string]adminPrincipal {
@@ -763,6 +783,10 @@ func TestAdmin(t *testing.T) {
 		return byURL, nil
 	}
 
+	// The client reports it is ready just before the tunnel is in the registry.
+	require.Eventually(t, func() bool {
+		return listPrincipals()["mallory@example.com"].ActiveTunnels == 1
+	}, 5*time.Second, 100*time.Millisecond)
 	principals := listPrincipals()
 	assert.True(t, principals["unknwon@example.com"].IsSelf)
 	assert.GreaterOrEqual(t, principals["unknwon@example.com"].ActiveTunnels, 1)
@@ -787,9 +811,21 @@ func TestAdmin(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, doRequest(t, webClient, http.MethodPatch, selfPath, "application/json", `{"blocked":true}`))
 	assert.Equal(t, http.StatusBadRequest, doRequest(t, webClient, http.MethodDelete, selfPath, "application/json", `{}`))
 
+	// A connection that is authenticated but has not requested a forward yet is
+	// not in the registry when the user is blocked.
+	idleClient, err := ssh.Dial("tcp", "localhost:2222", &ssh.ClientConfig{
+		User:            "pgrok",
+		Auth:            []ssh.AuthMethod{ssh.Password(other.Token)},
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = idleClient.Close() })
+
 	// Blocking disconnects the tunnels, rejects the dashboard session and new SSH
 	// connections.
 	require.Equal(t, http.StatusNoContent, doRequest(t, webClient, http.MethodPatch, otherPath, "application/json", `{"blocked":true}`))
+	_, err = idleClient.Listen("tcp", "0.0.0.0:0")
+	assert.Error(t, err, "a connection from before the block opened a tunnel")
 	require.Eventually(t, func() bool {
 		tunnels, err := listTunnels()
 		_, ok := tunnels["http://"+otherEndpoint]
@@ -803,16 +839,20 @@ func TestAdmin(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, status)
 	assert.ErrorContains(t, dialSSH(other.Token), "unable to authenticate")
 
+	// Stop the client, which otherwise reconnects after its backoff once the
+	// user is unblocked.
+	_ = shutdownOtherPgrok()
+
 	// Unblocking restores access with the same token.
 	require.Equal(t, http.StatusNoContent, doRequest(t, webClient, http.MethodPatch, otherPath, "application/json", `{"blocked":false}`))
 	status, err = getJSON(otherClient, "/api/user-info", nil)
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, status)
 	require.NoError(t, dialSSH(other.Token))
-	endpoint, shutdownOtherPgrok, err := setupPgrokWithToken(ctx, other.Token, "http", 0, "")
+	endpoint, shutdownReconnectedPgrok, err := setupPgrokWithToken(ctx, other.Token, "http", 0, "")
 	require.NoError(t, err)
 	// The client exits by itself once the principal is deleted.
-	t.Cleanup(func() { _ = shutdownOtherPgrok() })
+	t.Cleanup(func() { _ = shutdownReconnectedPgrok() })
 	require.Eventually(t, func() bool {
 		tunnels, err := listTunnels()
 		return err == nil && tunnels["http://"+endpoint].OwnerIdentifier == "mallory@example.com"
@@ -821,14 +861,16 @@ func TestAdmin(t *testing.T) {
 	// Admins can disconnect any tunnel.
 	tunnels, err = listTunnels()
 	require.NoError(t, err)
-	require.Equal(t, http.StatusNoContent, doRequest(t, webClient, http.MethodDelete, "/api/admin/tunnels/"+tunnels["http://"+endpoint].ID, "application/json", `{}`))
+	disconnectedID := tunnels["http://"+endpoint].ID
+	require.Equal(t, http.StatusNoContent, doRequest(t, webClient, http.MethodDelete, "/api/admin/tunnels/"+disconnectedID, "application/json", `{}`))
 	assert.Equal(t, http.StatusNotFound, doRequest(t, webClient, http.MethodDelete, "/api/admin/tunnels/"+uuid.NewString(), "application/json", `{}`))
 
 	// Deleting disconnects the tunnels of the client once it has reconnected,
 	// rejects the token and the dashboard session, and removes the user.
 	require.Eventually(t, func() bool {
 		tunnels, err := listTunnels()
-		return err == nil && tunnels["http://"+endpoint].OwnerIdentifier == "mallory@example.com"
+		reconnected, ok := tunnels["http://"+endpoint]
+		return err == nil && ok && reconnected.ID != disconnectedID
 	}, 15*time.Second, 200*time.Millisecond)
 	require.Equal(t, http.StatusNoContent, doRequest(t, webClient, http.MethodDelete, otherPath, "application/json", `{}`))
 	require.Eventually(t, func() bool {
