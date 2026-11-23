@@ -94,6 +94,11 @@ func updateAdminPrincipal(logger *logx.Logger, db *database.DB, registry *tunnel
 
 		err = db.UpdatePrincipalBlocked(ctx, principal.ID, *form.Blocked)
 		if err != nil {
+			// Another admin may have deleted the principal in the meantime.
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				r.JSON(http.StatusNotFound, map[string]string{"error": "User not found"})
+				return
+			}
 			r.JSON(http.StatusInternalServerError, map[string]string{
 				"error": "Failed to update principal: " + err.Error(),
 			})

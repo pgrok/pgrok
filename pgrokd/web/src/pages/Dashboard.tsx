@@ -21,12 +21,12 @@ export default function DashboardPage() {
             <Text as="h4">pgrok</Text>
           </div>
           <div className="flex items-center gap-2">
+            <ThemeToggle />
             {user.isAdmin && (
               <Button size="sm" variant="outline" render={<Link to="/admin" />}>
                 Admin
               </Button>
             )}
-            <ThemeToggle />
             <Button size="sm" variant="outline" render={<a href="/-/sign-out" />}>
               Sign out
             </Button>

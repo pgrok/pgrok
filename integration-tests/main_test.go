@@ -785,7 +785,17 @@ func TestAdmin(t *testing.T) {
 
 	// The client reports it is ready just before the tunnel is in the registry.
 	require.Eventually(t, func() bool {
-		return listPrincipals()["mallory@example.com"].ActiveTunnels == 1
+		var principals []adminPrincipal
+		status, err := getJSON(webClient, "/api/admin/principals", &principals)
+		if err != nil || status != http.StatusOK {
+			return false
+		}
+		for _, p := range principals {
+			if p.Identifier == "mallory@example.com" {
+				return p.ActiveTunnels == 1
+			}
+		}
+		return false
 	}, 5*time.Second, 100*time.Millisecond)
 	principals := listPrincipals()
 	assert.True(t, principals["unknwon@example.com"].IsSelf)

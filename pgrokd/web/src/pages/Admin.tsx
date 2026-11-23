@@ -31,10 +31,10 @@ export default function AdminPage() {
             <Text as="h4">pgrok</Text>
           </Link>
           <div className="flex items-center gap-2">
+            <ThemeToggle />
             <Button size="sm" variant="outline" render={<Link to="/" />}>
               Dashboard
             </Button>
-            <ThemeToggle />
             <Button size="sm" variant="outline" render={<a href="/-/sign-out" />}>
               Sign out
             </Button>
@@ -108,6 +108,10 @@ function AdminPanels() {
   }, []);
 
   useEffect(() => {
+    // Stop polling once the admin API rejects the user.
+    if (forbidden) {
+      return;
+    }
     void refresh();
     const refreshTimer = setInterval(() => {
       if (!document.hidden) {
@@ -120,7 +124,7 @@ function AdminPanels() {
       clearInterval(refreshTimer);
       clearInterval(clockTimer);
     };
-  }, [refresh]);
+  }, [refresh, forbidden]);
 
   async function setBlocked(principal: AdminPrincipal, blocked: boolean) {
     setActionError(undefined);

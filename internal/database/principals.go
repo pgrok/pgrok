@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"gorm.io/gorm"
+
 	"github.com/pgrok/pgrok/internal/cryptoutil"
 	"github.com/pgrok/pgrok/internal/strutil"
 )
@@ -85,7 +87,15 @@ func (db *DB) DeletePrincipalByID(ctx context.Context, id int64) error {
 	return db.WithContext(ctx).Where("id = ?", id).Delete(&Principal{}).Error
 }
 
-// UpdatePrincipalBlocked updates whether the principal is blocked.
+// UpdatePrincipalBlocked updates whether the principal is blocked. It returns
+// gorm.ErrRecordNotFound if the principal does not exist.
 func (db *DB) UpdatePrincipalBlocked(ctx context.Context, id int64, blocked bool) error {
-	return db.WithContext(ctx).Model(&Principal{}).Where("id = ?", id).Update("blocked", blocked).Error
+	result := db.WithContext(ctx).Model(&Principal{}).Where("id = ?", id).Update("blocked", blocked)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
