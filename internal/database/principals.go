@@ -60,6 +60,14 @@ func (db *DB) GetPrincipalByToken(ctx context.Context, token string) (*Principal
 	return &p, db.WithContext(ctx).Where("token = ?", token).First(&p).Error
 }
 
+// HasPrincipalWithSubdomain returns true if any principal has one of the given
+// subdomains.
+func (db *DB) HasPrincipalWithSubdomain(ctx context.Context, subdomains []string) (bool, error) {
+	var count int64
+	err := db.WithContext(ctx).Model(&Principal{}).Where("subdomain IN ?", subdomains).Count(&count).Error
+	return count > 0, err
+}
+
 // UpdatePrincipalLastTCPPort updates the last TCP port of the principal.
 func (db *DB) UpdatePrincipalLastTCPPort(ctx context.Context, id int64, port int) error {
 	return db.WithContext(ctx).Model(&Principal{}).Where("id = ?", id).Update("last_tcp_port", port).Error

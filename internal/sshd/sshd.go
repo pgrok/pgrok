@@ -131,7 +131,7 @@ func Start(
 			for req := range reqs {
 				switch req.Type {
 				case "hint":
-					client.handleHint(req)
+					client.handleHint(ctx, req)
 				case "tcpip-forward":
 					go client.handleTCPIPForward(
 						ctx,
