@@ -47,7 +47,7 @@ var subdomainPrefixCharsRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$
 // dnsLabelMaxLen is the maximum length of a single DNS label (RFC 1035).
 const dnsLabelMaxLen = 63
 
-func (c *Client) handleHint(req *ssh.Request) {
+func (c *Client) handleHint(ctx context.Context, req *ssh.Request) {
 	var payload struct {
 		Protocol  string `json:"protocol"`
 		Subdomain string `json:"subdomain,omitempty"`
@@ -82,11 +82,43 @@ func (c *Client) handleHint(req *ssh.Request) {
 			_ = req.Reply(false, []byte(fmt.Sprintf("subdomain prefix is too long: at most %d characters allowed for this account", dnsLabelMaxLen-1-len(existingLabel))))
 			return
 		}
+		taken, err := c.db.HasPrincipalWithSubdomain(ctx, competingSubdomains(payload.Subdomain, c.principal.Subdomain))
+		if err != nil {
+			c.logger.Error("Failed to check subdomain ownership",
+				"remote", c.serverConn.RemoteAddr(),
+				"error", err,
+			)
+			_ = req.Reply(false, []byte("Internal server error"))
+			return
+		}
+		if taken {
+			_ = req.Reply(false, []byte(fmt.Sprintf("subdomain %q is reserved by another user", payload.Subdomain+"-"+c.principal.Subdomain)))
+			return
+		}
 		c.host = payload.Subdomain + "-" + c.host
 		c.customHost = true
 	}
 	c.protocol = payload.Protocol
 	_ = req.Reply(true, nil)
+}
+
+// competingSubdomains returns the subdomains that would claim the same host as
+// the given prefix prepended to the subdomain. Principal subdomains may contain
+// hyphens, so a host like "staging-alice" could be either principal "alice"
+// with prefix "staging" or principal "staging-alice" itself. Such a host belongs
+// to the principal with the longest subdomain that is a hyphen-delimited suffix
+// of it, which makes ownership unambiguous and keeps every principal's stable
+// host reserved even while its tunnel is offline.
+func competingSubdomains(prefix, subdomain string) []string {
+	var subdomains []string
+	for {
+		subdomains = append(subdomains, prefix+"-"+subdomain)
+		_, rest, found := strings.Cut(prefix, "-")
+		if !found {
+			return subdomains
+		}
+		prefix = rest
+	}
 }
 
 func (c *Client) handleTCPIPForward(
