@@ -53,3 +53,8 @@ identity_provider:
 #  allowed_emails:
 #    - "alice@example.com"
 #    - "bob@example.com"
+
+# The users who can access the admin view of the dashboard to manage all users and tunnels,
+# identified by the value of "identity_provider.field_mapping.identifier" (e.g. emails).
+#admins:
+#  - "alice@example.com"

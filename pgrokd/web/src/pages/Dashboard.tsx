@@ -1,6 +1,7 @@
 import { Button } from "@/components/retroui/Button";
 import { Card } from "@/components/retroui/Card";
 import { Text } from "@/components/retroui/Text";
+import { Link } from "react-router-dom";
 import CopyButton from "../components/CopyButton";
 import GetStarted from "../components/GetStarted";
 import LiveTunnels from "../components/LiveTunnels";
@@ -21,6 +22,11 @@ export default function DashboardPage() {
           </div>
           <div className="flex items-center gap-2">
             <ThemeToggle />
+            {user.isAdmin && (
+              <Button size="sm" variant="outline" render={<Link to="/admin" />}>
+                Admin
+              </Button>
+            )}
             <Button size="sm" variant="outline" render={<a href="/-/sign-out" />}>
               Sign out
             </Button>

@@ -6,6 +6,7 @@ export interface UserContextType {
   token: string;
   url: string;
   remoteAddr: string;
+  isAdmin: boolean;
 }
 
 interface UserContextValue extends UserContextType {

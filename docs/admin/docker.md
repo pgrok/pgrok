@@ -50,6 +50,10 @@ Image versions:
     #  allowed_emails:
     #    - "alice@example.com"
     #    - "bob@example.com"
+
+    # The users who can access the admin view, see "docs/admin/admin-view.md".
+    #admins:
+    #  - "alice@example.com"
     ```
 1. Start a Docker container.
    1. To only allow HTTP tunneling:
@@ -130,6 +134,10 @@ docker run ...
     #  allowed_emails:
     #    - "alice@example.com"
     #    - "bob@example.com"
+
+    # The users who can access the admin view, see "docs/admin/admin-view.md".
+    #admins:
+    #  - "alice@example.com"
     ```
 1. Start the cluster:
     ```sh

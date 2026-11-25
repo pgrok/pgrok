@@ -45,6 +45,8 @@ func NewServer(logger *logx.Logger, config *conf.Config, db *database.DB, regist
 			},
 			Cookie: session.CookieOptions{
 				Name: "pgrokd_session",
+				// Setting any option drops the default of HTTPOnly, so set it again.
+				HTTPOnly: true,
 			},
 			ErrorFunc: func(err error) {
 				logger.Error("session", "error", err)
@@ -64,6 +66,14 @@ func NewServer(logger *logx.Logger, config *conf.Config, db *database.DB, regist
 		f.Get("/identity-provider", getIdentityProvider)
 		f.Get("/tunnels", authenticate, getTunnels(registry))
 		f.Delete("/tunnels/{id}", authenticate, deleteTunnel(logger, registry))
+
+		f.Group("/admin", func() {
+			f.Get("/principals", listAdminPrincipals(db, registry))
+			f.Patch("/principals/{id}", requireJSON, updateAdminPrincipal(logger, db, registry))
+			f.Delete("/principals/{id}", requireJSON, deleteAdminPrincipal(logger, db, registry))
+			f.Get("/tunnels", listAdminTunnels(db, registry))
+			f.Delete("/tunnels/{id}", requireJSON, deleteAdminTunnel(logger, registry))
+		}, requireAdmin)
 	})
 
 	// Human-facing web routes, namespaced under "/-".
@@ -194,6 +204,20 @@ func getOIDCCallback(logger *logx.Logger, db *database.DB) flamego.Handler {
 			return
 		}
 
+		if principal.Blocked {
+			c.Session.Delete("userID")
+			c.Redirect("/sign-in?error=blocked")
+			return
+		}
+
+		// Issue a new session ID on sign-in, because the current one may have been
+		// planted by someone else, e.g., through a cookie set by a page on a tunnel
+		// subdomain, which is same-site with the dashboard.
+		err = c.Session.RegenerateID(c.ResponseWriter(), c.Request().Request)
+		if err != nil {
+			r.PlainText(http.StatusInternalServerError, fmt.Sprintf("Failed to regenerate session ID: %v", err))
+			return
+		}
 		c.Session.Set("userID", principal.ID)
 		c.Redirect("/")
 	}
