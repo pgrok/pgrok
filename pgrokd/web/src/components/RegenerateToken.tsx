@@ -2,19 +2,26 @@ import axios, { isAxiosError } from "axios";
 import { useState } from "react";
 import { Alert } from "@/components/retroui/Alert";
 import { Button } from "@/components/retroui/Button";
+import { Dialog, dangerButtonClass } from "@/components/retroui/Dialog";
 import useUser from "../hooks/useUser";
 import { RegenerateTokenResponse } from "../types";
 
-type State = "idle" | "confirming" | "pending" | "done";
+type State = "confirming" | "pending" | "done";
 
-// RegenerateToken renders the "Regenerate" action for the tunnel token, with an
-// in-page confirmation and a notice explaining how to update clients afterwards.
-// It is meant to sit inside a wrapping flex row next to the token so the panels
-// break onto their own line.
+// RegenerateToken renders the "Regenerate" action for the tunnel token. It asks
+// for confirmation in a dialog, which then explains how to update clients.
 export default function RegenerateToken() {
   const { token, setToken } = useUser();
-  const [state, setState] = useState<State>("idle");
+  const [open, setOpen] = useState(false);
+  // Kept while the dialog closes, so that its content does not change meanwhile.
+  const [state, setState] = useState<State>("confirming");
   const [error, setError] = useState("");
+
+  function openDialog() {
+    setState("confirming");
+    setError("");
+    setOpen(true);
+  }
 
   async function regenerate() {
     setState("pending");
@@ -32,78 +39,58 @@ export default function RegenerateToken() {
     }
   }
 
-  if (state === "idle") {
-    return (
-      <Button size="sm" variant="outline" onClick={() => setState("confirming")}>
+  const pending = state === "pending";
+  return (
+    <>
+      <Button size="sm" variant="outline" onClick={openDialog}>
         Regenerate
       </Button>
-    );
-  }
-
-  if (state === "done") {
-    return (
-      <Panel role="status" tone="success">
-        <p className="font-semibold">Token regenerated. The new token is shown above.</p>
-        <p className="mt-2">
-          Replace the <code className={codeClass}>token</code>{" "}
-          value in <code className={codeClass}>pgrok.yml</code> with it, or pass{" "}
-          <code className={codeClass}>--token {token}</code> to clients started with that flag. Re-running{" "}
-          <code className={codeClass}>pgrok init ... --token {token}</code> also works, but rewrites the whole{" "}
-          <code className={codeClass}>pgrok.yml</code>.
-        </p>
-        <div className="mt-3">
-          <Button size="sm" variant="outline" onClick={() => setState("idle")}>
-            Dismiss
-          </Button>
-        </div>
-      </Panel>
-    );
-  }
-
-  return (
-    <Panel role="alertdialog" aria-labelledby="regenerate-token-title" tone="warning">
-      <p id="regenerate-token-title" className="font-semibold">
-        Regenerate your token?
-      </p>
-      <p className="mt-2">
-        The current token stops working immediately. Update to the new token: the <code className={codeClass}>token</code> value in{" "}
-        <code className={codeClass}>pgrok.yml</code>, or the <code className={codeClass}>--token</code> flag for
-        clients started with it.
-      </p>
-      <p className="mt-2">
-        Tunnels that are already connected are not cut off.
-      </p>
-      {error && (
-        <Alert className="mt-2">{error}</Alert>
-      )}
-      <div className="mt-3 flex gap-2">
-        <Button
-          size="sm"
-          className="border-black bg-destructive text-destructive-foreground hover:bg-destructive"
-          disabled={state === "pending"}
-          onClick={() => void regenerate()}
-        >
-          {state === "pending" ? "Regenerating..." : "Regenerate token"}
-        </Button>
-        <Button size="sm" variant="outline" disabled={state === "pending"} onClick={() => setState("idle")}>
-          Cancel
-        </Button>
-      </div>
-    </Panel>
+      <Dialog
+        open={open}
+        onOpenChange={(next) => !pending && setOpen(next)}
+        title={state === "done" ? "Token regenerated" : "Regenerate your token?"}
+        footer={
+          state === "done" ? (
+            <Button size="sm" onClick={() => setOpen(false)}>
+              Done
+            </Button>
+          ) : (
+            <>
+              <Button size="sm" variant="outline" disabled={pending} onClick={() => setOpen(false)}>
+                Cancel
+              </Button>
+              <Button size="sm" className={dangerButtonClass} disabled={pending} onClick={() => void regenerate()}>
+                {pending ? "Regenerating..." : "Regenerate token"}
+              </Button>
+            </>
+          )
+        }
+      >
+        {state === "done" ? (
+          <>
+            <p>The dashboard now shows your new token.</p>
+            <p>
+              Replace the <code className={codeClass}>token</code> value in{" "}
+              <code className={codeClass}>pgrok.yml</code> with it, or pass{" "}
+              <code className={codeClass}>--token {token}</code> to clients started with that flag. Re-running{" "}
+              <code className={codeClass}>pgrok init ... --token {token}</code> also works, but rewrites the whole{" "}
+              <code className={codeClass}>pgrok.yml</code>.
+            </p>
+          </>
+        ) : (
+          <>
+            <p>
+              The current token stops working immediately. Update to the new token: the{" "}
+              <code className={codeClass}>token</code> value in <code className={codeClass}>pgrok.yml</code>, or the{" "}
+              <code className={codeClass}>--token</code> flag for clients started with it.
+            </p>
+            <p>Tunnels that are already connected are not cut off.</p>
+            {error && <Alert>{error}</Alert>}
+          </>
+        )}
+      </Dialog>
+    </>
   );
 }
 
 const codeClass = "rounded border border-border bg-background px-1 font-mono text-xs break-all";
-
-function Panel({
-  tone,
-  children,
-  ...properties
-}: { tone: "warning" | "success"; children: React.ReactNode } & React.HTMLAttributes<HTMLDivElement>) {
-  const border = tone === "warning" ? "border-destructive" : "border-border";
-  return (
-    <div className={`mt-2 w-full rounded border-2 ${border} bg-background p-3 text-sm shadow`} {...properties}>
-      {children}
-    </div>
-  );
-}

@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { Alert } from "@/components/retroui/Alert";
 import { Button } from "@/components/retroui/Button";
 import { Card } from "@/components/retroui/Card";
+import { Dialog, dangerButtonClass } from "@/components/retroui/Dialog";
 import { Text } from "@/components/retroui/Text";
 import { cn } from "@/lib/utils";
 import { formatDuration } from "../components/LiveTunnels";
@@ -258,142 +259,127 @@ function PrincipalRow({
   onSetBlocked: (principal: AdminPrincipal, blocked: boolean) => Promise<void>;
   onDelete: (principal: AdminPrincipal) => Promise<void>;
 }) {
-  // The confirmed action is fixed when the confirm opens, so that a refresh
-  // showing another admin's change cannot flip it.
-  const [confirming, setConfirming] = useState<"block" | "unblock" | "delete">();
+  // The action is fixed when its dialog opens, so that a refresh showing another
+  // admin's change cannot flip it, and it is kept while the dialog closes.
+  const [action, setAction] = useState<"block" | "unblock" | "delete">("block");
+  const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const createdAt = new Date(principal.createdAt);
 
-  async function confirmBlock() {
-    setBusy(true);
-    await onSetBlocked(principal, confirming === "block");
-    setBusy(false);
-    setConfirming(undefined);
+  function openDialog(next: "block" | "unblock" | "delete") {
+    setAction(next);
+    setOpen(true);
   }
 
-  async function confirmDelete() {
+  async function confirm() {
     setBusy(true);
     // The row is removed by the refresh once the user is deleted.
-    await onDelete(principal);
+    await (action === "delete" ? onDelete(principal) : onSetBlocked(principal, action === "block"));
     setBusy(false);
-    setConfirming(undefined);
+    setOpen(false);
   }
 
   const tunnels = `${principal.activeTunnels} tunnel${principal.activeTunnels === 1 ? "" : "s"}`;
-  const confirmingBlock = confirming === "block" || confirming === "unblock";
-  const unblocking = confirmingBlock ? confirming === "unblock" : principal.blocked;
-  const action = unblocking ? "Unblock" : "Block";
-  let question = "Block this user?";
-  if (unblocking) {
-    question = "Restore access?";
-  } else if (principal.activeTunnels > 0) {
-    question = `Block and disconnect ${tunnels}?`;
+  const label = { block: "Block", unblock: "Unblock", delete: "Delete" }[action];
+  let body: React.ReactNode;
+  if (action === "block") {
+    body = (
+      <>
+        {principal.activeTunnels > 0 && <p>Their {tunnels} are disconnected right away.</p>}
+        <p>Their token is rejected and they cannot use the dashboard until they are unblocked.</p>
+      </>
+    );
+  } else if (action === "unblock") {
+    body = <p>They can sign in and connect again with the same token. Clients that have exited need a restart.</p>;
+  } else {
+    body = (
+      <>
+        <p>This can&apos;t be undone and disconnects {tunnels}.</p>
+        <p className="text-muted-foreground">
+          They get a new account with a new token if they sign in again. To keep them out, block instead.
+        </p>
+      </>
+    );
   }
 
-  const dangerButton = "bg-destructive text-destructive-foreground hover:bg-destructive";
   return (
-    <>
-      <tr className={cn(principal.blocked && "bg-destructive/10", confirming === "delete" && "border-b-0")}>
-        <td className="py-3 pr-4">
-          <div className="font-semibold">
-            {principal.displayName}
-            {principal.isSelf && <span className="font-normal text-muted-foreground"> (you)</span>}
-          </div>
-          <div className="text-muted-foreground">{principal.identifier}</div>
-        </td>
-        <td className="py-3 pr-4">
-          <code className="break-all">{principal.subdomain}</code>
-        </td>
-        <td className="whitespace-nowrap py-3 pr-4" title={createdAt.toLocaleString()}>
-          {createdAt.toLocaleDateString()}
-        </td>
-        <td className="py-3 pr-4">{principal.activeTunnels}</td>
-        <td className="py-3 pr-4">
-          <div className="flex gap-1">
-            {principal.blocked ? (
-              <Tag className="border-destructive bg-destructive text-destructive-foreground">Blocked</Tag>
-            ) : (
-              <Tag>Active</Tag>
-            )}
-            {principal.isAdmin && <Tag className="bg-primary text-primary-foreground">Admin</Tag>}
-          </div>
-        </td>
-        {/* The right padding keeps the buttons' offset shadows from being clipped. */}
-        <td className="py-3 pr-1">
-          {/* Admins cannot block or delete themselves. */}
-          {!principal.isSelf && confirmingBlock && (
-            <div className="flex items-center justify-end gap-2">
-              <span className="text-right">{question}</span>
-              <Button
-                size="sm"
-                className={unblocking ? undefined : dangerButton}
-                disabled={busy}
-                onClick={() => void confirmBlock()}
-              >
-                {action}
-              </Button>
-              <Button size="sm" variant="outline" disabled={busy} onClick={() => setConfirming(undefined)}>
-                Cancel
-              </Button>
-            </div>
+    <tr className={cn(principal.blocked && "bg-destructive/10")}>
+      <td className="py-3 pr-4">
+        <div className="font-semibold">
+          {principal.displayName}
+          {principal.isSelf && <span className="font-normal text-muted-foreground"> (you)</span>}
+        </div>
+        <div className="text-muted-foreground">{principal.identifier}</div>
+      </td>
+      <td className="py-3 pr-4">
+        <code className="break-all">{principal.subdomain}</code>
+      </td>
+      <td className="whitespace-nowrap py-3 pr-4" title={createdAt.toLocaleString()}>
+        {createdAt.toLocaleDateString()}
+      </td>
+      <td className="py-3 pr-4">{principal.activeTunnels}</td>
+      <td className="py-3 pr-4">
+        <div className="flex gap-1">
+          {principal.blocked ? (
+            <Tag className="border-destructive bg-destructive text-destructive-foreground">Blocked</Tag>
+          ) : (
+            <Tag>Active</Tag>
           )}
-          {!principal.isSelf && !confirmingBlock && (
-            <div className="flex justify-end gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                title={
-                  principal.blocked
-                    ? "Allow this user to sign in and connect again with the same token"
-                    : "Disconnect this user's tunnels and reject their sign-ins and connections"
-                }
-                disabled={confirming === "delete"}
-                onClick={() => setConfirming(principal.blocked ? "unblock" : "block")}
-              >
-                {action}
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                title="Remove this user and disconnect their tunnels"
-                disabled={confirming === "delete"}
-                onClick={() => setConfirming("delete")}
-              >
-                Delete
-              </Button>
-            </div>
-          )}
-        </td>
-      </tr>
-      {confirming === "delete" && (
-        <tr className={cn(principal.blocked && "bg-destructive/10")}>
-          <td colSpan={6} className="pb-3 pr-1">
-            <div
-              role="alert"
-              className="flex flex-col gap-3 rounded border-2 border-destructive px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
+          {principal.isAdmin && <Tag className="bg-primary text-primary-foreground">Admin</Tag>}
+        </div>
+      </td>
+      {/* The right padding keeps the buttons' offset shadows from being clipped. */}
+      <td className="py-3 pr-1">
+        {/* Admins cannot block or delete themselves. */}
+        {!principal.isSelf && (
+          <div className="flex justify-end gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              title={
+                principal.blocked
+                  ? "Allow this user to sign in and connect again with the same token"
+                  : "Disconnect this user's tunnels and reject their sign-ins and connections"
+              }
+              onClick={() => openDialog(principal.blocked ? "unblock" : "block")}
             >
-              <div>
-                <p className="font-semibold">
-                  Delete {principal.displayName} ({principal.identifier})? This can&apos;t be undone and disconnects{" "}
-                  {tunnels}.
-                </p>
-                <p className="text-muted-foreground">
-                  They get a new account with a new token if they sign in again. To keep them out, block instead.
-                </p>
-              </div>
-              <div className="flex shrink-0 gap-2">
-                <Button size="sm" className={dangerButton} disabled={busy} onClick={() => void confirmDelete()}>
-                  Delete
-                </Button>
-                <Button size="sm" variant="outline" disabled={busy} onClick={() => setConfirming(undefined)}>
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          </td>
-        </tr>
-      )}
-    </>
+              {principal.blocked ? "Unblock" : "Block"}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              title="Remove this user and disconnect their tunnels"
+              onClick={() => openDialog("delete")}
+            >
+              Delete
+            </Button>
+            <Dialog
+              open={open}
+              onOpenChange={(next) => !busy && setOpen(next)}
+              title={`${label} ${principal.displayName}?`}
+              footer={
+                <>
+                  <Button size="sm" variant="outline" disabled={busy} onClick={() => setOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    className={action === "unblock" ? undefined : dangerButtonClass}
+                    disabled={busy}
+                    onClick={() => void confirm()}
+                  >
+                    {label}
+                  </Button>
+                </>
+              }
+            >
+              <p className="text-muted-foreground">{principal.identifier}</p>
+              {body}
+            </Dialog>
+          </div>
+        )}
+      </td>
+    </tr>
   );
 }
 
@@ -406,21 +392,22 @@ function TunnelRow({
   now: number;
   onDisconnect: (id: string) => Promise<void>;
 }) {
-  const [confirming, setConfirming] = useState(false);
+  const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const connectedAt = new Date(tunnel.connectedAt);
+  const owner = tunnel.ownerDisplayName || `#${tunnel.ownerId}`;
 
   async function confirm() {
     setBusy(true);
     await onDisconnect(tunnel.id);
     setBusy(false);
-    setConfirming(false);
+    setOpen(false);
   }
 
   return (
     <tr>
       <td className="py-3 pr-4">
-        <div className="font-semibold">{tunnel.ownerDisplayName || `#${tunnel.ownerId}`}</div>
+        <div className="font-semibold">{owner}</div>
         <div className="break-all text-muted-foreground">{tunnel.ownerIdentifier}</div>
       </td>
       <td className="py-3 pr-4">
@@ -445,33 +432,36 @@ function TunnelRow({
         <code>{tunnel.remoteAddr}</code>
       </td>
       <td className="py-3 pr-1">
-        {confirming ? (
-          <div className="flex items-center justify-end gap-2 whitespace-nowrap">
-            <span>Disconnect this client?</span>
-            <Button
-              size="sm"
-              className="bg-destructive text-destructive-foreground hover:bg-destructive"
-              disabled={busy}
-              onClick={() => void confirm()}
-            >
-              Disconnect
-            </Button>
-            <Button size="sm" variant="outline" disabled={busy} onClick={() => setConfirming(false)}>
-              Cancel
-            </Button>
-          </div>
-        ) : (
-          <div className="flex justify-end">
-            <Button
-              size="sm"
-              variant="outline"
-              title="Close the connection of this client, it reconnects automatically unless stopped"
-              onClick={() => setConfirming(true)}
-            >
-              Disconnect
-            </Button>
-          </div>
-        )}
+        <div className="flex justify-end">
+          <Button
+            size="sm"
+            variant="outline"
+            title="Close the connection of this client, it reconnects automatically unless stopped"
+            onClick={() => setOpen(true)}
+          >
+            Disconnect
+          </Button>
+          <Dialog
+            open={open}
+            onOpenChange={(next) => !busy && setOpen(next)}
+            title="Disconnect this tunnel?"
+            footer={
+              <>
+                <Button size="sm" variant="outline" disabled={busy} onClick={() => setOpen(false)}>
+                  Cancel
+                </Button>
+                <Button size="sm" className={dangerButtonClass} disabled={busy} onClick={() => void confirm()}>
+                  Disconnect
+                </Button>
+              </>
+            }
+          >
+            <p>
+              <code className="break-all">{tunnel.url}</code> of {owner}.
+            </p>
+            <p>The client reconnects automatically unless it is stopped. To keep the user out, block them instead.</p>
+          </Dialog>
+        </div>
       </td>
     </tr>
   );

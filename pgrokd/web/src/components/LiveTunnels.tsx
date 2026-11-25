@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Alert } from "@/components/retroui/Alert";
 import { Button } from "@/components/retroui/Button";
 import { Card } from "@/components/retroui/Card";
+import { Dialog, dangerButtonClass } from "@/components/retroui/Dialog";
 import { Text } from "@/components/retroui/Text";
 import { Tunnel } from "../types";
 
@@ -101,7 +102,7 @@ function TunnelRow({
   now: number;
   onDisconnect: (id: string) => Promise<void>;
 }) {
-  const [confirming, setConfirming] = useState(false);
+  const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const connectedAt = new Date(tunnel.connectedAt);
 
@@ -109,7 +110,7 @@ function TunnelRow({
     setBusy(true);
     await onDisconnect(tunnel.id);
     setBusy(false);
-    setConfirming(false);
+    setOpen(false);
   }
 
   return (
@@ -136,33 +137,38 @@ function TunnelRow({
       </td>
       {/* The right padding keeps the buttons' offset shadows from being clipped. */}
       <td className="py-3 pr-1">
-        {confirming ? (
-          <div className="flex items-center justify-end gap-2 whitespace-nowrap">
-            <span>Disconnect this client?</span>
-            <Button
-              size="sm"
-              className="bg-destructive text-destructive-foreground hover:bg-destructive"
-              disabled={busy}
-              onClick={() => void confirm()}
-            >
-              Disconnect
-            </Button>
-            <Button size="sm" variant="outline" disabled={busy} onClick={() => setConfirming(false)}>
-              Cancel
-            </Button>
-          </div>
-        ) : (
-          <div className="flex justify-end">
-            <Button
-              size="sm"
-              variant="outline"
-              title="Close the connection of this client, it reconnects automatically unless stopped"
-              onClick={() => setConfirming(true)}
-            >
-              Disconnect
-            </Button>
-          </div>
-        )}
+        <div className="flex justify-end">
+          <Button
+            size="sm"
+            variant="outline"
+            title="Close the connection of this client, it reconnects automatically unless stopped"
+            onClick={() => setOpen(true)}
+          >
+            Disconnect
+          </Button>
+          <Dialog
+            open={open}
+            onOpenChange={(next) => !busy && setOpen(next)}
+            title="Disconnect this tunnel?"
+            footer={
+              <>
+                <Button size="sm" variant="outline" disabled={busy} onClick={() => setOpen(false)}>
+                  Cancel
+                </Button>
+                <Button size="sm" className={dangerButtonClass} disabled={busy} onClick={() => void confirm()}>
+                  Disconnect
+                </Button>
+              </>
+            }
+          >
+            <p>
+              <code className="break-all">{tunnel.url}</code>
+            </p>
+            <p>
+              <code>pgrok</code> reconnects automatically unless you stop it.
+            </p>
+          </Dialog>
+        </div>
       </td>
     </tr>
   );
